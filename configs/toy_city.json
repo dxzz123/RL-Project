@@ -1,0 +1,121 @@
+{
+  "horizon": 12,
+  "period_hours": 1.0,
+  "zone_xy_km": [
+    [
+      0.0,
+      0.0
+    ],
+    [
+      4.0,
+      0.0
+    ],
+    [
+      0.0,
+      4.0
+    ],
+    [
+      4.0,
+      4.0
+    ]
+  ],
+  "fcs_zones": [
+    0,
+    3
+  ],
+  "initial_locations": [
+    1,
+    2
+  ],
+  "battery_capacity_kwh": 80.0,
+  "initial_energy_kwh": [
+    55.0,
+    55.0
+  ],
+  "reserve_kwh": 5.0,
+  "request_kwh": 10.0,
+  "max_requests_per_zone": 12,
+  "mean_requests_by_zone": [
+    3.0,
+    4.0,
+    3.0,
+    4.0
+  ],
+  "arrival_profile": [
+    0.7,
+    0.7,
+    0.8,
+    1.0,
+    1.2,
+    1.4,
+    1.4,
+    1.2,
+    1.0,
+    0.9,
+    0.8,
+    0.7
+  ],
+  "fcs_retail_per_kwh": [
+    0.42,
+    0.44
+  ],
+  "grid_buy_per_kwh": [
+    0.15,
+    0.15,
+    0.16,
+    0.18,
+    0.22,
+    0.26,
+    0.26,
+    0.22,
+    0.18,
+    0.16,
+    0.15,
+    0.15
+  ],
+  "grid_sell_per_kwh": [
+    0.1,
+    0.1,
+    0.11,
+    0.13,
+    0.16,
+    0.19,
+    0.19,
+    0.16,
+    0.13,
+    0.11,
+    0.1,
+    0.1
+  ],
+  "price_min": 0.2,
+  "price_max": 1.0,
+  "mobile_utility_intercept": 3.8,
+  "fixed_utility_intercept": 3.2,
+  "outside_utility": 0.0,
+  "price_sensitivity_per_dollar": 0.7,
+  "mobile_distance_disutility_per_km": 0.12,
+  "fixed_distance_disutility_per_km": 0.25,
+  "max_fcs_access_km": 8.0,
+  "speed_kmph": 20.0,
+  "travel_kwh_per_km": 0.35,
+  "travel_cost_per_km": 0.25,
+  "mobile_service_kw": 30.0,
+  "mobile_charge_kw": 30.0,
+  "mobile_discharge_kw": 20.0,
+  "charge_efficiency": 0.95,
+  "mobile_service_efficiency": 0.95,
+  "discharge_efficiency": 0.95,
+  "fixed_service_efficiency": 0.95,
+  "fcs_ev_capacity_kwh": [
+    40.0,
+    40.0
+  ],
+  "fcs_fleet_exchange_capacity_kwh": [
+    40.0,
+    40.0
+  ],
+  "operating_cost_per_mcv_period": 0.5,
+  "unmet_penalty_per_kwh": 0.3,
+  "terminal_value_per_stored_kwh": 0.12,
+  "discount_per_period": 0.99
+}

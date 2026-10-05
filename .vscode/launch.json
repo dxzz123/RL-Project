@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Travel to FCS and discharge",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/fcs_discharge_walkthrough.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Manual environment walkthrough",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/manual_walkthrough.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
+      "name": "Verify Gymnasium interface",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/examples/check_gym.py",
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    }
+  ]
+}
