@@ -1,6 +1,6 @@
 # Mobile charging simulation environment
 
-This Python project implements EV arrivals, price-dependent charging choices, mobile vehicle actions, battery accounting, station capacity, and operator profit. It contains no learning algorithm or trained policy.
+This project implements EV arrivals, price-dependent charging choices, mobile vehicle actions, battery accounting, station capacity, and operator profit. It contains no learning algorithm or trained policy.
 
 The proposal leaves several modeling choices unspecified. They are made explicit in [docs/MODEL.md](docs/MODEL.md), and can be changed in `Scenario`. The default city and parameter values are synthetic examples, not calibrated data.
 
