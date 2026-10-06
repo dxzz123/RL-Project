@@ -4,7 +4,7 @@ This document describes the implemented model, rather than a learning algorithm.
 
 ## Entities, units, and defaults
 
-The operator owns fixed charging stations (FCSs) and mobile charging vehicles (MCVs). Zones have coordinates in kilometers; travel distance is Euclidean distance between zone coordinates. The default scenario has four zones, two FCSs, two MCVs, and 12 one-hour periods. Vehicle and station indices start at zero.
+The operator owns fixed charging stations (FCSs) and mobile charging vehicles (MCVs). Zones have coordinates in kilometers; travel distance is Manhattan distance, the sum of the absolute coordinate differences between zones. The default scenario has four zones, two FCSs, two MCVs, and 12 one-hour periods. Vehicle and station indices start at zero.
 
 | Zone | Coordinates (km) | Fixed station | Initial MCV |
 |---|---|---|---|
@@ -317,8 +317,17 @@ The outside option has fixed utility $u_{\mathrm{out}}$.
 - $\alpha$: sensitivity to the customer's total charging bill.
 - $p_m,p^F_f$: retail prices per delivered kWh.
 - $\delta_M,\delta_F$: distance-disutility coefficients.
-- $d(\cdot,\cdot)$: Euclidean distance in kilometers.
+- $d(\cdot,\cdot)$: Manhattan distance in kilometers.
 - $L_m$: current zone of MCV $m$.
+
+For zone coordinates $(x_i,y_i)$ and $(x_j,y_j)$, the distance is
+
+```math
+d(i,j)=\left\|(x_i,y_i)-(x_j,y_j)\right\|_1
+=|x_i-x_j|+|y_i-y_j|.
+```
+
+This assumes travel along an axis-aligned street grid. For example, the distance from $(0,0)$ to $(4,4)$ is $4+4=8$ km. The same distance matrix is used for customer distance penalties, the FCS access radius, MCV travel time, travel energy, travel costs, and dispatch feasibility.
 
 ### Choice probabilities
 
@@ -377,18 +386,77 @@ Here $E_m$ is stored battery energy, $E_{\min}$ is the reserve, $\eta_M$ is serv
 
 ## 5. Station capacity and proportional scaling
 
-Each FCS $f$ has a per-period fleet exchange budget $C_f$, specified by `fcs_fleet_exchange_capacity_kwh`. This budget is separate from the FCS's EV-service capacity.
+### Two separate station budgets
 
-Let $x_m$ be an MCV's requested grid-side charging or export energy at station $f$. For positive total requests, the allocated amount is
+Each FCS $f$ has two energy limits that reset every period:
+
+| Budget | Configuration | What consumes it |
+| --- | --- | --- |
+| EV-service capacity $B_f$ | `fcs_ev_capacity_kwh[f]` | Energy delivered by the FCS to EV customers. |
+| Fleet exchange capacity $C_f$ | `fcs_fleet_exchange_capacity_kwh[f]` | Grid energy used to recharge MCVs plus energy exported by MCVs through the station. |
+
+These are separate budgets in the implemented model. FCS service to EVs does not reduce the MCV fleet exchange budget, and MCV exchange does not reduce the EV-service budget. An FCS has no modeled storage battery: an MCV that discharges at an FCS exports to the grid through its connection.
+
+Every EV request requires a full $q$ kWh. If $D_f^F$ customers selected station $f$, its served count is
 
 ```math
-\widehat{x}_m=
-x_m\min\left\{
-1,\frac{C_f}{\sum_{j\text{ at }f}x_j}
-\right\}.
+K_f^F=\min\left\{D_f^F,\left\lfloor\frac{B_f}{q}\right\rfloor\right\},
+\qquad Q_f^F=qK_f^F.
 ```
 
-If total requests are zero, the scaling factor is defined as one and all allocations are zero. Charging and discharging share a gross energy budget without netting.
+For example, with $B_f=40$ kWh and $q=10$ kWh, the station can serve four full requests in a period. If six customers choose it, four are served and two count as unmet demand. If only two choose it, it delivers 20 kWh. Unused capacity is not carried into the next period; unserved customers do not queue or retry another provider.
+
+### First limit each MCV's request
+
+A dispatch action can request more energy than its vehicle can physically exchange. The simulator first clips each request using the operating time left after travel, the vehicle's charging or discharging power, and its battery headroom or reserve. Let $\bar{E}_m=E_m-e_m^{\mathrm{travel}}$ be battery energy after travel, $h_m$ the remaining operating time, and $x_m^{\mathrm{ask}}$ the requested grid-side energy. For a feasible exchange action,
+
+```math
+x_m=
+\begin{cases}
+\min\left\{x_m^{\mathrm{ask}},\,h_mP_C,\,
+(E_{\max}-\bar{E}_m)/\eta_C\right\},
+&\text{for RECHARGE},\\
+\min\left\{x_m^{\mathrm{ask}},\,h_mP_D,\,
+(\bar{E}_m-E_{\min})\eta_D\right\},
+&\text{for DISCHARGE}.
+\end{cases}
+```
+
+Here $P_C$ and $P_D$ are grid-side charging and export powers. The resulting $x_m$ is a nonnegative energy magnitude in either mode. Individually infeasible actions execute `WAIT` and do not compete for station capacity.
+
+### Then share the station budget proportionally
+
+Let $\mathcal{M}_f$ be the MCVs with feasible recharge or discharge actions at station $f$. Add their clipped requests, including both directions:
+
+```math
+S_f=\sum_{m\in\mathcal{M}_f}x_m,
+\qquad
+\rho_f=
+\begin{cases}
+1,&S_f=0,\\
+\min\left\{1,\frac{C_f}{S_f}\right\},&S_f>0,
+\end{cases}
+\qquad
+\widehat{x}_m=\rho_f x_m.
+```
+
+If $S_f\leq C_f$, every MCV receives its full clipped request. If $S_f>C_f$, every MCV receives the same fraction $C_f/S_f$ of its request, so their allocations sum to $C_f$. For example, a larger request receives a larger allocation, but the fraction fulfilled is the same. Exchange energy can be fractional; the full-request restriction applies to EV service.
+
+Suppose a station has $C_f=40$ kWh and the following requests remain after individual feasibility limits:
+
+| MCV | Mode | Clipped request $x_m$ | Allocation $\widehat{x}_m$ |
+| --- | --- | --- | --- |
+| A | `RECHARGE` | 30 kWh | 24 kWh |
+| B | `DISCHARGE` | 20 kWh | 16 kWh |
+| Total | Both directions | 50 kWh | 40 kWh |
+
+The common scaling factor is $40/50=0.8$. Vehicle A receives 80% of its charging request, and B receives 80% of its export request. The station uses 40 kWh of **gross exchange capacity**: 24 kWh in plus 16 kWh out. Its net grid import is only 8 kWh, but that net value is not used to determine capacity. Charging and discharging do not cancel when calculating the budget.
+
+Allocations are measured on the grid side. A's battery gains $24\eta_C$ stored kWh, while B's battery loses $16/\eta_D$ stored kWh, in addition to any travel energy already consumed. Scaling reduces the exchanged energy; it does not refund travel energy or travel cost.
+
+### Interpretation of the capacity limit
+
+Both station budgets are kWh **per period**, not instantaneous kW limits. The simulator applies individual MCV power limits through $h_mP_C$ or $h_mP_D$, then applies the shared station energy budget. It does not schedule charging ports, enforce a combined instantaneous station power limit, or model queues. Station sharing is resolved independently at each FCS. A zero fleet exchange capacity permits no MCV exchange at that station.
 
 ## 6. Energy conservation and state update
 

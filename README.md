@@ -90,6 +90,8 @@ The example city is a 4 km square. FCSs remain in zones 0 and 3, while the MCVs 
 | 2 | `(0, 4)` | — | MCV 1 |
 | 3 | `(4, 4)` | FCS 1 | — |
 
+Distances use the Manhattan norm: add the absolute east–west and north–south coordinate differences. This represents an axis-aligned street grid, so a trip from zone 0 to zone 3 is 8 km. The same distance is used for travel, customer choice, and station access.
+
 These are initial positions. MCVs can subsequently visit FCSs to recharge or discharge. `DISCHARGE` exports energy from an MCV battery through the FCS connection to the station-side grid, earning revenue at the period's grid sell price. FCSs have no modeled storage battery; this export does not replenish an FCS battery.
 
 For example, the core API can be used directly:

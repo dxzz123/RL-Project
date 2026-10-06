@@ -1,6 +1,6 @@
 # Validation of version 0.1.1
 
-Validated on 2026-10-05 UTC with Python 3.12.14, NumPy 2.3.5, and Gymnasium 1.3.0.
+Validated locally on 2026-10-05 with Python 3.12.4, NumPy 2.5.3, and Gymnasium 1.4.0, using the project's `.venv` interpreter.
 
 Commands run from the project folder:
 
@@ -11,19 +11,21 @@ python examples/fcs_discharge_walkthrough.py
 python examples/check_gym.py
 ```
 
-All 30 unit tests pass. The manual walkthrough completes all 12 periods, and
+All 32 unit tests pass. The manual walkthrough completes all 12 periods, and
 Gymnasium's official environment checker passes. The checker recommends
 normalizing continuous action spaces for future learning; the current interface
 uses dollars and kWh so that the physical meaning is visible.
 
 The tests include independent hand-calculated cases for customer service,
 energy losses, travel, shared fleet exchange capacity, procurement, and profit.
-They also verify choice normalization and price response, reproducible seeds,
+Diagonal-route regressions verify Manhattan distance, travel energy and cost,
+remaining operating time, service limits, and customer-option availability.
+The tests also verify choice normalization and price response, reproducible seeds,
 frozen post-price choices, invalid-action handling, and episode timing.
 
 Version 0.1.1 separates the MCV initial positions (zones 1 and 2) from FCS
 positions (zones 0 and 3). The controlled FCS discharge walkthrough starts
-with no EV requests and verifies both vehicles can travel 4 km to a station,
+with no EV requests and verifies both vehicles can make axis-aligned 4 km trips to a station,
 consume 1.4 kWh for travel, and export 10 kWh through each station. Each final
 battery is 43.073684 kWh; total export revenue is $2, travel costs $2, and
 operating costs $1, for a period profit of -$1. Regression tests also verify
@@ -35,5 +37,7 @@ These checks validate the implemented simulator against its stated model.
 They do not calibrate the synthetic parameters, demonstrate an algorithm's
 performance, or establish physical realism beyond the assumptions in MODEL.md.
 
-The project has not been run on the user's computer. Follow README.md to
-install it and select the project's Python interpreter in VS Code.
+The simulator and example checks above were run on this computer.
+The model documentation also passed VS Code's bundled KaTeX renderer with
+21 display equations and 101 inline expressions, with no math syntax errors.
+Follow README.md to select the project's Python interpreter in VS Code.

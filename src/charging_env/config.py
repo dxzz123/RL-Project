@@ -64,8 +64,9 @@ class Scenario:
 
     @cached_property
     def distances(self):
+        """Pairwise Manhattan distances in km for an axis-aligned road grid."""
         xy = np.asarray(self.zone_xy_km, dtype=float)
-        return np.linalg.norm(xy[:, None, :] - xy[None, :, :], axis=2)
+        return np.abs(xy[:, None, :] - xy[None, :, :]).sum(axis=2)
 
     def validate(self):
         integer_fields = ("horizon", "max_requests_per_zone")

@@ -194,6 +194,35 @@ class ModelTests(unittest.TestCase):
         self.assertAlmostEqual(reward, -5.5)
         np.testing.assert_array_equal(sim.locations, [1, 0])
 
+    def test_diagonal_manhattan_travel_limits_service_and_charging(self):
+        # The 3-by-4-km trip is 7 km, leaving 0.3 hours rather than 0.5.
+        sim = ChargingSimulator(small_scenario(
+            zone_xy_km=((0., 0.), (3., 4.)), initial_locations=(0, 1),
+            speed_kmph=10., mobile_service_kw=40., mobile_charge_kw=10.))
+        set_post_choice_demand(sim, [[0, 3], [0, 0]])
+        self.assertEqual(sim.service_limit(0, 1), 1)
+        _, _, _, _, info = sim.dispatch([
+            DispatchAction(Mode.SERVE, 1), DispatchAction(Mode.RECHARGE, 0, 100.)])
+        np.testing.assert_array_equal(info["served_mobile"], [[0, 1], [0, 0]])
+        self.assertEqual(info["unmet_mobile_requests"], 2)
+        ledger = info["energy_ledger"]
+        np.testing.assert_allclose(ledger["travel_kwh"], [2.45, 2.45])
+        np.testing.assert_allclose(ledger["charge_grid_kwh"], [0., 3.])
+        np.testing.assert_allclose(ledger["after_kwh"], [25.05, 39.95])
+        np.testing.assert_allclose(ledger["balance_residual_kwh"], 0., atol=1e-12)
+        self.assertAlmostEqual(info["reward_terms"]["travel_cost"], 3.5)
+
+    def test_diagonal_manhattan_distance_excludes_unreachable_choices(self):
+        sim = ChargingSimulator(small_scenario(
+            zone_xy_km=((0., 0.), (3., 4.)), speed_kmph=10.,
+            mobile_service_kw=30., max_fcs_access_km=6.))
+        sim.reset(seed=1)
+        probabilities = sim.choice_probabilities([0.6, 0.8])
+        # A 7-km trip leaves time for only 9 kWh, below one full request;
+        # the FCS is also beyond the 6-km customer access radius.
+        np.testing.assert_array_equal(probabilities[1], [0., 0., 0., 1.])
+        self.assertTrue((probabilities[0, :3] > 0.).all())
+
     def test_mcv_serves_only_its_own_users_in_one_zone(self):
         sim = ChargingSimulator(small_scenario())
         set_post_choice_demand(sim, [[1, 2], [3, 0]])
@@ -370,10 +399,13 @@ class ModelTests(unittest.TestCase):
 
 
 class ScenarioTests(unittest.TestCase):
-    def test_default_scenario_is_valid_and_distances_are_in_km(self):
+    def test_default_scenario_has_manhattan_distances_in_km(self):
         scenario = Scenario().validate()
-        np.testing.assert_allclose(scenario.distances[0], [0., 4., 4., np.sqrt(32.)])
+        np.testing.assert_allclose(scenario.distances[0], [0., 4., 4., 8.])
         np.testing.assert_allclose(scenario.distances, scenario.distances.T)
+        np.testing.assert_array_equal(np.diag(scenario.distances), 0.)
+        shifted = small_scenario(zone_xy_km=((-2., 1.), (1., -3.)))
+        np.testing.assert_allclose(shifted.distances, [[0., 7.], [7., 0.]])
 
     def test_invalid_physical_behavioral_and_dimension_settings_are_rejected(self):
         malformed = (
