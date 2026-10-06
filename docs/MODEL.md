@@ -49,10 +49,10 @@ Pricing has no elapsed physical time and returns zero reward. Dispatch advances 
 
 For each zone `z`, independently,
 
-$$
-N_{tz}\sim\operatorname{Binomial}\left(N_{\max},
+```math
+N_{tz}\sim\mathrm{Binomial}\left(N_{\max},
 \frac{\mu_z h_t}{N_{\max}}\right).
-$$
+```
 
 Here `N_max = max_requests_per_zone`, `mu_z = mean_requests_by_zone[z]`, and `h_t = arrival_profile[t]`. Validation requires each probability to lie in `[0,1]`. Draws are independent over zones and periods, with period-specific means. Every customer has the same requested energy `q = request_kwh`.
 
@@ -62,21 +62,21 @@ The realized counts, rather than just their means, are observed before pricing. 
 
 Users within a zone are homogeneous. For a request in zone `z`, a mobile option `m` has deterministic utility
 
-$$
+```math
 u^M_{zm}=b_M-\alpha q p_m-\delta_M d(L_m,z).
-$$
+```
 
 An FCS `f`, located in zone `z_f`, has utility
 
-$$
+```math
 u^F_{zf}=b_F-\alpha q p^F_f-\delta_F d(z,z_f).
-$$
+```
 
 The outside utility is `u_out`. Utilities are dimensionless: `alpha` multiplies the request's dollar bill, and the distance coefficient multiplies kilometers. The choice probabilities are multinomial logit:
 
-$$
+```math
 P_{zj}=\frac{\exp(u_{zj})}{\sum_{k\in\mathcal A_z}\exp(u_{zk})}.
-$$
+```
 
 The outside option is always available. A mobile option is available only if that MCV could travel to this zone and serve at least one full request within the period, using its current battery and service power. An FCS is available if the zone is within its access radius and its EV capacity admits at least one full request. Unavailable options have probability zero.
 
@@ -100,17 +100,17 @@ Each MCV receives one `DispatchAction(mode, target_zone, energy_kwh)`.
 
 For travel distance `d`, available operating time and travel energy are
 
-$$
+```math
 h=\Delta-d/v,\qquad e^{\mathrm{travel}}=\kappa d.
-$$
+```
 
 Travel must fit within the period and leave at least the battery reserve. A vehicle completes travel within the period; there is no in-transit state. Every vehicle performs at most one operation, and cannot serve multiple zones or recharge and serve in the same period.
 
 Let `eta_M` denote mobile service efficiency and `P_M` the delivered service power. The maximum number of full requests vehicle `m` can serve in zone `z` is
 
-$$
+```math
 k_{mz}=\left\lfloor\frac{\min\{\eta_M(E_m-e^{\mathrm{travel}}-E_{\min}),\ hP_M\}_+}{q}\right\rfloor.
-$$
+```
 
 The served count is the smaller of `k_mz` and its selected demand in that zone. Partial EV requests are not served.
 
@@ -133,9 +133,9 @@ After travel, a recharge request is capped by the requested grid kWh, remaining 
 
 For station `f`, let the resulting grid-side requests be `x_m`, including both charging and export. If their total exceeds station capacity `C_f`, each receives the same proportional factor:
 
-$$
+```math
 \widehat x_m=x_m\min\left\{1,\frac{C_f}{\sum_{j\text{ at }f}x_j}\right\}.
-$$
+```
 
 The factor is one if total demand is zero. Charging and discharging share the gross exchange budget; they are not netted. Simultaneous charging and export at an FCS are permitted. There are no station storage dynamics. Grid sell prices cannot exceed grid buy prices under the current scenario validation.
 
@@ -143,10 +143,10 @@ The factor is one if total demand is zero. Charging and discharging share the gr
 
 Let `Q_m` be EV energy delivered by MCV `m`, `C_m` its allocated grid-input charging, and `X_m` its allocated grid-export discharge. For every period,
 
-$$
+```math
 E'_m=E_m-e_m^{\mathrm{travel}}+\eta_C C_m
 -\frac{Q_m}{\eta_M}-\frac{X_m}{\eta_D}.
-$$
+```
 
 All final vehicle inventories must be between reserve and battery capacity. The simulator checks this equation numerically on every dispatch and reports its residual in the energy ledger.
 
@@ -158,7 +158,7 @@ FCS delivery `Q^F_f` purchases `Q^F_f / eta_F` grid kWh. It does not draw from a
 
 Define mobile and FCS retail prices `p_m`, `p^F_f`, and period grid buy/sell prices `g^buy_t`, `g^sell_t`. Let `U_t` be the number of customers who selected an operator service but were not served. Period profit is
 
-$$
+```math
 \begin{aligned}
 r_t={}&\sum_m p_m Q_m+\sum_f p^F_f Q^F_f
 +g_t^{\mathrm{sell}}\sum_m X_m\\
@@ -167,7 +167,7 @@ r_t={}&\sum_m p_m Q_m+\sum_f p^F_f Q^F_f
 &-c_{\mathrm{op}}|\mathcal M|-c_{\mathrm{unmet}}qU_t
 +\mathbf1_{\{t=T-1\}}s\sum_m E'_m.
 \end{aligned}
-$$
+```
 
 Operating cost is charged for every MCV every period, including vehicles that wait. Unmet cost includes unserved selected MCV and FCS demand. Outside choices are excluded. `terminal_value_per_stored_kwh = s` values all remaining battery inventory, including reserve, at the final dispatch.
 
@@ -177,10 +177,10 @@ The FCSs and MCVs belong to one integrated operator. Payments between an FCS and
 
 The intended objective is
 
-$$
+```math
 \mathbb E\left[\sum_{t=0}^{T-1}\gamma^t r_t\right],
-\qquad \gamma=\texttt{discount_per_period}.
-$$
+\qquad \gamma=\texttt{discount\_per\_period}.
+```
 
 `cumulative_profit` is the raw sum; `cumulative_discounted_profit` uses the expression above. Pricing transitions return continuation discount `1`; nonterminal dispatch transitions return `gamma`; terminal dispatch returns `0`. A future learner must handle these stage-specific continuation discounts. Applying a fixed gamma to both calls introduces an extra discount within every physical period. Gymnasium's `info` dictionary exposes these values, but a generic RL library will not necessarily consume them automatically.
 
