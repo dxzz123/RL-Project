@@ -38,6 +38,7 @@ They do not calibrate the synthetic parameters, demonstrate an algorithm's
 performance, or establish physical realism beyond the assumptions in MODEL.md.
 
 The simulator and example checks above were run on this computer.
-The model documentation also passed VS Code's bundled KaTeX renderer with
-21 display equations and 101 inline expressions, with no math syntax errors.
+The model documentation was checked on 2026-10-06 with VS Code's bundled
+KaTeX renderer: 18 display equations and 73 inline expressions
+passed with no math syntax errors.
 Follow README.md to select the project's Python interpreter in VS Code.
