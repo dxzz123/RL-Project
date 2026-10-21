@@ -2,6 +2,8 @@
 
 > Historical record through 2026-10-21. For the current checks and their scope, use [VALIDATION.md](../VALIDATION.md); for performance, use [COMPARISON.md](../COMPARISON.md).
 
+Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
+
 This page records how the project was checked at successive development stages. There are several separate questions: does the simulator follow the intended physical and customer rules, does training execute correctly, can saved results be reproduced, and does the learned policy actually earn good profit? Passing one kind of check does not answer all the others. For example, a saved model may reload perfectly while still earning less than a simple rule.
 
 The latest recorded complete **test suite**, meaning all automated checks run together, has **211 passing tests**. The latest study trained Joint PPO with seeds 7, 19, and 37 and compared it with earlier PPO, fitted value, and three heuristic families. Every Joint PPO seed beat its earlier-PPO counterpart on the base test. Inventory rules and fitted value still earned higher base profit. Correct execution and good operating decisions are therefore checked separately.
@@ -58,7 +60,7 @@ A warning about an **unbounded observation** means the model does not assign tha
 
 Training tests check when future profit is discounted, that credit calculations stop between episodes, that actors use allowed-action masks, that recorded action probabilities can be calculated again, that learned parameters change during updates, and that checkpoints save and restore training state. Recalculating action probabilities is called **likelihood replay**; it checks the numbers used to compare the old and new policies.
 
-With GAE parameter $\lambda_{\mathrm{GAE}}=1$, the targets for both critics equal the full discounted return from the current period through the end of the episode. At zero, they instead use the current period's reward plus a discounted critic prediction from the next pricing state, with no future prediction after the episode ends. Using a critic prediction for later outcomes is called **bootstrapping**. The pricing target still includes customer choice and dispatch in the current period. The symbol $\lambda_{i,t}$ means average customer arrivals and is unrelated to this learning parameter; see [NOTATION.md](../NOTATION.md).
+With GAE parameter $`\lambda_{\mathrm{GAE}}=1`$, the targets for both critics equal the full discounted return from the current period through the end of the episode. At zero, they instead use the current period's reward plus a discounted critic prediction from the next pricing state, with no future prediction after the episode ends. Using a critic prediction for later outcomes is called **bootstrapping**. The pricing target still includes customer choice and dispatch in the current period. The symbol $`\lambda_{i,t}`$ means average customer arrivals and is unrelated to this learning parameter; see [NOTATION.md](../NOTATION.md).
 
 Other tests check the probability of choosing all node prices together, exclusion of nodes without mobile service, vehicle action and energy-fraction probabilities, empty and large request lists, and how request features are combined for the networks. They check that vehicle observations are correct, policies stay fixed during collection, all four networks update, and saved numerical results remain valid.
 
@@ -78,7 +80,7 @@ Three fresh 500-update runs collected **288,000 physical periods**. Each complet
 
 On the base test, Joint PPO earned **123.19** versus earlier PPO at **117.42**. The paired improvement was **5.77**, with 95% interval **[4.95, 6.55]**; all three individual seed intervals were positive. Joint PPO remained below the time-dependent rule at **133.41** and fitted value at **137.76**. Only the predeclared criterion for improvement over earlier PPO passed. Low-inventory seed 19 declined, so the base consistency finding does not apply across every stress condition.
 
-The independent audit recalculates paired uncertainty, actual-model risks, business-profit ledgers, operating metrics, and budgets from saved episodes and checks the original PDF, code snapshot, protocols, and checkpoint hashes. [JOINT_PPO.md](../JOINT_PPO.md) explains the details, operating gap, curves, commands, and limits. The [211-test log](../../outputs/paper_ppo_study/logs/unit_tests.log), [independent audit](../../outputs/paper_ppo_study/analysis.json), and [executed-source snapshot](../../outputs/paper_ppo_study/provenance/executed_training_source) support this record. Small execution checks are recorded separately and were not used to select the main method.
+The independent audit recalculates paired uncertainty, actual-model risks, business-profit ledgers, operating metrics, and budgets from saved episodes and checks the original PDF, code snapshot, protocols, and checkpoint hashes. [JOINT_PPO.md](../JOINT_PPO.md) explains the details, operating gap, curves, commands, and limits. The 211-test log (`outputs/paper_ppo_study/logs/unit_tests.log`), independent audit (`outputs/paper_ppo_study/analysis.json`), and executed-source snapshot (`outputs/paper_ppo_study/provenance/executed_training_source`) support this record. Small execution checks are recorded separately and were not used to select the main method.
 
 ### Fitted-value dispatch, 2026-10-20
 
@@ -92,7 +94,7 @@ Base mean discounted profit was **137.76** for fitted value, **133.39** for the 
 
 The stress tests preserve an important limitation. Fitted value earned **139.48** under higher demand, while service-first earned **145.50**. In the low-inventory case fitted value earned **127.15**, above the primary rule's **122.94**. These tests did not trigger more tuning. See [Fitted-value study](FITTED_VALUE_STUDY.md) for the full five-method table, operating explanation, budgets, and reproducible commands.
 
-The [saved 174-test log](../../outputs/fitted_value_study/logs/unit_tests.log), [independent numerical audit](../../outputs/fitted_value_study/analysis.json), and [executed-source snapshot](../../outputs/fitted_value_study/provenance/executed_training_source) support this record. The audit independently recomputes profits, paired intervals, risk statistics, and business-reward accounting from the individual episode records and verifies the recorded source/checkpoint hashes. A separate coarse training check and its eight development evaluation episodes are recorded outside the main test budget.
+The saved 174-test log (`outputs/fitted_value_study/logs/unit_tests.log`), independent numerical audit (`outputs/fitted_value_study/analysis.json`), and executed-source snapshot (`outputs/fitted_value_study/provenance/executed_training_source`) support this record. The audit independently recomputes profits, paired intervals, risk statistics, and business-reward accounting from the individual episode records and verifies the recorded source/checkpoint hashes. A separate coarse training check and its eight development evaluation episodes are recorded outside the main test budget.
 
 ### Earlier targeted PPO study
 
@@ -104,7 +106,7 @@ On the fresh base test, new average discounted profit is **116.72**, previous-po
 
 An independent numerical review recomputed all 24 reported paired bootstrap comparisons. **Bootstrap** means repeatedly resampling the recorded scenarios to estimate uncertainty in the average comparison. The review also checked counts and file **hashes**, fingerprints used to detect whether source files or the nine checkpoints had changed. A read-only copy preserves the training source exactly as run. Later script changes add stricter checks on reproduction settings without changing learning code. Saved files were checked by their hashes after copying into the project, and 12 saved test episodes were reproduced exactly there.
 
-See [B3_TRAINING_IMPROVEMENTS.md](B3_TRAINING_IMPROVEMENTS.md) for the complete protocol, behavioral gap, plots, and budgets. The [saved 142-test log](../../outputs/b3_improved_study/reviews/unit_tests.log) and [machine-readable analysis](../../outputs/b3_improved_study/analysis.json) support that study's record.
+See [B3_TRAINING_IMPROVEMENTS.md](B3_TRAINING_IMPROVEMENTS.md) for the complete protocol, behavioral gap, plots, and budgets. The saved 142-test log (`outputs/b3_improved_study/reviews/unit_tests.log`) and machine-readable analysis (`outputs/b3_improved_study/analysis.json`) support that study's record.
 
 ## 4. How the evidence developed
 
@@ -165,4 +167,4 @@ Before and after evaluation used held-out seeds `15, 17, 19, 21`, separate from 
 
 Profit decreased. The run established that the training path executed; it did not establish useful learning. That decline motivated the subsequent analyses and benchmark comparisons linked above.
 
-The unchanged saved record is [outputs/sa_ppo_mappo_smoke](../../outputs/sa_ppo_mappo_smoke), including [summary](../../outputs/sa_ppo_mappo_smoke/summary.json), [metrics](../../outputs/sa_ppo_mappo_smoke/training_metrics.csv), [initial evaluation](../../outputs/sa_ppo_mappo_smoke/evaluation_before.json), [final evaluation](../../outputs/sa_ppo_mappo_smoke/evaluation_after.json), and [checkpoint](../../outputs/sa_ppo_mappo_smoke/checkpoint.pt), alongside its scenario and configuration.
+The unchanged saved record is `outputs/sa_ppo_mappo_smoke`, including summary (`outputs/sa_ppo_mappo_smoke/summary.json`), metrics (`outputs/sa_ppo_mappo_smoke/training_metrics.csv`), initial evaluation (`outputs/sa_ppo_mappo_smoke/evaluation_before.json`), final evaluation (`outputs/sa_ppo_mappo_smoke/evaluation_after.json`), and checkpoint (`outputs/sa_ppo_mappo_smoke/checkpoint.pt`), alongside its scenario and configuration.

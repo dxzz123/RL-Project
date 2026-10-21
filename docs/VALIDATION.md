@@ -44,15 +44,17 @@ Gymnasium may warn about unbounded observations because arrivals have no artific
 
 ## Evidence behind the current comparison
 
+The files listed below are local experiment records under `outputs/`, which is not included in Git. Use the saved study files or [reproduce the experiment](TRAINING.md#reproduce-the-six-method-study) to inspect them.
+
 The latest study trained joint PPO with seeds 7, 19, and 37 for 500 updates each. It reused three saved approximate-DP models and three earlier-PPO models, and selected one rule from each of three heuristic families using separate validation scenarios.
 
 | Evidence | Location in `outputs/paper_ppo_study/` |
 |---|---|
-| Training settings, independent seed banks, and selection criteria | [protocol.json](../outputs/paper_ppo_study/protocol.json) |
-| Original full test-suite log | [logs/unit_tests.log](../outputs/paper_ppo_study/logs/unit_tests.log) |
-| Audited results, uncertainty, budgets, and operating measures | [analysis.json](../outputs/paper_ppo_study/analysis.json) |
-| Implementation and algorithm specification | [executed source snapshot](../outputs/paper_ppo_study/provenance/executed_training_source/) |
-| Verification after installation in this project | [installed_verification.json](../outputs/paper_ppo_study/provenance/installed_verification.json) |
+| Training settings, independent seed banks, and selection criteria | `protocol.json` |
+| Original full test-suite log | `logs/unit_tests.log` |
+| Audited results, uncertainty, budgets, and operating measures | `analysis.json` |
+| Implementation and algorithm specification | `provenance/executed_training_source/` |
+| Verification after installation in this project | `provenance/installed_verification.json` |
 
 Three new PPO runs collected 288,000 training physical periods in total. Rule selection evaluated 82 candidates on 128 validation scenarios, or 10,496 policy episodes. Final testing ran 12 controllers on 512 base scenarios and 256 scenarios in each of two stress cases: 12,288 policy episodes over 1,024 distinct scenarios. Both rule validation and final testing recorded zero invalid actions.
 

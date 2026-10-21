@@ -2,6 +2,8 @@
 
 > Historical experiment. Its numbers belong to the scenarios and methods recorded here. Use [the current comparison](../COMPARISON.md) for approximate DP, both PPO versions, and the three main rules on shared tests. See [the archive index](README.md) for context.
 
+Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
+
 **The learned policy was profitable, but a coordinated inventory rule earned more.** A policy is a decision rule; reinforcement learning (RL) learns one by trying actions in simulated operating episodes. A **benchmark**, also called a baseline, is another decision rule used as a point of comparison. On 256 new test scenarios, the three final stochastic policies averaged **16.49** discounted model dollars per episode. The validation-selected inventory rule earned **22.75**. RL was **6.26 lower, or about 27.5%**, with a paired 95% bootstrap interval of **[−6.81, −5.73]** for RL minus the rule. The testing section below explains what that interval tells us.
 
 This report records the completed **2026-10-17 historical comparison under b=0**, the original customer-choice model. The existing network weights were **frozen**, meaning they were kept fixed throughout evaluation. There was no further training or change to the profit formula. It followed [the longer-training investigation](TRAINING_ANALYSIS.md): the training curve showed whether performance had settled down, while these benchmarks showed how good the resulting decisions were. Later b=3 results are in [SILU_B3_STUDY.md](SILU_B3_STUDY.md) and [B3_TRAINING_IMPROVEMENTS.md](B3_TRAINING_IMPROVEMENTS.md).
@@ -24,7 +26,7 @@ Mean profit is the main objective, but an average does not describe everything a
 
 ## What are the competing rules?
 
-All methods face the same environment, action constraints, initial conditions, and profit formula. Pricing sees the pre-choice state $s_t$. Dispatch sees the post-choice state, $\tilde s_t$, after the current customers choose. No method sees future realized demand or future random draws.
+All methods face the same environment, action constraints, initial conditions, and profit formula. Pricing sees the pre-choice state $`s_t`$. Dispatch sees the post-choice state, $`\tilde s_t`$, after the current customers choose. No method sees future realized demand or future random draws.
 
 The adaptive pricing rule uses the multinomial logit (MNL) customer-choice model described in [MODEL.md](../MODEL.md). MNL calculates the probability that a customer chooses each charging option or leaves, based on the options’ preference scores. A *myopic* rule considers only profit in the current period. An *inventory-value* rule also assigns a provisional value to battery energy left for later periods. For example, a shadow value of \$0.10 per stored kWh credits a 10-kWh increase in stored energy with \$1 in the rule's decision score. This helps it consider recharging even when charging costs money immediately. That provisional score is used to choose an action; it is never added to the business profit reported in the tables.
 
@@ -55,7 +57,7 @@ The rule uses a **forward model**: a calculation that predicts what each candida
 | Inventory value, the strongest family on validation | Price **0.50**; shadow value **0.10** |
 | Adaptive pricing | Shadow value 0.10 |
 
-All candidate results are in [selection.json](../../outputs/policy_benchmarks/selection.json). The strongest rule family was also selected on validation, rather than chosen after seeing test outcomes.
+All candidate results are in `outputs/policy_benchmarks/selection.json`. The strongest rule family was also selected on validation, rather than chosen after seeing test outcomes.
 
 | Split | Distinct scenarios per case | Environment seeds | Purpose |
 |---|---:|---|---|
@@ -69,7 +71,7 @@ The main RL result averages **three separately executed final stochastic policie
 
 A **paired comparison** subtracts one method's return from the other method's return within each shared scenario. To form the paired bootstrap confidence interval (CI), we repeatedly resample the scenario differences, allowing a scenario to be selected more than once, **5,000 times**. An interval entirely below zero means the observed disadvantage is unlikely to be explained only by which test scenarios were sampled, for these fixed trained models. This interval does not cover all possible results of training the algorithm again. Different training seeds can produce different learned models, so we show the three training-seed results separately. Testing on 256 scenarios is not the same as training 256 independent models. See [Agarwal et al.](https://arxiv.org/abs/2108.13264) for background on RL evaluation uncertainty.
 
-Learned policies retain their training-time feature normalization constants during stress tests. No recalibration or retraining is performed. The [frozen protocol](../../outputs/policy_benchmarks/protocol.json) records configurations, source hashes, and checkpoint hashes; checkpoint hashes were checked again after testing.
+Learned policies retain their training-time feature normalization constants during stress tests. No recalibration or retraining is performed. The frozen protocol (`outputs/policy_benchmarks/protocol.json`) records configurations, source hashes, and checkpoint hashes; checkpoint hashes were checked again after testing.
 
 ## How did the methods compare under the default scenario?
 
@@ -166,4 +168,4 @@ python experiments/plot_policy_benchmarks.py --output-dir outputs/policy_benchma
 
 The complete experiment used **61 × 64 rule-validation executions**, **18 × 256 default-test executions**, and **2 × 12 × 128 stress-test executions**: **11,584 policy episodes in total**. These count each policy's run through an episode; several policies can run on the same scenario. Every execution had zero invalid actions. The suite at the time passed **81 tests**, including 17 new checks for the separate physical prediction model, joint action search, separation of random number streams, and the shared interface used to run policies. See [VALIDATION.md](../VALIDATION.md) for the current suite.
 
-Saved artifacts include [the complete JSON](../../outputs/policy_benchmarks/summary.json), [default-case CSV](../../outputs/policy_benchmarks/base/summary.csv), [profit decomposition](../../outputs/policy_benchmarks/gap_diagnostics.json), [PNG chart](../../outputs/policy_benchmarks/comparison.png), and [vector PDF](../../outputs/policy_benchmarks/comparison.pdf).
+Saved artifacts include the complete JSON (`outputs/policy_benchmarks/summary.json`), default-case CSV (`outputs/policy_benchmarks/base/summary.csv`), profit decomposition (`outputs/policy_benchmarks/gap_diagnostics.json`), PNG chart (`outputs/policy_benchmarks/comparison.png`), and vector PDF (`outputs/policy_benchmarks/comparison.pdf`).

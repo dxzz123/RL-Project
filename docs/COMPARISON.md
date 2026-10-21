@@ -166,4 +166,6 @@ The `--show` command reads the saved analysis. It does not train, rerun evaluati
 
 The monitoring curves use separate, repeatedly observed scenarios. A late plateau indicates that measured learning has stabilized over that range; it does not prove global convergence or replace the independent tests above.
 
-For exact numbers and reproducibility, use the [saved analysis](../outputs/paper_ppo_study/analysis.json), [frozen study protocol](../outputs/paper_ppo_study/protocol.json), [validation-selected rule settings](../outputs/paper_ppo_study/rule_selection/selection.json), and [test results](../outputs/paper_ppo_study/benchmarks/). [TRAINING.md](TRAINING.md) explains how to run each controller, evaluate a checkpoint, and reproduce a fresh comparison.
+The files below are local records under `outputs/`, which is not included in Git. Use the saved study files or [reproduce the experiment](TRAINING.md#reproduce-the-six-method-study) to inspect them.
+
+For exact numbers and reproducibility, use the saved analysis (`outputs/paper_ppo_study/analysis.json`), frozen study protocol (`outputs/paper_ppo_study/protocol.json`), validation-selected rule settings (`outputs/paper_ppo_study/rule_selection/selection.json`), and test results (`outputs/paper_ppo_study/benchmarks/`). [TRAINING.md](TRAINING.md) explains how to run each controller, evaluate a checkpoint, and reproduce a fresh comparison.

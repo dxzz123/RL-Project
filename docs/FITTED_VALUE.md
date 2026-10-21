@@ -16,13 +16,13 @@ The distinction from PPO is direct. PPO learns an actor that outputs action prob
 
 ## What the value table represents
 
-Use physical periods $t=1,\ldots,T$. Python uses `period = t - 1`. Let
+Use physical periods $`t=1,\ldots,T`$. Python uses `period = t - 1`. Let
 
-$$
+```math
 x_t=(l_{1,t},l_{2,t},e_{1,t},e_{2,t}),
-$$
+```
 
-where $l_{m,t}$ is vehicle $m$'s location and $e_{m,t}$ is its stored energy. The fitted table $\widehat V_t(x_t)$ estimates remaining discounted business profit **before that period's random requests and customer choices**, assuming the controller continues to use its fixed price.
+where $`l_{m,t}`$ is vehicle $`m`$'s location and $`e_{m,t}`$ is its stored energy. The fitted table $`\widehat V_t(x_t)`$ estimates remaining discounted business profit **before that period's random requests and customer choices**, assuming the controller continues to use its fixed price.
 
 The table keeps the vehicles in their original order. This matters because the simulator assigns whole requests in vehicle-index order: exchanging vehicle 1's and vehicle 2's states need not produce the same outcome.
 
@@ -32,28 +32,28 @@ Locations are discrete. Batteries use a grid, and values between grid points are
 
 ## How one dispatch decision is made
 
-After customers choose, let $\widetilde S_t$ denote the full dispatch observation. The dispatcher evaluates
+After customers choose, let $`\widetilde S_t`$ denote the full dispatch observation. The dispatcher evaluates
 
-$$
-\mathbf a_t^D\in\operatorname*{arg\,max}_{\mathbf a\in\mathcal G(\widetilde S_t)}
+```math
+\mathbf a_t^D\in\mathop{\mathrm{arg\,max}}\limits_{\mathbf a\in\mathcal G(\widetilde S_t)}
 \left[
  R_t^d(\widetilde S_t,\mathbf a)
- +\gamma\,\operatorname{Interp}\widehat V_{t+1}
+ +\gamma\,\mathrm{Interp}\,\widehat V_{t+1}
  \bigl(f(\widetilde S_t,\mathbf a)\bigr)
 \right].
-$$
+```
 
 Each part has a concrete role:
 
 | Term | Meaning |
 |---|---|
-| $\mathcal G(\widetilde S_t)$ | Feasible joint action candidates for both vehicles |
-| $R_t^d$ | This period's original business profit, including costs and penalties |
-| $f(\widetilde S_t,\mathbf a)$ | The next fleet locations and stored energies under that action |
-| $\widehat V_{t+1}$ | Estimated profit available after this period |
-| $\gamma$ | Discount applied once between physical periods |
+| $`\mathcal G(\widetilde S_t)`$ | Feasible joint action candidates for both vehicles |
+| $`R_t^d`$ | This period's original business profit, including costs and penalties |
+| $`f(\widetilde S_t,\mathbf a)`$ | The next fleet locations and stored energies under that action |
+| $`\widehat V_{t+1}`$ | Estimated profit available after this period |
+| $`\gamma`$ | Discount applied once between physical periods |
 
-For illustration, an action earning 8 dollars now with an estimated 20-dollar continuation value has score $8+0.99\times20=27.80$. Another action earning 12 dollars now but leaving a 10-dollar continuation value has score $21.90$. The controller chooses the first. These numbers illustrate the calculation; they are not recorded experimental results.
+For illustration, an action earning 8 dollars now with an estimated 20-dollar continuation value has score $`8+0.99\times20=27.80`$. Another action earning 12 dollars now but leaving a 10-dollar continuation value has score $`21.90`$. The controller chooses the first. These numbers illustrate the calculation; they are not recorded experimental results.
 
 The candidate grid includes the simulator's feasible modes and destinations. For recharge and export, it requests either **half or all of the individually feasible grid energy**. The original simulator then resolves shared station limits and whole-request allocation. The same candidate generator is used by the coordinated inventory rules, so replacing the inventory coefficient with a learned table does not change the underlying physics.
 
@@ -63,34 +63,34 @@ The action search is exact **over this finite grid**. It is not an optimization 
 
 Training works backward, starting at the last physical period. There is no operating profit after the horizon, so
 
-$$
+```math
 \widehat V_{T+1}(x)=0.
-$$
+```
 
 At each earlier time and fleet-grid state, the trainer performs four steps:
 
 1. Set the simulator to that time, vehicle-location pair, and battery pair.
 2. Sample current requests and prices, quote the fixed mobile price, and simulate customer choice.
 3. Find the best dispatch score using current profit and the already-computed next-period table.
-4. Repeat for $K$ draws and average the best scores.
+4. Repeat for $`K`$ draws and average the best scores.
 
 The resulting backup is
 
-$$
+```math
 \widehat V_t(x)=\frac1K\sum_{k=1}^K
 \max_{\mathbf a\in\mathcal G(\widetilde S_t^{(k)})}
 \left[
  R_t^d(\widetilde S_t^{(k)},\mathbf a)
- +\gamma\,\operatorname{Interp}\widehat V_{t+1}
+ +\gamma\,\mathrm{Interp}\,\widehat V_{t+1}
  \bigl(f(\widetilde S_t^{(k)},\mathbf a)\bigr)
 \right].
-$$
+```
 
 The maximum is inside the average because dispatch sees the current draw before acting. A different action can be best in each sampled situation. Once every state at a time layer has been fitted, training moves to the preceding layer. This is one backward pass through the finite horizon, not repeated PPO-style updates.
 
 The method is **model-based approximate dynamic programming**. It can query the known simulator from arbitrary fleet states and calculate the outcomes of candidate actions. This is stronger access to the model than PPO's ordinary episode rollouts. Its three sources of approximation are the finite battery grid, the finite action grid, and the sampled expectation.
 
-The optional terminal inventory payment is already included in period $T$'s original reward. The zero continuation layer does not remove that payment, and the trainer does not add it twice. In Python, mathematical $\widehat V_{T+1}$ is `values[horizon]`.
+The optional terminal inventory payment is already included in period $`T`$'s original reward. The zero continuation layer does not remove that payment, and the trainer does not add it twice. In Python, mathematical $`\widehat V_{T+1}`$ is `values[horizon]`.
 
 ### What the default training budget means
 
@@ -98,10 +98,10 @@ The `b=3` scenario has four nodes, two vehicles, 12 periods, reserve 5 kWh, and 
 
 | Quantity per model | Default size |
 |---|---:|
-| Fleet states per time layer: $4^2\times9^2$ | 1,296 |
-| Stored values, including the terminal layer: $13\times1,296$ | 16,848 |
-| State/draw queries: $12\times1,296\times8$ | 124,416 |
-| Distinct period/draw seeds: $12\times8$ | 96 |
+| Fleet states per time layer: $`4^2\times9^2`$ | 1,296 |
+| Stored values, including the terminal layer: $`13\times1,296`$ | 16,848 |
+| State/draw queries: $`12\times1,296\times8`$ | 124,416 |
+| Distinct period/draw seeds: $`12\times8`$ | 96 |
 
 Within each period, the same eight random-number seeds are reused across fleet states to make state comparisons less noisy. Availability, waiting times, and customer choices are recomputed for each state. Thus 124,416 queries are neither 124,416 independent demand draws nor 124,416 episodes. Each query also evaluates many joint action candidates; the actual count is saved in `summary.json`.
 

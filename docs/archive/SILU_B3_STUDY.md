@@ -2,6 +2,8 @@
 
 > Historical experiment. Its numbers belong to the scenarios and methods recorded here. Use [the current comparison](../COMPARISON.md) for approximate DP, both PPO versions, and the three main rules on shared tests. See [the archive index](README.md) for context.
 
+Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
+
 This completed **2026-10-17** study trained or retained three 500-update models with seeds **7, 19, and 37**, retuned the benchmark rules for the same customer model, and compared them on independent scenarios. All three policies improved over their untrained initialization. Their final mean discounted profit was **116.42**, below the inventory rule's **125.26**. Thus, learning was successful relative to initialization, but the practical benchmark gap remained.
 
 A **seed** is a number that makes a random sequence repeatable. Different training seeds can produce different learned policies, even with the same settings. A **policy** is the learned rule for choosing actions.
@@ -13,7 +15,7 @@ This is the first b=3 study. It follows the historical b=0 [training analysis](T
 The two terms refer to different parts of the system:
 
 - **SiLU** is an activation function: it changes the values passed between layers inside a neural network. In this study it replaces only the **final hidden Tanh activation** in the dispatch actor, the network that chooses vehicle actions. Earlier Tanh layers, the pricing actor, and the rest of the network structure keep their established settings. Only this part of the network uses SiLU.
-- **b=3** changes the customer model. Each available mobile or fixed charging station (FCS) option receives a baseline boost of 3 in its customer-choice score, called its systematic utility; the outside option of leaving the system keeps a score of zero. In the notation guide's extension, a charging utility is $b-\eta c^k_{r,t}$. At a fixed cost, this makes charging more attractive relative to leaving the system. The cost-only specification uses **b=0**; the charging-utility intercept is an extension described in [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md).
+- **b=3** changes the customer model. Each available mobile or fixed charging station (FCS) option receives a baseline boost of 3 in its customer-choice score, called its systematic utility; the outside option of leaving the system keeps a score of zero. In the notation guide's extension, a charging utility is $`b-\eta c^k_{r,t}`$. At a fixed cost, this makes charging more attractive relative to leaving the system. The cost-only specification uses **b=0**; the charging-utility intercept is an extension described in [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md).
 
 These changes affect different things. A larger profit under b=3 than in an old b=0 table does not by itself show a better controller, because the customer model also makes charging more attractive. This study measures learning and benchmark performance **within b=3**. It does not include otherwise-matching experiments that change only SiLU versus Tanh, or only b=3 versus b=0. It therefore cannot establish that either change caused the improvement. See [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md) for the choice model and [NOTATION.md](../NOTATION.md) for symbols.
 
@@ -34,15 +36,15 @@ An **actor** is a network that chooses actions; a **critic** is a network that p
 | Value clipping | 0, disabled |
 | Entropy coefficient | 0.005 |
 | Probability-ratio clip / gradient limit | 0.2 / 0.5 |
-| GAE trace parameter, $\lambda_{\mathrm{GAE}}$ | 0.95 |
+| GAE trace parameter, $`\lambda_{\mathrm{GAE}}`$ | 0.95 |
 | Discount | 0.99 |
 | Outer discounted policy-loss weighting | Enabled |
 
-The GAE trace parameter controls how the training target combines observed rewards with the critic's predictions; it is not the Poisson arrival intensity $\lambda_{i,t}$. One run used **8,000 training episodes and 96,000 physical periods**. The total exposure of the three evaluated models was **288,000 periods**.
+The GAE trace parameter controls how the training target combines observed rewards with the critic's predictions; it is not the Poisson arrival intensity $`\lambda_{i,t}`$. One run used **8,000 training episodes and 96,000 physical periods**. The total exposure of the three evaluated models was **288,000 periods**.
 
 Seed 7 was an existing completed run that matched the required scenario, settings, and budget. It was retained based on metadata **before new test results were observed**; it was not selected because it performed well. Seeds 19 and 37 were trained afresh. Therefore, **192,000 training periods were newly collected**, and **96,000 were reused** in this study.
 
-The retained run is `outputs/silu_b3_20261017_215542/seed_7`. Its final weights, the numbers learned inside its networks, were copied unchanged. Its initial model was reconstructed from saved scenario/configuration and reproduced both recorded initial validation modes exactly. That old run had no file-by-file code record saved at the time, so compatibility with the current code was checked afterward. Before testing, we recorded hashes of the new training code and all final checkpoints. A hash is a file fingerprint that lets us check whether its contents changed. The [protocol](../../outputs/silu_b3_study/protocol.json) and [seed-7 reuse record](../../outputs/silu_b3_study/seed_7_reuse.json) document these limits.
+The retained run is `outputs/silu_b3_20261017_215542/seed_7`. Its final weights, the numbers learned inside its networks, were copied unchanged. Its initial model was reconstructed from saved scenario/configuration and reproduced both recorded initial validation modes exactly. That old run had no file-by-file code record saved at the time, so compatibility with the current code was checked afterward. Before testing, we recorded hashes of the new training code and all final checkpoints. A hash is a file fingerprint that lets us check whether its contents changed. The protocol (`outputs/silu_b3_study/protocol.json`) and seed-7 reuse record (`outputs/silu_b3_study/seed_7_reuse.json`) document these limits.
 
 All runs used 32 fixed training-validation scenarios, separate examples used to monitor learning, `100001 + 2*i`, with action seed base **12345**, every 25 updates. Validation selected each `best_checkpoint.pt`, a saved copy of the model at its best validation score. The final update-500 checkpoint remained the primary test model. Training environment seeds were even. The runs used many of the same training scenarios, so differences between their results mainly reflect the initial network weights, randomly chosen actions, and training adjustments. They do not represent three completely separate training datasets.
 
@@ -149,9 +151,9 @@ The additional mobile revenue more than offset the extra costs and the reduction
 
 The suite at this study's completion passed **112 tests**. Rule selection executed **7,808 policy episodes**, and independent base/stress evaluation executed **16,896 policy episodes**, with zero invalid evaluation actions. These are execution counts across policies sharing scenarios, not counts of independent statistical samples. Checks that the code and selected settings had not changed passed. All nine initial/final/validation-selected checkpoint hashes stayed unchanged, and checkpoint reload reproduced recorded evaluation results. [VALIDATION.md](../VALIDATION.md) gives the current project's later checks.
 
-![Training and independent benchmark results](../../outputs/silu_b3_study/silu_b3_study.png)
+![Training and independent benchmark results](../assets/silu_b3_study.png)
 
-Saved evidence includes the [machine-readable analysis](../../outputs/silu_b3_study/analysis.json), [benchmark summary](../../outputs/silu_b3_study/benchmarks/summary.json), [frozen evaluation protocol](../../outputs/silu_b3_study/benchmarks/protocol.json), [rule selection](../../outputs/silu_b3_study/rule_selection/selection.json), and [training/source audit](../../outputs/silu_b3_study/reviews/training_audit.md). Final weights are retained for [seed 7](../../outputs/silu_b3_study/training/seed_7/checkpoint.pt), [seed 19](../../outputs/silu_b3_study/training/seed_19/checkpoint.pt), and [seed 37](../../outputs/silu_b3_study/training/seed_37/checkpoint.pt).
+Saved evidence includes the machine-readable analysis (`outputs/silu_b3_study/analysis.json`), benchmark summary (`outputs/silu_b3_study/benchmarks/summary.json`), frozen evaluation protocol (`outputs/silu_b3_study/benchmarks/protocol.json`), rule selection (`outputs/silu_b3_study/rule_selection/selection.json`), and training/source audit (`outputs/silu_b3_study/reviews/training_audit.md`). Final weights are retained for seed 7 (`outputs/silu_b3_study/training/seed_7/checkpoint.pt`), seed 19 (`outputs/silu_b3_study/training/seed_19/checkpoint.pt`), and seed 37 (`outputs/silu_b3_study/training/seed_37/checkpoint.pt`).
 
 ## Reproduction
 

@@ -2,6 +2,8 @@
 
 > Historical experiment. Its numbers belong to the scenarios and methods recorded here. Use [the current comparison](../COMPARISON.md) for approximate DP, both PPO versions, and the three main rules on shared tests. See [the archive index](README.md) for context.
 
+Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
+
 **The targeted changes produced a small average gain, but did not produce a consistently better controller.** All three fresh runs reached 500 updates. On 512 new base-test scenarios, mean discounted profit rose from **115.93 for the previous policies to 116.72 for the new policies**. Seed 7 worsened, and every new seed remained below the retuned inventory rule's **125.51**.
 
 This report records the completed **2026-10-18** follow-up to [the first SiLU + b=3 study](SILU_B3_STUDY.md). Both old and new policies use the **same b=3 customer model**. In that model, b is an optional baseline boost to the customer's score for charging rather than leaving the system; it is not battery capacity B. The business-profit objective and environment constraints remain the same. [MODEL.md](../MODEL.md), [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md), and [NOTATION.md](../NOTATION.md) explain the operating model and its symbols.
@@ -47,7 +49,7 @@ The review found two specific limitations in how the networks represented their 
 
 The review did not find a basic error in generalized advantage estimation (GAE), which estimates whether an action did better or worse than expected, or in stage discounting. The pricing-to-dispatch transition remains within a period; the physical-period discount is applied only when moving to the next period. Late in training, PPO Kullback–Leibler (KL) divergence, which measures how much the action probabilities change between updates, was small. The fraction of sampled probability ratios outside PPO's clipping range was also small, and no update was stopped early for changing the policy too much. In plain terms, measured policy changes were already small, so increasing the PPO clipping threshold was not supported by this evidence. Large critic gradient norms, which measure the combined size of the gradients before the optimizer uses them, did not alone show that critic learning had stalled. Late explained variance was about **0.9**; this metric describes how well the critic's predictions account for variation in its return targets.
 
-The [behavior findings](../../outputs/b3_gap_diagnostics/findings.json) and [training audit](../../outputs/b3_gap_diagnostics/training_audit.md) retain the measurements, methods, and limits of those interpretations.
+The behavior findings (`outputs/b3_gap_diagnostics/findings.json`) and training audit (`outputs/b3_gap_diagnostics/training_audit.md`) retain the measurements, methods, and limits of those interpretations.
 
 ## What changes were tested, and why?
 
@@ -60,7 +62,7 @@ We tested the changes together. The results show how that combination performed;
 | Layer normalization after each of the two hidden linear layers, before its activation | Keep intermediate network values in a useful range and address observed saturation in pricing, dispatch, and both critics |
 | Public vehicle ID appended as a one-hot local dispatch feature | Let the shared actor learn different vehicle roles when physical states are identical |
 | Training-only inventory-potential reward transformation | Make changes in stored energy more explicit in the training targets while preserving the business objective |
-| GAE trace parameter $\lambda_{\mathrm{GAE}}$=1 for complete 12-period episodes | Use observed rewards through the end of the episode, without relying on intermediate critic predictions |
+| GAE trace parameter $`\lambda_{\mathrm{GAE}}=1`$ for complete 12-period episodes | Use observed rewards through the end of the episode, without relying on intermediate critic predictions |
 | Dispatch entropy coefficient scheduled from 0.020 to 0.003 over 500 updates; pricing stays 0.005 | Encourage more dispatch exploration early and reduce its strength later |
 | Separate gradient clipping for each actor and critic, each at 0.5 | Limit each network's gradients separately, so a large gradient in one does not scale down another network's gradients |
 
@@ -70,26 +72,28 @@ The request encoders kept their network structure; the dispatch actor's final hi
 
 ### How can inventory shaping preserve the profit objective?
 
-A *potential* is a reference value assigned to a state for training. **Potential-based shaping** adjusts the reward used for learning by the change in this reference value. Here it is \$0.30 per stored fleet kWh. Using one-based physical-period indexing, let $s_t$ be the pre-choice state in physical period $t$ and $e_{m,t}$ the stored energy of vehicle $m$. The training transformation is applied once per physical period:
+A *potential* is a reference value assigned to a state for training. **Potential-based shaping** adjusts the reward used for learning by the change in this reference value. Here it is \$0.30 per stored fleet kWh. Using one-based physical-period indexing, let $`s_t`$ be the pre-choice state in physical period $`t`$ and $`e_{m,t}`$ the stored energy of vehicle $`m`$. The training transformation is applied once per physical period:
 
-$$
-\Phi(s_t)=0.30\sum_{m\in\mathcal M}e_{m,t},\qquad
-r'_t=r_t+\gamma\Phi(s_{t+1})-\Phi(s_t).
-$$
+```math
+\begin{aligned}
+\Phi(s_t)&=0.30\sum_{m\in\mathcal M}e_{m,t},\\
+r'_t&=r_t+\gamma\Phi(s_{t+1})-\Phi(s_t).
+\end{aligned}
+```
 
 The terminal state, after the episode ends, has its potential set to zero. When we add rewards over a complete discounted episode, the intermediate potential additions and subtractions cancel:
 
-$$
+```math
 \sum_{t=1}^{T}\gamma^{t-1}r'_t
 =
 \sum_{t=1}^{T}\gamma^{t-1}r_t-\Phi(s_1).
-$$
+```
 
 For a fixed starting scenario, the subtracted initial potential does not depend on the policy. This transformation changes training targets without creating extra true profit for recharging or leaving stock at the end. The environment's revenue, costs, constraints, raw rollout rewards, validation returns, and benchmark profits are unchanged. Tests verify cancellation of the potential terms and correct terminal handling.
 
-With $\lambda_{\mathrm{GAE}}$=1, complete-episode shaped returns are the original returns minus the current state's potential. This can change how the critic learns and how early training progresses. It does not guarantee that trying actions will uncover a profitable recharge-then-service sequence. It should not be interpreted as an additional economic charging subsidy.
+With $`\lambda_{\mathrm{GAE}}=1`$, complete-episode shaped returns are the original returns minus the current state's potential. This can change how the critic learns and how early training progresses. It does not guarantee that trying actions will uncover a profitable recharge-then-service sequence. It should not be interpreted as an additional economic charging subsidy.
 
-The new options are off by default, preserving previous behavior. Old checkpoints, which are saved copies of trained models, keep their existing network structure and customer model. Resuming a run rejects changes to saved network options, inventory potential, or training-seed base. Here $\lambda_{\mathrm{GAE}}$ is the GAE trace parameter; the model's $\lambda_{i,t}$ continues to mean Poisson arrival intensity only.
+The new options are off by default, preserving previous behavior. Old checkpoints, which are saved copies of trained models, keep their existing network structure and customer model. Resuming a run rejects changes to saved network options, inventory potential, or training-seed base. Here $`\lambda_{\mathrm{GAE}}`$ is the GAE trace parameter; the model's $`\lambda_{i,t}`$ continues to mean Poisson arrival intensity only.
 
 ## How was the final training method chosen?
 
@@ -140,7 +144,7 @@ Two success criteria were fixed before testing: consistent improvement over the 
 
 A **paired bootstrap interval** starts with the policy difference on each shared scenario. It repeatedly draws new samples from those scenarios and recalculates the mean difference. We used **5,000 bootstrap draws**. The resulting interval describes uncertainty from the sampled scenarios while keeping these trained models fixed. This is what **conditional on the models** means; it does not cover all possible retraining outcomes. The primary mean averages the results of three separately executed policies; it does not combine their actions. Its 512 scenarios are not 1,536 independent training experiments. We also report each policy's interval, variation between training seeds, and risk.
 
-No test result led to extra training, changed hyperparameters, benchmark retuning, or replacement of the primary seed, execution mode, or checkpoint. The [study protocol](../../outputs/b3_improved_study/protocol.json), [pilot selection](../../outputs/b3_improved_study/pilot_selection.json), and [rule selection](../../outputs/b3_improved_study/rule_selection/selection.json) preserve those choices.
+No test result led to extra training, changed hyperparameters, benchmark retuning, or replacement of the primary seed, execution mode, or checkpoint. The study protocol (`outputs/b3_improved_study/protocol.json`), pilot selection (`outputs/b3_improved_study/pilot_selection.json`), and rule selection (`outputs/b3_improved_study/rule_selection/selection.json`) preserve those choices.
 
 ## Did the new policies improve consistently?
 
@@ -226,13 +230,13 @@ All three full runs had finite metrics, zero invalid evaluation actions, and exa
 
 The complete suite passed **142 tests**: the prior 112 plus 30 for identity, normalization, potential cancellation, entropy schedules, separate clipping, checkpoint compatibility, imitation isolation, and experiment guards. All **7,808 rule-validation** and **16,896 independent-test** policy episodes had zero invalid actions. Both development diagnostic passes also had zero invalid actions. See [VALIDATION.md](../VALIDATION.md) for the current documentation of these checks.
 
-Training cost was **288,000 PPO physical periods** for the three fresh full runs, plus **57,600 PPO periods** for the two pilots and **3,072 teacher-demonstration periods** for the rejected guided pilot. Each final model had the same **96,000-period** PPO budget as its old control, but the extra development budget is part of this study's cost. [analysis.json](../../outputs/b3_improved_study/analysis.json) records evaluation and diagnostic costs separately.
+Training cost was **288,000 PPO physical periods** for the three fresh full runs, plus **57,600 PPO periods** for the two pilots and **3,072 teacher-demonstration periods** for the rejected guided pilot. Each final model had the same **96,000-period** PPO budget as its old control, but the extra development budget is part of this study's cost. `outputs/b3_improved_study/analysis.json` records evaluation and diagnostic costs separately.
 
-Protocols store checkpoint and source hashes, file fingerprints used to check that saved model weights and code have not changed. A read-only [executed-source snapshot](../../outputs/b3_improved_study/provenance/executed_training_source/manifest.json) preserves all **16 training source files** exactly as executed. After training, the experiment runner gained stricter checks against scenario/configuration changes and incomplete pilot summaries; learning code did not change. The [before/after hashes and completed-run checks](../../outputs/b3_improved_study/provenance/reproduction_guard_hardening.json) explain that difference. The original frozen protocol was retained.
+Protocols store checkpoint and source hashes, file fingerprints used to check that saved model weights and code have not changed. A read-only executed-source snapshot (`outputs/b3_improved_study/provenance/executed_training_source/manifest.json`) preserves all **16 training source files** exactly as executed. After training, the experiment runner gained stricter checks against scenario/configuration changes and incomplete pilot summaries; learning code did not change. The before/after hashes and completed-run checks (`outputs/b3_improved_study/provenance/reproduction_guard_hardening.json`) explain that difference. The original frozen protocol was retained.
 
-Final checkpoints are saved for [seed 7](../../outputs/b3_improved_study/training/seed_7/checkpoint.pt), [seed 19](../../outputs/b3_improved_study/training/seed_19/checkpoint.pt), and [seed 37](../../outputs/b3_improved_study/training/seed_37/checkpoint.pt). The [benchmark summary](../../outputs/b3_improved_study/benchmarks/summary.json), [analysis](../../outputs/b3_improved_study/analysis.json), and [test log](../../outputs/b3_improved_study/reviews/unit_tests.log) contain the supporting records.
+Final checkpoints are saved for seed 7 (`outputs/b3_improved_study/training/seed_7/checkpoint.pt`), seed 19 (`outputs/b3_improved_study/training/seed_19/checkpoint.pt`), and seed 37 (`outputs/b3_improved_study/training/seed_37/checkpoint.pt`). The benchmark summary (`outputs/b3_improved_study/benchmarks/summary.json`), analysis (`outputs/b3_improved_study/analysis.json`), and test log (`outputs/b3_improved_study/reviews/unit_tests.log`) contain the supporting records.
 
-![Pilots, training curves, paired comparisons, and stress tests](../../outputs/b3_improved_study/b3_improved_study.png)
+![Pilots, training curves, paired comparisons, and stress tests](../assets/b3_improved_study.png)
 
 ## Reproduction
 

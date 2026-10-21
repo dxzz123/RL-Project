@@ -8,7 +8,7 @@ The environment returns a rich observation for inspection. Each controller decid
 
 ## 1. The city, energy units, and order of decisions
 
-A **node** represents a location or service zone in the city. A customer's electric vehicle is an **EV**, a mobile charging vehicle is an **MCV**, and a fixed charging station is an **FCS**. In the equations, $i$ identifies a node, $m$ a mobile vehicle, $j$ a node containing a station, and $t=1,\ldots,T$ an operating period. Python counts periods from `0` to `T-1` and stores station arrays by slot `f`; station slot `f` is at node `fcs_zones[f]`. These are the conventions in [NOTATION.md](NOTATION.md).
+A **node** represents a location or service zone in the city. A customer's electric vehicle is an **EV**, a mobile charging vehicle is an **MCV**, and a fixed charging station is an **FCS**. In the equations, $`i`$ identifies a node, $`m`$ a mobile vehicle, $`j`$ a node containing a station, and $`t=1,\ldots,T`$ an operating period. Python counts periods from `0` to `T-1` and stores station arrays by slot `f`; station slot `f` is at node `fcs_zones[f]`. These are the conventions in [NOTATION.md](NOTATION.md).
 
 The default city has four nodes, two stations, two mobile vehicles, and 12 one-hour periods. Node coordinates are `(0,0)`, `(4,0)`, `(0,4)`, and `(4,4)` km. Stations are at nodes 0 and 3; mobile vehicles start at nodes 1 and 2, each with 55 kWh in its battery. Distance is Manhattan distance, which is the sum of horizontal and vertical distances, as on a rectangular street grid. This distance is used when checking station access and calculating travel time, energy, and cost.
 
@@ -40,16 +40,18 @@ Customers do not try another provider after making their choice. Unserved reques
 One **request** means one customer asking for a certain amount of charging energy. For each node and period, the simulator independently draws the number of arriving customers from a Poisson distribution. The configured average arrival count is `lambda`; the actual count is `N`. Each customer requests an energy amount `q_r` drawn uniformly between the configured lower and upper bounds. The total energy requested at that node is the sum of the individual amounts:
 
 ```math
-N_{i,t} \sim \mathrm{Poisson}(\lambda_{i,t}),
-\qquad q_r \sim \mathrm{Uniform}(q_{\min}, q_{\max}),
-\qquad \overline d_{i,t}=\sum_{r\in\mathcal R_{i,t}}q_r.
+\begin{aligned}
+N_{i,t} &\sim \mathrm{Poisson}(\lambda_{i,t}),\\
+q_r &\sim \mathrm{Uniform}(q_{\min}, q_{\max}),\\
+\overline d_{i,t}&=\sum_{r\in\mathcal R_{i,t}}q_r.
+\end{aligned}
 ```
 
 The average arrival count normally equals the zone's **baseline demand multiplied by a time-dependent multiplier**. For example, a baseline of 4 customers and a multiplier of 0.5 give an average of 2 customers in that period. The actual count can still be 0, 1, 2, 3, or more. There is no artificial upper limit on arrivals.
 
 The configuration calls the time-dependent multiplier `arrival_profile` and the zone's baseline demand `mean_requests_by_zone`. Alternatively, `arrival_rates` can directly provide a table of average arrival counts, with one row per period and one column per zone. In that case, this table replaces the baseline-times-multiplier calculation.
 
-The default bounds $q_{\min}$ and $q_{\max}$ are 5 and 15 kWh. Each customer's requested energy is drawn uniformly within this range, so equal-width intervals are equally likely. These bounds apply to each customer, rather than to the zone's total requested energy.
+The default bounds $`q_{\min}`$ and $`q_{\max}`$ are 5 and 15 kWh. Each customer's requested energy is drawn uniformly within this range, so equal-width intervals are equally likely. These bounds apply to each customer, rather than to the zone's total requested energy.
 
 **The request list groups customers by their origin zone.** Within a period, each customer keeps the same position in this list while their provider choice and service outcome are calculated. For example, if zone 0 has two customers and zone 1 has one, the list contains the two zone-0 customers followed by the zone-1 customer.
 
@@ -57,11 +59,13 @@ For controlled examples, `reset(options={"requests": counts})` lets you specify 
 
 You can also supply `accessible_fcs` to say which stations each customer may consider. This is a table with one row per customer and one column per station: `True` means accessible and `False` means inaccessible. Its shape is `[sum(counts), n_fcs]`. These optional inputs require explicit customer counts. The manual inputs affect only the first period; later periods return to random generation.
 
-For each station and period, the simulator draws one random percentage change, $\epsilon_{j,t}$, and applies it to both the customer charging price and the price paid for MCV energy exported through that station:
+For each station and period, the simulator draws one random percentage change, $`\epsilon_{j,t}`$, and applies it to both the customer charging price and the price paid for MCV energy exported through that station:
 
 ```math
-p^{F,C}_{j,t}=\max\{0,\overline p^{F,C}_{j,t}(1+\epsilon_{j,t})\},
-\qquad p^{F,D}_{j,t}=\max\{0,\overline p^{F,D}_{j,t}(1+\epsilon_{j,t})\}.
+\begin{aligned}
+p^{F,C}_{j,t}&=\max\{0,\overline p^{F,C}_{j,t}(1+\epsilon_{j,t})\},\\
+p^{F,D}_{j,t}&=\max\{0,\overline p^{F,D}_{j,t}(1+\epsilon_{j,t})\}.
+\end{aligned}
 ```
 
 Baseline station prices can be set separately for each period and station using `fcs_charge_price_profile` and `fcs_discharge_price_profile`. Each table has one row per period and one column per station. Without these tables, each station's customer-price baseline stays constant over time, while the export-price baseline follows the same time pattern at every station.
@@ -74,7 +78,7 @@ The separate wholesale electricity purchase price, `grid_buy_per_kwh[period]`, i
 
 A mobile vehicle is **eligible** for a node if it can reach that node within the period, keep the required battery reserve, and still deliver at least the smallest allowed request, `request_min_kwh`. Requiring capacity for at least the smallest request is an availability rule; it is separate from the stored battery reserve. An eligible vehicle may still lack enough time or energy for a larger request.
 
-When at least one vehicle is eligible, the estimated mobile delay is the average travel time of those vehicles. Here $\mathcal M_{i,t}$ is the set of eligible vehicles, $d(l_{m,t},i)$ is the distance from vehicle $m$ to node $i$, and $v$ is vehicle speed:
+When at least one vehicle is eligible, the estimated mobile delay is the average travel time of those vehicles. Here $`\mathcal M_{i,t}`$ is the set of eligible vehicles, $`d(l_{m,t},i)`$ is the distance from vehicle $`m`$ to node $`i`$, and $`v`$ is vehicle speed:
 
 ```math
 \widehat w_{i,t}=\frac{1}{|\mathcal M_{i,t}|}\sum_{m\in\mathcal M_{i,t}}\frac{d(l_{m,t},i)}{v}.
@@ -84,7 +88,7 @@ If no vehicle is eligible, customers at that node cannot choose mobile service. 
 
 By default, a customer may consider a fixed station if it is within the allowed travel distance and can deliver at least the smallest allowed request. In a controlled example, a manually supplied accessibility table can replace the distance rule and allow a more distant station. The station must still have enough capacity for the minimum request. A station with no customer-service capacity is unavailable.
 
-We also need to estimate station waiting times. To estimate a station's possible demand, $L_{j,t}$, the simulator divides each customer's requested energy equally among the stations that customer may consider. This is only a calculation for estimating congestion; it does not split an actual customer's charging across stations. With station customer-service capacity $K_j$, the estimated wait is
+We also need to estimate station waiting times. To estimate a station's possible demand, $`L_{j,t}`$, the simulator divides each customer's requested energy equally among the stations that customer may consider. This is only a calculation for estimating congestion; it does not split an actual customer's charging across stations. With station customer-service capacity $`K_j`$, the estimated wait is
 
 ```math
 w^F_{j,t}=\frac{\Delta t}{2}\max\left\{0,\frac{L_{j,t}}{K_j}-1\right\},\qquad K_j>0.
@@ -94,27 +98,31 @@ A station with no customer-service capacity stores zero wait but remains unavail
 
 ## 4. How prices influence each customer's choice
 
-The operator chooses one mobile price, $p^M_{i,t}$, for each node from the fixed list `Scenario.price_levels`. All customers at that node see the same price. In the Python interface, `quote_prices` accepts dollar-per-kWh amounts from this list, while `quote_price_levels` and Gymnasium's `price_levels` action accept positions in the list, such as index 0 for its first entry. A node without mobile availability receives a valid placeholder price, but customers there still cannot choose mobile charging.
+The operator chooses one mobile price, $`p^M_{i,t}`$, for each node from the fixed list `Scenario.price_levels`. All customers at that node see the same price. In the Python interface, `quote_prices` accepts dollar-per-kWh amounts from this list, while `quote_price_levels` and Gymnasium's `price_levels` action accept positions in the list, such as index 0 for its first entry. A node without mobile availability receives a valid placeholder price, but customers there still cannot choose mobile charging.
 
-A customer chooses mobile service at their origin, rather than choosing a named mobile vehicle. For request $r$ at node $i$, the customer compares payment plus inconvenience, with inconvenience expressed in dollars:
+A customer chooses mobile service at their origin, rather than choosing a named mobile vehicle. For request $`r`$ at node $`i`$, the customer compares payment plus inconvenience, with inconvenience expressed in dollars:
 
 ```math
-c^M_{r,t}=p^M_{i,t}q_r+a_M\widehat w_{i,t},
-\qquad c^j_{r,t}=p^{F,C}_{j,t}q_r+b_F d(i,j)+a_Fw^F_{j,t}.
+\begin{aligned}
+c^M_{r,t}&=p^M_{i,t}q_r+a_M\widehat w_{i,t},\\
+c^j_{r,t}&=p^{F,C}_{j,t}q_r+b_F d(i,j)+a_Fw^F_{j,t}.
+\end{aligned}
 ```
 
 Here `a_M` is the customer's cost per hour of waiting for mobile service, `a_F` is the cost per hour of waiting at a station, and `b_F` is the inconvenience cost per kilometre of traveling to a station. Mobile waiting cost uses the average arrival time of eligible vehicles. For example, 10 kWh at 0.60 dollars/kWh costs 6 dollars before any waiting inconvenience is added.
 
-Let $\mathcal A_{r,t}$ contain the charging options this customer may consider: mobile charging, if available, and accessible fixed stations. The outside option means leaving without using the operator's service, and its baseline preference score is zero. The positive parameter `eta` determines how strongly cost reduces the appeal of a charging option. The parameter `b` is a common charging benefit that makes all charging options more attractive relative to leaving. The following logit model converts these scores into probabilities:
+Let $`\mathcal A_{r,t}`$ contain the charging options this customer may consider: mobile charging, if available, and accessible fixed stations. The outside option means leaving without using the operator's service, and its baseline preference score is zero. The positive parameter `eta` determines how strongly cost reduces the appeal of a charging option. The parameter `b` is a common charging benefit that makes all charging options more attractive relative to leaving. The following logit model converts these scores into probabilities:
 
 ```math
-u_{r,t}^k=b-\eta c_{r,t}^k,\quad u_{r,t}^O=0,\qquad
-\rho_{r,t}^k=\frac{\exp(b-\eta c_{r,t}^k)}{1+\sum_{a\in\mathcal A_{r,t}}\exp(b-\eta c_{r,t}^a)},\quad k\in\mathcal A_{r,t},
-\qquad
-\rho_{r,t}^O=\frac{1}{1+\sum_{a\in\mathcal A_{r,t}}\exp(b-\eta c_{r,t}^a)}.
+\begin{aligned}
+u_{r,t}^k&=b-\eta c_{r,t}^k,\\
+u_{r,t}^O&=0,\\
+\rho_{r,t}^k&=\frac{\exp(b-\eta c_{r,t}^k)}{1+\sum_{a\in\mathcal A_{r,t}}\exp(b-\eta c_{r,t}^a)},\quad k\in\mathcal A_{r,t},\\
+\rho_{r,t}^O&=\frac{1}{1+\sum_{a\in\mathcal A_{r,t}}\exp(b-\eta c_{r,t}^a)}.
+\end{aligned}
 ```
 
-The simulator randomly selects exactly one option using these probabilities. The possible outcomes include leaving, written as `O`, as well as the charging options in $\mathcal A_{r,t}$. An unavailable service has zero chance of selection. If no charging option is available, the customer always leaves.
+The simulator randomly selects exactly one option using these probabilities. The possible outcomes include leaving, written as `O`, as well as the charging options in $`\mathcal A_{r,t}`$. An unavailable service has zero chance of selection. If no charging option is available, the customer always leaves.
 
 The default `b=0` is the original choice rule. Under this rule, nonnegative charging costs give each charging option a weight no greater than the outside option's weight of one, so many customers may leave.
 
@@ -158,22 +166,25 @@ The model limits total energy over the period without scheduling individual char
 
 ## 6. How batteries change and profit is calculated
 
-For mobile vehicle $m$ in period $t$, let $C_{m,t}$ be energy drawn from the grid, $X_{m,t}$ energy exported to the grid, and $Q_{m,t}$ energy delivered to customers. Let $e_{m,t}$ be its stored battery energy before acting and $e_{m,t+1}$ its energy afterward. Its battery loses energy through travel, service, and export, and gains energy through recharge. Charging and discharging efficiencies account for losses:
+For mobile vehicle $`m`$ in period $`t`$, let $`C_{m,t}`$ be energy drawn from the grid, $`X_{m,t}`$ energy exported to the grid, and $`Q_{m,t}`$ energy delivered to customers. Let $`e_{m,t}`$ be its stored battery energy before acting and $`e_{m,t+1}`$ its energy afterward. Its battery loses energy through travel, service, and export, and gains energy through recharge. Charging and discharging efficiencies account for losses:
 
 ```math
-e_{m,t+1}=e_{m,t}-E^{\mathrm{travel}}_{m,t}+\eta_C C_{m,t}-Q_{m,t}/\eta_M-X_{m,t}/\eta_D,
-\qquad e_{\min}\leq e_{m,t+1}\leq B.
+\begin{aligned}
+e_{m,t+1}&=e_{m,t}-E^{\mathrm{travel}}_{m,t}+\eta_C C_{m,t}
+-\frac{Q_{m,t}}{\eta_M}-\frac{X_{m,t}}{\eta_D},\\
+e_{\min}&\leq e_{m,t+1}\leq B.
+\end{aligned}
 ```
 
 The simulator reports these amounts in an **energy ledger**, a record of where energy came from and where it went. It also reports the difference between the recorded battery change and the sum of the energy flows. A difference near zero confirms that the accounting balances. Stored battery energy, grid-side energy, and energy delivered to customers are measured at different points and must be converted using the relevant efficiencies.
 
-The operator owns both mobile and fixed charging, so the reward includes profit from both. Let $Q_{m,i,t}$ be mobile energy delivered at a node, $Q^F_{j,t}$ station energy delivered to customers, and $X^F_{j,t}$ mobile energy exported through that station. Let $U_t$ be the requested energy left unserved among customers who chose the operator's service. Write $d_{m,t}$ for distance traveled, $\mathcal M$ for the fleet, and $\nu$ for the optional terminal value per stored kWh. The period's profit is
+The operator owns both mobile and fixed charging, so the reward includes profit from both. Let $`Q_{m,i,t}`$ be mobile energy delivered at a node, $`Q^F_{j,t}`$ station energy delivered to customers, and $`X^F_{j,t}`$ mobile energy exported through that station. Let $`U_t`$ be the requested energy left unserved among customers who chose the operator's service. Write $`d_{m,t}`$ for distance traveled, $`\mathcal M`$ for the fleet, and $`\nu`$ for the optional terminal value per stored kWh. The period's profit is
 
 ```math
 \begin{aligned}
 r_t={}&\sum_{m,i}p^M_{i,t}Q_{m,i,t}+\sum_j p^{F,C}_{j,t}Q^F_{j,t}+\sum_j p^{F,D}_{j,t}X^F_{j,t}\\
-&-g^{\mathrm{buy}}_t\left(\sum_m C_{m,t}+\sum_j Q^F_{j,t}/\eta_F\right)
--c_{\mathrm{travel}}\sum_m d_{m,t}-c_{\mathrm{op}}|\mathcal M|-c_{\mathrm{unmet}}U_t\\
+&-g^{\mathrm{buy}}_t\left(\sum_m C_{m,t}+\sum_j Q^F_{j,t}/\eta_F\right)\\
+&-c_{\mathrm{travel}}\sum_m d_{m,t}-c_{\mathrm{op}}|\mathcal M|-c_{\mathrm{unmet}}U_t\\
 &+\mathbf{1}_{\{t=T\}}\nu\sum_m e_{m,t+1}.
 \end{aligned}
 ```
@@ -205,9 +216,14 @@ The earlier PPO obtains each vehicle's input through `local_observation(m)`. Thi
 The common economic objective is to maximize expected total profit across the episode, discounting later profit by a factor `gamma` per period. Two value functions estimate the remaining discounted profit: `V^P` just before pricing, and `V^D` after customers choose but before dispatch. They are related as follows:
 
 ```math
-\max\mathbb E\left[\sum_{t=1}^{T}\gamma^{t-1}r_t\right],\qquad
-V^P(s_t)=\mathbb E[V^D(\widetilde s_t)\mid s_t],\qquad
-V^D(\widetilde s_t)=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
+\max\mathbb E\left[\sum_{t=1}^{T}\gamma^{t-1}r_t\right],
+```
+
+```math
+\begin{aligned}
+V^P(s_t)&=\mathbb E[V^D(\widetilde s_t)\mid s_t],\\
+V^D(\widetilde s_t)&=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
+\end{aligned}
 ```
 
 Pricing and dispatch are two decisions within the same physical period. Future profit is therefore discounted only when moving to the next period, rather than at both decisions. The simulator reports this in `info["discount"]`: `1.0` after pricing, `discount_per_period` after a nonfinal dispatch, and `0.0` when the episode ends.

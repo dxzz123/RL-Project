@@ -1,5 +1,7 @@
 # Historical fitted-value study — 2026-10-20
 
+Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
+
 This report preserves the first five-method comparison of approximate DP with earlier PPO and three rules. The current six-method comparison also includes Joint PPO and uses different test scenarios; read [COMPARISON.md](../COMPARISON.md) for that result. [FITTED_VALUE.md](../FITTED_VALUE.md) explains the method itself.
 
 ## What was compared
@@ -73,9 +75,9 @@ These commands reproduce fixed seed banks. If their results inform a new algorit
 
 The original study remains in `outputs/fitted_value_study/`:
 
-- [Protocol and exact settings](../../outputs/fitted_value_study/protocol.json)
-- [Selected heuristic parameters](../../outputs/fitted_value_study/rule_selection/selection.json)
-- [Independent numerical audit and uncertainty intervals](../../outputs/fitted_value_study/analysis.json)
-- [Test summary](../../outputs/fitted_value_study/benchmarks/summary.json)
-- [Comparison figure](../../outputs/fitted_value_study/fitted_value_comparison.png)
-- [Executed training source](../../outputs/fitted_value_study/provenance/executed_training_source/)
+- Protocol and exact settings (`outputs/fitted_value_study/protocol.json`)
+- Selected heuristic parameters (`outputs/fitted_value_study/rule_selection/selection.json`)
+- Independent numerical audit and uncertainty intervals (`outputs/fitted_value_study/analysis.json`)
+- Test summary (`outputs/fitted_value_study/benchmarks/summary.json`)
+- Comparison figure (`outputs/fitted_value_study/fitted_value_comparison.png`)
+- Executed training source (`outputs/fitted_value_study/provenance/executed_training_source/`)

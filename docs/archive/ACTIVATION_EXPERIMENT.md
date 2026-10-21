@@ -2,9 +2,11 @@
 
 > Historical experiment. Its numbers belong to the scenarios and methods recorded here. Use [the current comparison](../COMPARISON.md) for approximate DP, both PPO versions, and the three main rules on shared tests. See [the archive index](README.md) for context.
 
+Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
+
 A dispatch policy is the learned rule for choosing vehicle actions. It should make different decisions when vehicle energy, locations, or customer requests change. The original trained policy appeared to respond very little to those changes. This experiment asked whether a small neural-network change could help: replace the dispatch actor's **last hidden Tanh activation with SiLU**.
 
-This **pilot experiment** used a fixed training budget and was completed on **2026-10-17** under the baseline customer model, $b=0$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../NOTATION.md) for symbols.
+This **pilot experiment** used a fixed training budget and was completed on **2026-10-17** under the baseline customer model, $`b=0`$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../NOTATION.md) for symbols.
 
 ## 1. Why test a different activation?
 
@@ -20,15 +22,15 @@ A diagnostic that left the saved models unchanged supported this concern. It exa
 | 19 | 0.001676 |
 | 37 | 0.002735 |
 
-Action probabilities also changed very little among states with identical **feasibility masks**, the lists of physically allowed actions. Inputs are normalized, meaning scaled using scenario quantities before entering the network. The largest absolute scaled input was `2.3214`; this check did not reveal an obvious extreme input scale. These findings motivated a controlled trial, without establishing that an activation change alone would improve decisions. The saved probe is [legacy_dispatch_shared_state_probe.json](../../outputs/activation_diagnostics/legacy_dispatch_shared_state_probe.json).
+Action probabilities also changed very little among states with identical **feasibility masks**, the lists of physically allowed actions. Inputs are normalized, meaning scaled using scenario quantities before entering the network. The largest absolute scaled input was `2.3214`; this check did not reveal an obvious extreme input scale. These findings motivated a controlled trial, without establishing that an activation change alone would improve decisions. The saved probe is `outputs/activation_diagnostics/legacy_dispatch_shared_state_probe.json`.
 
 ## 2. What changed, and how checkpoints record it
 
 SiLU computes
 
-$$
-\operatorname{SiLU}(x)=x\,\operatorname{sigmoid}(x).
-$$
+```math
+\mathrm{SiLU}(x)=x\,\mathrm{sigmoid}(x).
+```
 
 It does not bound positive outputs at one. Consequently, `abs(h) > 0.99` is a useful diagnostic of near-boundary **Tanh** values, but is not a SiLU saturation test. The experiment instead measured local activation derivatives and how hidden features and action scores varied across a fixed collection of states. An action score is the number the network produces before converting it into an action probability. The [PyTorch reference](https://docs.pytorch.org/docs/stable/generated/torch.nn.SiLU.html) describes the activation.
 
@@ -42,7 +44,7 @@ The following parts retained their definitions in this isolated comparison:
 | Pricing actor and both critics | Existing architectures |
 | Dispatch categorical and Beta distributions | Existing definitions |
 | Action masks and requested-energy mapping | Existing definitions |
-| Customer choice, outside option, physical limits, and profit | Original model, including $b=0$ |
+| Customer choice, outside option, physical limits, and profit | Original model, including $`b=0`$ |
 | Benchmark rule parameters | Previously selected and frozen |
 
 `TrainingConfig.dispatch_final_activation` and CLI option `--dispatch-final-activation` accept `tanh` or `silu`. The default remains Tanh. Each checkpoint explicitly saves its activation; old checkpoints missing the field load as Tanh.
@@ -66,11 +68,11 @@ The learning settings were the existing convergence-study settings, with no addi
 | Entropy coefficient | 0.005 |
 | PPO ratio clipping | 0.2 |
 | Gradient-norm limit | 0.5 |
-| GAE trace parameter $\lambda_{\mathrm{GAE}}$ | 0.95 |
-| Physical-period discount $\gamma$ | 0.99 |
+| GAE trace parameter $`\lambda_{\mathrm{GAE}}`$ | 0.95 |
+| Physical-period discount $`\gamma`$ | 0.99 |
 | Outer discounted policy loss | Enabled |
 
-The GAE parameter $\lambda_{\mathrm{GAE}}$ controls how the trainer estimates an action's advantage: how much better its outcome was than the critic expected. It is distinct from the average request-arrival count $\lambda_{i,t}$ in the model. The training guide explains the remaining settings, including PPO's clipped learning score, which discourages overly large probability changes, and entropy's encouragement to explore.
+The GAE parameter $`\lambda_{\mathrm{GAE}}`$ controls how the trainer estimates an action's advantage: how much better its outcome was than the critic expected. It is distinct from the average request-arrival count $`\lambda_{i,t}`$ in the model. The training guide explains the remaining settings, including PPO's clipped learning score, which discourages overly large probability changes, and entropy's encouragement to explore.
 
 Three separate sets of scenes served different purposes:
 
@@ -96,9 +98,9 @@ The test ran five policy modes on each of 256 shared scenes, for **1,280 policy-
 
 The table reports modeled dollars per 12-period episode, discounted once per physical period:
 
-$$
+```math
 G=\sum_{t=1}^{12}0.99^{t-1}r_t.
-$$
+```
 
 Served share is the fraction of all potential requests actually served. Loss probability is the fraction of test episodes with negative discounted profit.
 
@@ -134,7 +136,7 @@ Tanh had **99.74%** of final activations above `0.99` in absolute value. SiLU's 
 
 The pilot supported further testing of SiLU. It did **not** show that learning settled at a reliably good policy, that SiLU was better across training seeds, or that it beat the strong rule. Its 19,200-period budget also differs from the historical 96,000-period study; comparing its absolute profit with the older **16.49** result would not isolate the activation effect.
 
-Saved evidence includes the [full summary](../../outputs/activation_pilot/summary.json), [frozen protocol](../../outputs/activation_pilot/protocol.json), [frozen model hashes](../../outputs/activation_pilot/frozen_models.json), [SiLU final checkpoint](../../outputs/activation_pilot/silu/checkpoint.pt), and [Tanh final checkpoint](../../outputs/activation_pilot/tanh/checkpoint.pt). No additional tuning or budget extension followed testing.
+Saved evidence includes the full summary (`outputs/activation_pilot/summary.json`), frozen protocol (`outputs/activation_pilot/protocol.json`), frozen model hashes (`outputs/activation_pilot/frozen_models.json`), SiLU final checkpoint (`outputs/activation_pilot/silu/checkpoint.pt`), and Tanh final checkpoint (`outputs/activation_pilot/tanh/checkpoint.pt`). No additional tuning or budget extension followed testing.
 
 ## 5. Reproduce the pilot or start a separate study
 

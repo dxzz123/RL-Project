@@ -20,13 +20,13 @@ At the beginning of a period, the operator sees the customers who have arrived, 
 
 That period's profit is the **reward**. The **return** is the sum of rewards from the current period through the end of the episode, with later profit given less weight when discounting is used. Vehicles share the operator's total reward. A vehicle that recharges may reduce the current period's profit but enable more profitable service later, which is why training considers return as well as immediate reward.
 
-The following table connects the decision sequence to the **API**, the Python methods and input/output fields used to interact with the simulator. A **state** is the information available at a decision point, and an **actor** is the network that chooses the action. Mathematical periods are numbered $t=1,\ldots,T$; the observation's code field `period` is `t - 1`.
+The following table connects the decision sequence to the **API**, the Python methods and input/output fields used to interact with the simulator. A **state** is the information available at a decision point, and an **actor** is the network that chooses the action. Mathematical periods are numbered $`t=1,\ldots,T`$; the observation's code field `period` is `t - 1`.
 
 | Point in the period | Mathematical object | Code behavior |
 |---|---|---|
-| Before prices and customer choice | Pre-choice state $s_t$ | `stage == 0`; pricing actor acts |
-| After prices and customer choice | Post-choice state $\widetilde{s}_t$, including the customers' actual choices $D_t$ | `stage == 1`; dispatch actors act |
-| After physical execution | Period profit $r_t$, then the next state | `dispatch(...)` returns the reward; next stage is `0`, or `2` at termination |
+| Before prices and customer choice | Pre-choice state $`s_t`$ | `stage == 0`; pricing actor acts |
+| After prices and customer choice | Post-choice state $`\widetilde{s}_t`$, including the customers' actual choices $`D_t`$ | `stage == 1`; dispatch actors act |
+| After physical execution | Period profit $`r_t`$, then the next state | `dispatch(...)` returns the reward; next stage is `0`, or `2` at termination |
 
 The **first and second decision stages** map to API stages **0 and 1**. API stage `2` means that the episode has ended; it is not a third decision stage. [ENVIRONMENT.md](ENVIRONMENT.md) gives the complete API fields, reset behavior, and action masks.
 
@@ -75,7 +75,7 @@ python -m charging_env.rl.train --scenario configs/toy_city.json \
   --output-dir outputs/sa_ppo_mappo_longer
 ```
 
-The original customer-choice model has a common charging benefit $b=0$, called `charging_utility_intercept` in the configuration. `configs/utility_b3.json` sets $b=3$ for both mobile and fixed-station service, making charging more attractive relative to leaving. The outside option's preference score stays zero, and cost sensitivity remains $\eta=0.7$. The `utility_b2.json` and `utility_b4.json` files let us compare smaller and larger charging benefits. These change customer behavior in the environment, rather than how the networks learn. See [the outside-option explanation](OUTSIDE_OPTION.md).
+The original customer-choice model has a common charging benefit $`b=0`$, called `charging_utility_intercept` in the configuration. `configs/utility_b3.json` sets $`b=3`$ for both mobile and fixed-station service, making charging more attractive relative to leaving. The outside option's preference score stays zero, and cost sensitivity remains $`\eta=0.7`$. The `utility_b2.json` and `utility_b4.json` files let us compare smaller and larger charging benefits. These change customer behavior in the environment, rather than how the networks learn. See [the outside-option explanation](OUTSIDE_OPTION.md).
 
 The scenario is saved inside each checkpoint. A changed customer model requires a new run: `--scenario` cannot replace the scenario of a resumed or evaluated checkpoint. Both `run_convergence.py` and `run_policy_benchmarks.py` accept `--scenario`, but their defaults do not change merely because a JSON file exists.
 
@@ -85,16 +85,16 @@ An **actor** is a neural network that chooses actions. A **critic** is a neural 
 
 | Network | Input | Output and purpose |
 |---|---|---|
-| Pricing actor $\pi^P_{\theta_1}$ | Global pre-choice state $s_t$: the full information available before pricing | Probabilities for the allowed prices at each node; it selects all node prices together |
-| Pricing critic $V^P$ | Global pre-choice state $s_t$ | A prediction of the remaining discounted team return before pricing |
-| Shared dispatch actor $\pi^D_{\theta_2}$ | `local_observation(m)` after customer choice | Vehicle $m$'s operation, destination, and recharge/export fraction when needed |
-| Dispatch critic $V^D$ | Global post-choice state $\widetilde{s}_t$: the full information after customers choose | A prediction of the remaining discounted team return before dispatch |
+| Pricing actor $`\pi^P_{\theta_1}`$ | Global pre-choice state $`s_t`$: the full information available before pricing | Probabilities for the allowed prices at each node; it selects all node prices together |
+| Pricing critic $`V^P`$ | Global pre-choice state $`s_t`$ | A prediction of the remaining discounted team return before pricing |
+| Shared dispatch actor $`\pi^D_{\theta_2}`$ | `local_observation(m)` after customer choice | Vehicle $`m`$'s operation, destination, and recharge/export fraction when needed |
+| Dispatch critic $`V^D`$ | Global post-choice state $`\widetilde{s}_t`$: the full information after customers choose | A prediction of the remaining discounted team return before dispatch |
 
 The dispatch actor is **shared**: both vehicles use the same learned decision rule, but each supplies its own observation. They can therefore choose different actions. During training, the dispatch critic sees the full shared state to help assess the outcome. When vehicles act, each uses the actor with its own input and does not need the critic. This arrangement is called **centralized training with decentralized execution**. A vehicle's input still includes other vehicles' public locations and batteries, plus shared demand and prices; “local observation” does not mean it sees only itself.
 
 ### Pricing: choose from a list at each node
 
-At each available service node $i\in\mathcal I$, the actor assigns probabilities to the allowed price levels and samples one level $\ell\in\mathcal L$. The resulting unit price is $p^M_{i,t}$. A probability distribution over a fixed list of choices is called a **categorical distribution**.
+At each available service node $`i\in\mathcal I`$, the actor assigns probabilities to the allowed price levels and samples one level $`\ell\in\mathcal L`$. The resulting unit price is $`p^M_{i,t}`$. A probability distribution over a fixed list of choices is called a **categorical distribution**.
 
 The whole price action contains all node prices. Its **joint probability** is the product of the individual node probabilities. The code stores logarithms of probabilities, called **log probabilities**, so it can add them instead of multiplying many small numbers. PPO compares the new and old probability of this whole action, using **one joint pricing probability ratio**. Section 4 explains what this ratio does.
 
@@ -102,7 +102,7 @@ If mobile service is unavailable at a node, the actor supplies placeholder price
 
 ### Dispatch: choose a compatible mode and target together
 
-For each vehicle $m\in\mathcal M$, the dispatch actor chooses from a list of **mode–target pairs**. A mode is the operation, such as SERVE or RECHARGE; the target is the destination node. An **action mask** identifies the pairs allowed by the physical model. Choosing the pair together prevents combinations such as RECHARGE at a node with no station.
+For each vehicle $`m\in\mathcal M`$, the dispatch actor chooses from a list of **mode–target pairs**. A mode is the operation, such as SERVE or RECHARGE; the target is the destination node. An **action mask** identifies the pairs allowed by the physical model. Choosing the pair together prevents combinations such as RECHARGE at a node with no station.
 
 For `RECHARGE` or `DISCHARGE`, the actor also chooses an energy amount. It uses a **Beta distribution**, a flexible distribution for a continuous fraction between zero and one. The fraction's distribution depends on the chosen operation and destination; this is what **conditional** means here. The trainer multiplies that fraction by
 
@@ -161,39 +161,41 @@ The trainer also monitors **KL divergence**, short for Kullback–Leibler diverg
 
 With mathematical periods numbered from 1, the objective is:
 
-$$
+```math
 J(\theta_1,\theta_2)
 =\mathbb E\!\left[\sum_{t=1}^{T}\gamma^{t-1}r_t\right].
-$$
+```
 
-**Discounting** means giving later profit slightly less weight when calculating return. Here $\gamma$ is `Scenario.discount_per_period`, default `0.99`. For example, profits of 10 and 20 in a two-period episode give $10+0.99\times20=29.8$. Pricing and dispatch within the first period are two decisions, not two periods, so they do not use two discounts.
+**Discounting** means giving later profit slightly less weight when calculating return. Here $`\gamma`$ is `Scenario.discount_per_period`, default `0.99`. For example, profits of 10 and 20 in a two-period episode give $`10+0.99\times20=29.8`$. Pricing and dispatch within the first period are two decisions, not two periods, so they do not use two discounts.
 
-For learning, the pricing-to-dispatch transition uses reward zero and discount one. Moving from dispatch to the next period uses the period's reward $r_t$ and discount $\gamma$. To assess a decision, the trainer compares the current prediction with the reward just observed plus the prediction of what remains. This prediction error is called a **temporal-difference residual**, written as delta below. Pricing has no immediate reward, so its residual only compares the before-choice and after-choice predictions:
+For learning, the pricing-to-dispatch transition uses reward zero and discount one. Moving from dispatch to the next period uses the period's reward $`r_t`$ and discount $`\gamma`$. To assess a decision, the trainer compares the current prediction with the reward just observed plus the prediction of what remains. This prediction error is called a **temporal-difference residual**, written as delta below. Pricing has no immediate reward, so its residual only compares the before-choice and after-choice predictions:
 
-$$
-\delta_t^P=V^D(\widetilde{s}_t)-V^P(s_t),
-\qquad
-\delta_t^D=r_t+\gamma(1-d_t)V^P(s_{t+1})-V^D(\widetilde{s}_t),
-$$
+```math
+\begin{aligned}
+\delta_t^P&=V^D(\widetilde{s}_t)-V^P(s_t),\\
+\delta_t^D&=r_t+\gamma(1-d_t)V^P(s_{t+1})-V^D(\widetilde{s}_t),
+\end{aligned}
+```
 
-Here $d_t=1$ at the final physical period and zero otherwise. At the end, no later profit remains, so the next-period value is excluded.
+Here $`d_t=1`$ at the final physical period and zero otherwise. At the end, no later profit remains, so the next-period value is excluded.
 
 One prediction error can be noisy or incomplete. **Generalized advantage estimation (GAE)** combines it with errors from later periods to assess the earlier decision. The code calculates these advantages backward from the end of each episode:
 
-$$
-A_t^D=\delta_t^D+
-\gamma\lambda_{\mathrm{GAE}}(1-d_t)A_{t+1}^P,
-\qquad
-A_t^P=\delta_t^P+A_t^D.
-$$
+```math
+\begin{aligned}
+A_t^D&=\delta_t^D+
+\gamma\lambda_{\mathrm{GAE}}(1-d_t)A_{t+1}^P,\\
+A_t^P&=\delta_t^P+A_t^D.
+\end{aligned}
+```
 
-$\lambda_{\mathrm{GAE}}$, set by `--gae-lambda`, controls how much later prediction errors influence an earlier advantage. A smaller value relies more on short-range estimates using the critics. A value nearer one gives later recorded outcomes more influence, which can also make the estimates noisier. This lambda is different from $\lambda_{i,t}$, the average customer-arrival count in the physical model.
+$`\lambda_{\mathrm{GAE}}`$, set by `--gae-lambda`, controls how much later prediction errors influence an earlier advantage. A smaller value relies more on short-range estimates using the critics. A value nearer one gives later recorded outcomes more influence, which can also make the estimates noisier. This lambda is different from $`\lambda_{i,t}`$, the average customer-arrival count in the physical model.
 
-The **trace coefficient** is the factor carrying a later error back toward an earlier decision. It is one between pricing and dispatch in the same period, and uses $\lambda_{\mathrm{GAE}}$ between periods. This placement is an implementation choice in the earlier trainer. Joint PPO uses the GAE trace coefficient at both stages; its implementation is described in [JOINT_PPO.md](JOINT_PPO.md). At $\lambda_{\mathrm{GAE}}=1$, both stage targets $A+V$ equal the discounted return calculated from that period through the end of the episode. If the optional inventory signal below is enabled, this is the return from the modified learning rewards. **Bootstrapping** means using a critic prediction for future return; there is no such prediction after the final period. Credit calculations also stop at each episode's end, so one episode cannot affect another's targets.
+The **trace coefficient** is the factor carrying a later error back toward an earlier decision. It is one between pricing and dispatch in the same period, and uses $`\lambda_{\mathrm{GAE}}`$ between periods. This placement is an implementation choice in the earlier trainer. Joint PPO uses the GAE trace coefficient at both stages; its implementation is described in [JOINT_PPO.md](JOINT_PPO.md). At $`\lambda_{\mathrm{GAE}}=1`$, both stage targets $`A+V`$ equal the discounted return calculated from that period through the end of the episode. If the optional inventory signal below is enabled, this is the return from the modified learning rewards. **Bootstrapping** means using a critic prediction for future return; there is no such prediction after the final period. Credit calculations also stop at each episode's end, so one episode cannot affect another's targets.
 
 ### Why the policy loss also uses a period weight
 
-There are two related timing questions. First, what are the rewards after the current decision worth? Discounting inside GAE answers that. Second, how much weight should this decision have when learning the total profit measured from the start of the episode? New runs use a period weight for that second question: both actor learning scores and entropy bonuses are multiplied by $\gamma^{t-1}$, implemented as `gamma ** observation['period']`.
+There are two related timing questions. First, what are the rewards after the current decision worth? Discounting inside GAE answers that. Second, how much weight should this decision have when learning the total profit measured from the start of the episode? New runs use a period weight for that second question: both actor learning scores and entropy bonuses are multiplied by $`\gamma^{t-1}`$, implemented as `gamma ** observation['period']`.
 
 Both decisions within a period receive the same weight. Before using advantages in actor losses, the trainer subtracts their average and divides by their standard deviation, a measure of spread. This is **advantage normalization**: it keeps their scale easier to optimize. The averages and standard deviations use the same period weights. Pricing includes only states where at least one node has mobile service. Critics still predict targets in the original reward units; their targets are not normalized this way. The period weights match the intended objective, but clipping and normalization are practical approximations; they do not guarantee exact optimization of that objective.
 
@@ -207,15 +209,16 @@ An **optimizer** is the procedure that changes network parameters to reduce a lo
 
 The optional `--inventory-potential c` changes the signal used for learning while retaining the original profit calculation for reporting. A **potential** is a score assigned to a state; here it is total stored MCV energy multiplied by a coefficient `c`. **Reward shaping** uses changes in this score to redistribute the learning signal between periods. It defines
 
-$$
-\Phi(s_t)=c\sum_{m\in\mathcal M}e_{m,t},
-\qquad
-r'_t=r_t+\gamma\Phi(s_{t+1})-\Phi(s_t),
-$$
+```math
+\begin{aligned}
+\Phi(s_t)&=c\sum_{m\in\mathcal M}e_{m,t},\\
+r'_t&=r_t+\gamma\Phi(s_{t+1})-\Phi(s_t),
+\end{aligned}
+```
 
-The final potential is set to $\Phi(s_{T+1})=0$. GAE and critic targets use the modified learning reward $r'_t$, while all reported training profit and evaluation results still use the actual business profit $r_t$. Pricing's zero-reward transition is unchanged. When this option is enabled, the critics predict modified training returns rather than raw profit returns.
+The final potential is set to $`\Phi(s_{T+1})=0`$. GAE and critic targets use the modified learning reward $`r'_t`$, while all reported training profit and evaluation results still use the actual business profit $`r_t`$. Pricing's zero-reward transition is unchanged. When this option is enabled, the critics predict modified training returns rather than raw profit returns.
 
-Across a complete discounted episode, the added terms cancel except for the initial potential. This cancellation is called **telescoping**: the modified total equals the original discounted total minus the initial state's potential. For a fixed starting state, that subtraction is the same whatever the policy does. The method therefore does not add business profit, give an extra final-battery reward, or guarantee that the vehicles learn to recharge well. It can change how learning proceeds. The coefficient $c$ has currency units per stored kWh, giving $\Phi$ the same units as profit. Its default is zero, which leaves learning rewards unchanged.
+Across a complete discounted episode, the added terms cancel except for the initial potential. This cancellation is called **telescoping**: the modified total equals the original discounted total minus the initial state's potential. For a fixed starting state, that subtraction is the same whatever the policy does. The method therefore does not add business profit, give an extra final-battery reward, or guarantee that the vehicles learn to recharge well. It can change how learning proceeds. The coefficient $`c`$ has currency units per stored kWh, giving $`\Phi`$ the same units as profit. Its default is zero, which leaves learning rewards unchanged.
 
 ## 5. Configuration reference
 
@@ -236,12 +239,12 @@ A **seed** is a number used to reproduce a sequence of random draws. Separate se
 | `--critic-learning-rate` | `None` | Optional separate adjustment rate for the critics |
 | `--clip-ratio` | 0.2 | PPO uses the interval 1 minus this value to 1 plus this value in its clipped learning score |
 | `--value-clip` | 0.2 | Range around old critic predictions used in the clipping loss, measured in reward units; zero disables it |
-| `--gae-lambda` | 0.95 | $\lambda_{\mathrm{GAE}}$: how much later prediction errors affect earlier advantages |
+| `--gae-lambda` | 0.95 | $`\lambda_{\mathrm{GAE}}`$: how much later prediction errors affect earlier advantages |
 | `--value-coef` | 0.5 | Multiplier on the critics' prediction-error losses |
 | `--entropy-coef` | 0.01 | Strength of the exploration bonus for both actors, unless dispatch has its own setting |
 | `--max-grad-norm` | 0.5 | Maximum combined gradient size before the optimizer uses it |
 | `--target-kl` | 0.03 | Stop the rest of an update if estimated action-distribution change exceeds this threshold; zero disables this check |
-| `--[no-]discount-policy-loss` | `True` | Apply the period weights $\gamma^{t-1}$ to actor scores and exploration bonuses, and use them when normalizing advantages |
+| `--[no-]discount-policy-loss` | `True` | Apply the period weights $`\gamma^{t-1}`$ to actor scores and exploration bonuses, and use them when normalizing advantages |
 | `--training-seed-base` | 0 | Starting offset for training environment seeds; the formula is `2*(base + seed + episode_count)` |
 | `--device` | `cpu` | Run on the CPU, or a CUDA GPU if available |
 | `--torch-threads` | 1 | Number of CPU processing threads PyTorch may use |
