@@ -1,4 +1,5 @@
 """Regressions for initially separated vehicles visiting fixed stations."""
+from dataclasses import replace
 import unittest
 
 import numpy as np
@@ -8,9 +9,9 @@ from charging_env import ChargingSimulator, DispatchAction, Mode, Scenario
 
 class StationVisitTests(unittest.TestCase):
     def setup_no_requests(self):
-        sim = ChargingSimulator(Scenario())
+        sim = ChargingSimulator(replace(Scenario(), price_noise_distribution="none"))
         sim.reset(seed=7, options={"requests": [0, 0, 0, 0]})
-        sim.quote_prices([0.50, 0.50])
+        sim.quote_prices([0.50] * sim.config.n_zones)
         return sim
 
     def test_separated_vehicles_visit_stations_and_export(self):

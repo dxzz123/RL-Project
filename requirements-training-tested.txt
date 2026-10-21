@@ -1,0 +1,5 @@
+# Direct dependency versions used for the CPU training validation on Python 3.12.4.
+# Optional: pip install -r requirements-training-tested.txt, then pip install -e '.[train]'.
+# This is not a lock file for all transitive dependencies or platforms.
+-r requirements-tested.txt
+torch==2.14.1

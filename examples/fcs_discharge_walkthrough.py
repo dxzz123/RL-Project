@@ -1,5 +1,6 @@
 """A controlled one-period trip to FCSs and grid export; no learning algorithm."""
 from pathlib import Path
+from dataclasses import replace
 
 from charging_env import ChargingSimulator, DispatchAction, Mode, Scenario
 
@@ -7,6 +8,8 @@ from charging_env import ChargingSimulator, DispatchAction, Mode, Scenario
 def main():
     root = Path(__file__).resolve().parents[1]
     scenario = Scenario.from_json(root / "configs" / "toy_city.json")
+    # Disable stochastic prices to keep the hand-calculated dollar totals exact.
+    scenario = replace(scenario, price_noise_distribution="none")
     sim = ChargingSimulator(scenario)
     # Suppress EV requests in this period to isolate travel and discharge accounting.
     obs, _ = sim.reset(seed=7, options={"requests": [0]*scenario.n_zones})
@@ -14,7 +17,7 @@ def main():
     print("Initial MCV zones:", starts.tolist())
     print("FCS zones:", list(scenario.fcs_zones))
     print("Initial battery (kWh):", obs["energy_kwh"].tolist())
-    obs, _, _, _, _ = sim.quote_prices([0.50]*scenario.n_mcv)
+    obs, _, _, _, _ = sim.quote_prices([scenario.price_levels[0]]*scenario.n_zones)
     actions = [DispatchAction(Mode.DISCHARGE, scenario.fcs_zones[m % scenario.n_fcs], 10.)
                for m in range(scenario.n_mcv)]
     for m, action in enumerate(actions):

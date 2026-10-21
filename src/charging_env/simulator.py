@@ -1,10 +1,12 @@
-"""Two-stage finite-horizon MDP dynamics. There is no policy or learner here."""
+"""Request-level two-stage MDP dynamics; policies and learners are separate."""
 from dataclasses import dataclass
 from enum import IntEnum
+from numbers import Real
 
 import numpy as np
 
 from .config import Scenario
+from .choice import charging_choice_probabilities
 
 
 class Mode(IntEnum):
@@ -19,52 +21,129 @@ class Mode(IntEnum):
 class DispatchAction:
     mode: Mode
     target_zone: int
-    energy_kwh: float = 0.0  # Grid input for RECHARGE, export through FCS for DISCHARGE.
+    energy_kwh: float = 0.0  # Grid input for recharge, grid export for discharge.
 
 
 class ChargingSimulator:
-    """reset -> quote_prices -> dispatch -> quote_prices -> ...
+    """reset -> node pricing -> request choices -> cooperative dispatch -> ...
 
-    Prices are per MCV, not per zone. Users select a named MCV and a zone;
-    each MCV can serve only its selected users at one zone in a period.
+    Choice columns are mobile, FCS 0..F-1, outside. Requests select a pooled
+    mobile service at their origin, never an individual vehicle.
     """
+
     def __init__(self, scenario=None):
         self.config = (scenario or Scenario()).validate()
         self.rng = np.random.default_rng()
         self._ready = False
 
-    def reset(self, *, seed=None, options=None):
+    def _validate_options(self, options):
         c = self.config
+        options = {} if options is None else dict(options)
+        if set(options) - {"requests", "request_energy_kwh", "accessible_fcs"}:
+            raise ValueError("Unknown reset options")
+        if "requests" not in options:
+            if options:
+                raise ValueError("Request details require a 'requests' count vector")
+            return options
+        counts = np.asarray(options["requests"])
+        if (counts.shape != (c.n_zones,) or not np.issubdtype(counts.dtype, np.integer)
+                or (counts < 0).any() or (counts > np.iinfo(np.int64).max).any()):
+            raise ValueError("requests must be nonnegative integer counts of length n_zones")
+        counts = counts.astype(np.int64).copy()
+        n = sum(int(x) for x in counts)
+        q = np.asarray(options.get("request_energy_kwh", np.full(n, c.request_kwh)), dtype=float)
+        if (q.shape != (n,) or not np.isfinite(q).all()
+                or (q < c.request_min_kwh).any() or (q > c.request_max_kwh).any()):
+            raise ValueError("request_energy_kwh must have one bounded energy per request")
+        result = {"requests": counts, "request_energy_kwh": q.copy()}
+        if "accessible_fcs" in options:
+            access = np.asarray(options["accessible_fcs"])
+            if access.shape != (n, c.n_fcs) or not np.isin(access, [0, 1]).all():
+                raise ValueError("accessible_fcs must be a request-by-station binary matrix")
+            result["accessible_fcs"] = access.astype(bool).copy()
+        return result
+
+    def reset(self, *, seed=None, options=None):
+        options = self._validate_options(options)  # Reject malformed input before RNG/state mutation.
         if seed is not None:
             self.rng = np.random.default_rng(seed)
-        options = options or {}
-        if set(options) - {"requests"}:
-            raise ValueError("Only the first-period 'requests' override is supported")
+        c = self.config
         self.period = 0
-        self.stage = 0  # 0 = pricing, 1 = dispatch, 2 = terminal.
+        self.stage = 0
         self.locations = np.array(c.initial_locations, dtype=np.int64)
         self.energy = np.array(c.initial_energy_kwh, dtype=float)
-        self.mobile_prices = np.full(c.n_mcv, c.price_min, dtype=float)
-        self.mobile_demand = np.zeros((c.n_mcv, c.n_zones), dtype=np.int64)
-        self.fixed_demand = np.zeros(c.n_fcs, dtype=np.int64)
-        self.outside = 0
         self.cumulative_profit = 0.0
         self.cumulative_discounted_profit = 0.0
-        self.requests = self._arrivals()
-        if "requests" in options:
-            requested = np.asarray(options["requests"])
-            if requested.shape != (c.n_zones,) or not np.issubdtype(requested.dtype, np.integer):
-                raise ValueError("requests must be an integer vector of length n_zones")
-            if (requested < 0).any() or (requested > c.max_requests_per_zone).any():
-                raise ValueError("requests exceed the configured bounds")
-            self.requests = requested.astype(np.int64).copy()
+        self._prepare_period(options)
         self._ready = True
         return self.observe(), {"stage": "pricing", "discount": 1.0}
 
     def _arrivals(self):
+        return self.rng.poisson(self.config.resolved_arrival_rates[self.period]).astype(np.int64)
+
+    def _prepare_period(self, options=None, *, terminal=False):
         c = self.config
-        means = np.asarray(c.mean_requests_by_zone) * c.arrival_profile[self.period]
-        return self.rng.binomial(c.max_requests_per_zone, means / c.max_requests_per_zone)
+        options = options or {}
+        if terminal:
+            self.requests = np.zeros(c.n_zones, dtype=np.int64)
+        else:
+            self.requests = options["requests"].copy() if "requests" in options else self._arrivals()
+        self.request_origins = np.repeat(np.arange(c.n_zones, dtype=np.int64), self.requests)
+        n = len(self.request_origins)
+        self.request_energy_kwh = (options["request_energy_kwh"].copy()
+            if "request_energy_kwh" in options else self.rng.uniform(c.request_min_kwh, c.request_max_kwh, n))
+        self.request_choices = np.full(n, -1, dtype=np.int64)
+        distances = c.distances[self.request_origins][:, c.fcs_zones]
+        self.accessible_fcs = (distances <= c.max_fcs_access_km) & (
+            np.asarray(c.fcs_ev_capacity_kwh) >= c.request_min_kwh)
+        if "accessible_fcs" in options:
+            # Explicit J_r overrides the geometric default; zero-capacity stations remain unavailable.
+            self.accessible_fcs = options["accessible_fcs"].copy() & (
+                np.asarray(c.fcs_ev_capacity_kwh) >= c.request_min_kwh)
+        self.mobile_prices = np.full(c.n_zones, c.price_levels[0], dtype=float)
+        self._refresh_demand()
+        self.potential_energy_kwh = np.bincount(self.request_origins,
+            weights=self.request_energy_kwh, minlength=c.n_zones).astype(float)
+        self.eligible_mcvs = np.array([[self.service_capacity_kwh(m, z) + 1e-9 >= c.request_min_kwh
+            for z in range(c.n_zones)] for m in range(c.n_mcv)], dtype=bool)
+        self.mobile_available = self.eligible_mcvs.any(axis=0)
+        self.mobile_wait_hours = np.zeros(c.n_zones)
+        for z in np.flatnonzero(self.mobile_available):
+            self.mobile_wait_hours[z] = np.mean(c.distances[self.locations[self.eligible_mcvs[:, z]], z]) / c.speed_kmph
+        # Pre-choice congestion estimate, independent of fleet exchange and realized choices.
+        access_count = self.accessible_fcs.sum(axis=1)
+        load = (self.accessible_fcs * (self.request_energy_kwh / np.maximum(1, access_count))[:, None]).sum(axis=0)
+        capacity = np.asarray(c.fcs_ev_capacity_kwh, dtype=float)
+        ratio = np.divide(load, capacity, out=np.zeros(c.n_fcs), where=capacity > 0)
+        self.fcs_wait_hours = np.maximum(0., ratio - 1.) * c.period_hours / 2.
+        t = min(self.period, c.horizon - 1)
+        if not terminal:
+            if c.price_noise_distribution == "uniform":
+                noise = self.rng.uniform(-c.price_noise_scale, c.price_noise_scale, c.n_fcs)
+            elif c.price_noise_distribution == "normal":
+                noise = self.rng.normal(0., c.price_noise_scale, c.n_fcs)
+            else:
+                noise = np.zeros(c.n_fcs)
+            factor = np.maximum(0., 1. + noise)
+            self.fcs_retail_prices = c.resolved_fcs_charge_price_profile[t] * factor
+            self.fcs_discharge_prices = c.resolved_fcs_discharge_price_profile[t] * factor
+        else:
+            self.eligible_mcvs.fill(False)
+            self.mobile_available.fill(False)
+            self.mobile_wait_hours.fill(0.)
+
+    def _refresh_demand(self):
+        """Aggregate retained request choices without losing identities or energy needs."""
+        c = self.config
+        mobile = self.request_choices == 0
+        self.mobile_demand = np.bincount(self.request_origins[mobile], minlength=c.n_zones).astype(np.int64)
+        self.mobile_requested_kwh = np.bincount(self.request_origins[mobile],
+            weights=self.request_energy_kwh[mobile], minlength=c.n_zones).astype(float)
+        self.fixed_demand = np.array([np.count_nonzero(self.request_choices == f + 1)
+            for f in range(c.n_fcs)], dtype=np.int64)
+        self.fixed_requested_kwh = np.array([self.request_energy_kwh[self.request_choices == f + 1].sum()
+            for f in range(c.n_fcs)], dtype=float)
+        self.outside = int(np.count_nonzero(self.request_choices == c.n_fcs + 1))
 
     def _require(self, stage):
         if not self._ready:
@@ -77,66 +156,69 @@ class ChargingSimulator:
         distance = float(c.distances[self.locations[m], zone])
         return distance, c.period_hours - distance / c.speed_kmph, distance * c.travel_kwh_per_km
 
-    def service_limit(self, m, zone):
+    def service_capacity_kwh(self, m, zone):
         c = self.config
         _, hours, travel = self._travel(m, zone)
-        if hours < 0:
-            return 0
-        deliverable = min(max(0., self.energy[m] - travel - c.reserve_kwh)
-                          * c.mobile_service_efficiency, hours * c.mobile_service_kw)
-        return max(0, int(np.floor((deliverable + 1e-9) / c.request_kwh)))
+        return max(0., min((self.energy[m] - travel - c.reserve_kwh) * c.mobile_service_efficiency,
+                           hours * c.mobile_service_kw))
 
-    def choice_probabilities(self, prices):
-        """Columns: MCV ids, FCS ids, outside. One categorical distribution per zone."""
-        self._require(0)
-        c = self.config
-        prices = self._validate_prices(prices)
-        utilities = np.full((c.n_zones, c.n_mcv + c.n_fcs + 1), -np.inf)
-        for z in range(c.n_zones):
-            for m in range(c.n_mcv):
-                if self.service_limit(m, z) >= 1:
-                    utilities[z, m] = (c.mobile_utility_intercept
-                        - c.price_sensitivity_per_dollar * c.request_kwh * prices[m]
-                        - c.mobile_distance_disutility_per_km * c.distances[self.locations[m], z])
-            for f, fzone in enumerate(c.fcs_zones):
-                distance = c.distances[z, fzone]
-                if distance <= c.max_fcs_access_km and c.fcs_ev_capacity_kwh[f] >= c.request_kwh:
-                    utilities[z, c.n_mcv + f] = (c.fixed_utility_intercept
-                        - c.price_sensitivity_per_dollar * c.request_kwh * c.fcs_retail_per_kwh[f]
-                        - c.fixed_distance_disutility_per_km * distance)
-            utilities[z, -1] = c.outside_utility
-        shifted = utilities - utilities.max(axis=1, keepdims=True)
-        weights = np.exp(shifted)
-        return weights / weights.sum(axis=1, keepdims=True)
+    def service_limit(self, m, zone):
+        """Legacy nominal-q capacity; heterogeneous service uses service_capacity_kwh."""
+        return max(0, int(np.floor((self.service_capacity_kwh(m, zone) + 1e-9) / self.config.request_kwh)))
 
     def _validate_prices(self, prices):
         c = self.config
         prices = np.asarray(prices, dtype=float)
-        if prices.shape != (c.n_mcv,) or not np.isfinite(prices).all():
-            raise ValueError("prices must be a finite vector of length n_mcv")
-        if (prices < c.price_min).any() or (prices > c.price_max).any():
-            raise ValueError("Prices are outside the configured bounds")
-        return prices.copy()
+        if prices.shape != (c.n_zones,) or not np.isfinite(prices).all():
+            raise ValueError("prices must be a finite vector of length n_zones")
+        levels = np.asarray(c.price_levels)
+        matches = np.isclose(prices[:, None], levels, rtol=0., atol=1e-8)
+        if not matches.any(axis=1).all():
+            raise ValueError("Every node price must belong to price_levels")
+        return levels[matches.argmax(axis=1)].copy()
 
-    def quote_prices(self, prices):
+    def choice_probabilities(self, prices):
+        """One MNL row per request: [mobile, station 0, ..., station F-1, outside]."""
         self._require(0)
         c = self.config
         prices = self._validate_prices(prices)
+        z, q = self.request_origins, self.request_energy_kwh
+        mobile_cost = prices[z] * q + c.mobile_wait_cost_per_hour * self.mobile_wait_hours[z]
+        fixed_cost = (q[:, None] * self.fcs_retail_prices
+            + c.fixed_travel_cost_per_km * c.distances[z][:, c.fcs_zones]
+            + c.fixed_wait_cost_per_hour * self.fcs_wait_hours)
+        return charging_choice_probabilities(
+            c, mobile_cost, fixed_cost, self.mobile_available[z], self.accessible_fcs)
+
+    def quote_price_levels(self, levels):
+        self._require(0)
+        c = self.config
+        levels = np.asarray(levels)
+        if (levels.shape != (c.n_zones,) or not np.issubdtype(levels.dtype, np.integer)
+                or (levels < 0).any() or (levels >= len(c.price_levels)).any()):
+            raise ValueError("Provide one valid integer price level per node")
+        return self.quote_prices(np.asarray(c.price_levels)[levels])
+
+    def quote_prices(self, prices):
+        self._require(0)
+        prices = self._validate_prices(prices)
         probabilities = self.choice_probabilities(prices)
-        choices = np.stack([self.rng.multinomial(int(n), p)
-                            for n, p in zip(self.requests, probabilities)])
+        draws = self.rng.random(len(self.request_origins))
+        cumulative = probabilities.cumsum(axis=1)
+        cumulative[:, -1] = 1.
+        self.request_choices = (draws[:, None] >= cumulative).sum(axis=1).astype(np.int64)
         self.mobile_prices = prices
-        self.mobile_demand = choices[:, :c.n_mcv].T.copy()
-        self.fixed_demand = choices[:, c.n_mcv:c.n_mcv+c.n_fcs].sum(axis=0)
-        self.outside = int(choices[:, -1].sum())
+        self._refresh_demand()
+        counts = np.zeros((self.config.n_zones, self.config.n_fcs + 2), dtype=np.int64)
+        np.add.at(counts, (self.request_origins, self.request_choices), 1)
         self.stage = 1
         return self.observe(), 0.0, False, False, {
             "stage": "dispatch", "choice_probabilities": probabilities.copy(),
-            "choice_counts_by_zone": choices.copy(), "discount": 1.0,
+            "choice_counts_by_zone": counts, "request_choices": self.request_choices.copy(), "discount": 1.0,
         }
 
     def feasible_actions(self):
-        """Individual feasibility [MCV, mode, zone]; joint station limits are resolved later."""
+        """Individual [MCV, mode, zone] masks; shared capacity is resolved jointly."""
         c = self.config
         mask = np.zeros((c.n_mcv, len(Mode), c.n_zones), dtype=bool)
         if not self._ready or self.stage != 1:
@@ -148,7 +230,8 @@ class ChargingSimulator:
                 if hours < 0 or self.energy[m] - travel < c.reserve_kwh - 1e-9:
                     continue
                 mask[m, Mode.REPOSITION, z] = True
-                mask[m, Mode.SERVE, z] = self.mobile_demand[m, z] > 0 and self.service_limit(m, z) > 0
+                q = self.request_energy_kwh[(self.request_choices == 0) & (self.request_origins == z)]
+                mask[m, Mode.SERVE, z] = bool(np.any(q <= self.service_capacity_kwh(m, z) + 1e-9))
                 if z in c.fcs_zones and hours > 0:
                     f = c.fcs_zones.index(z)
                     has_exchange = c.fcs_fleet_exchange_capacity_kwh[f] > 0
@@ -171,26 +254,26 @@ class ChargingSimulator:
             if isinstance(action.mode, (float, np.floating, bool, np.bool_)):
                 raise ValueError("mode must be an integer or Mode")
             z = action.target_zone
-            if isinstance(z, bool) or not isinstance(z, (int, np.integer)) or not 0 <= z < c.n_zones:
+            if isinstance(z, (bool, np.bool_)) or not isinstance(z, (int, np.integer)) or not 0 <= z < c.n_zones:
                 raise ValueError("target_zone must be a valid integer zone index")
-            if not np.isfinite(action.energy_kwh) or action.energy_kwh < 0:
+            if (isinstance(action.energy_kwh, (bool, np.bool_)) or not isinstance(action.energy_kwh, Real)
+                    or not np.isfinite(action.energy_kwh) or action.energy_kwh < 0):
                 raise ValueError("energy_kwh must be finite and nonnegative")
             clean.append(DispatchAction(mode, int(z), float(action.energy_kwh)))
         return clean
 
     def dispatch(self, actions):
         self._require(1)
-        actions = self._validate_actions(actions)  # Fail before any mutation.
+        actions = self._validate_actions(actions)
         c = self.config
         before = self.energy.copy()
         mask = self.feasible_actions()
-        served_mobile = np.zeros_like(self.mobile_demand)
-        travel_kwh = np.zeros(c.n_mcv)
-        travel_km = np.zeros(c.n_mcv)
-        charge_grid = np.zeros(c.n_mcv)
-        export_grid = np.zeros(c.n_mcv)
-        fcs_charge_grid = np.zeros(c.n_fcs)
-        fcs_export_grid = np.zeros(c.n_fcs)
+        served_mobile = np.zeros((c.n_mcv, c.n_zones), dtype=np.int64)
+        delivered_mobile = np.zeros((c.n_mcv, c.n_zones))
+        served = np.zeros(len(self.request_origins), dtype=bool)
+        assigned_mcv = np.full(len(served), -1, dtype=np.int64)
+        travel_kwh, travel_km, charge_grid, export_grid = [np.zeros(c.n_mcv) for _ in range(4)]
+        fcs_charge_grid, fcs_export_grid = np.zeros(c.n_fcs), np.zeros(c.n_fcs)
         requested_exchange = np.zeros(c.n_mcv)
         station = np.full(c.n_mcv, -1, dtype=int)
         modes = np.full(c.n_mcv, Mode.WAIT, dtype=int)
@@ -205,7 +288,15 @@ class ChargingSimulator:
                 continue
             distance, hours, travel = self._travel(m, z)
             if mode == Mode.SERVE:
-                served_mobile[m, z] = min(self.service_limit(m, z), self.mobile_demand[m, z])
+                remaining = self.service_capacity_kwh(m, z)
+                candidates = np.flatnonzero((self.request_choices == 0) & (self.request_origins == z) & ~served)
+                for r in candidates:
+                    q = self.request_energy_kwh[r]
+                    if q <= remaining + 1e-9:
+                        served[r], assigned_mcv[r] = True, m
+                        remaining -= q
+                        served_mobile[m, z] += 1
+                        delivered_mobile[m, z] += q
             travel_km[m], travel_kwh[m] = distance, travel
             self.energy[m] -= travel
             self.locations[m] = z
@@ -217,7 +308,6 @@ class ChargingSimulator:
                 else:
                     requested_exchange[m] = min(action.energy_kwh, hours*c.mobile_discharge_kw,
                         max(0., self.energy[m]-c.reserve_kwh)*c.discharge_efficiency)
-        # Proportional sharing: charging plus export use one fleet exchange kWh budget.
         for f in range(c.n_fcs):
             members = np.flatnonzero(station == f)
             total = float(requested_exchange[members].sum())
@@ -230,25 +320,36 @@ class ChargingSimulator:
                 else:
                     export_grid[m] = allocated
                     fcs_export_grid[f] += allocated
-        mobile_delivered = served_mobile.sum(axis=1)*c.request_kwh
+        mobile_delivered = delivered_mobile.sum(axis=1)
         self.energy += c.charge_efficiency*charge_grid
         self.energy -= mobile_delivered/c.mobile_service_efficiency + export_grid/c.discharge_efficiency
-        fixed_limits = np.floor((np.asarray(c.fcs_ev_capacity_kwh)+1e-9)/c.request_kwh).astype(int)
-        served_fixed = np.minimum(self.fixed_demand, fixed_limits)
-        fixed_delivered = served_fixed*c.request_kwh
+        served_fixed = np.zeros(c.n_fcs, dtype=np.int64)
+        fixed_delivered = np.zeros(c.n_fcs)
+        for f in range(c.n_fcs):
+            remaining = c.fcs_ev_capacity_kwh[f]
+            for r in np.flatnonzero(self.request_choices == f + 1):
+                q = self.request_energy_kwh[r]
+                if q <= remaining + 1e-9:
+                    served[r] = True
+                    remaining -= q
+                    served_fixed[f] += 1
+                    fixed_delivered[f] += q
         fixed_grid = fixed_delivered/c.fixed_service_efficiency
-        unmet_mobile = int(self.mobile_demand.sum()-served_mobile.sum())
-        unmet_fixed = int(self.fixed_demand.sum()-served_fixed.sum())
+        unmet_mobile_mask = (self.request_choices == 0) & ~served
+        unmet_fixed_mask = (self.request_choices >= 1) & (self.request_choices <= c.n_fcs) & ~served
+        unmet_mobile, unmet_fixed = int(unmet_mobile_mask.sum()), int(unmet_fixed_mask.sum())
+        unmet_mobile_kwh = float(self.request_energy_kwh[unmet_mobile_mask].sum())
+        unmet_fixed_kwh = float(self.request_energy_kwh[unmet_fixed_mask].sum())
         t = self.period
         terminal = t + 1 == c.horizon
         terms = {
-            "mobile_service_revenue": float(np.dot(self.mobile_prices, mobile_delivered)),
-            "fixed_service_revenue": float(np.dot(c.fcs_retail_per_kwh, fixed_delivered)),
-            "discharge_revenue": float(c.grid_sell_per_kwh[t]*export_grid.sum()),
+            "mobile_service_revenue": float(np.sum(delivered_mobile*self.mobile_prices)),
+            "fixed_service_revenue": float(np.dot(self.fcs_retail_prices, fixed_delivered)),
+            "discharge_revenue": float(np.dot(self.fcs_discharge_prices, fcs_export_grid)),
             "procurement_cost": float(c.grid_buy_per_kwh[t]*(fixed_grid.sum()+charge_grid.sum())),
             "travel_cost": float(c.travel_cost_per_km*travel_km.sum()),
             "operating_cost": float(c.operating_cost_per_mcv_period*c.n_mcv),
-            "unmet_demand_cost": float(c.unmet_penalty_per_kwh*c.request_kwh*(unmet_mobile+unmet_fixed)),
+            "unmet_demand_cost": float(c.unmet_penalty_per_kwh*(unmet_mobile_kwh+unmet_fixed_kwh)),
             "terminal_inventory_value": float(c.terminal_value_per_stored_kwh*self.energy.sum()) if terminal else 0.,
         }
         reward = (terms["mobile_service_revenue"]+terms["fixed_service_revenue"]
@@ -259,31 +360,39 @@ class ChargingSimulator:
         self.cumulative_discounted_profit += (c.discount_per_period**t)*reward
         residual = (self.energy-before+travel_kwh-c.charge_efficiency*charge_grid
             +mobile_delivered/c.mobile_service_efficiency+export_grid/c.discharge_efficiency)
-        if not np.allclose(residual, 0., atol=1e-8) or (self.energy < c.reserve_kwh-1e-8).any() or (self.energy > c.battery_capacity_kwh+1e-8).any():
+        if (not np.allclose(residual, 0., atol=1e-8) or (self.energy < c.reserve_kwh-1e-8).any()
+                or (self.energy > c.battery_capacity_kwh+1e-8).any()):
             raise AssertionError("Energy conservation or battery bounds violated")
+        total_requests = len(served)
+        fcs_capacity = np.asarray(c.fcs_ev_capacity_kwh, dtype=float)
         info = {
             "completed_period": t, "stage": "terminal" if terminal else "pricing",
-            "reward_terms": terms, "served_mobile": served_mobile.copy(),
-            "served_fixed": served_fixed.copy(), "unmet_mobile_requests": unmet_mobile,
-            "unmet_fixed_requests": unmet_fixed, "outside_requests": self.outside,
-            "total_requests": int(self.requests.sum()), "invalid_actions": invalid,
-            "executed_modes": modes.copy(), "cumulative_profit": self.cumulative_profit,
+            "reward_terms": terms, "served_mobile": served_mobile, "delivered_mobile_kwh": delivered_mobile,
+            "served_fixed": served_fixed, "served_request_mask": served, "assigned_mcv": assigned_mcv,
+            "request_origins": self.request_origins.copy(), "request_energy_kwh": self.request_energy_kwh.copy(),
+            "request_choices": self.request_choices.copy(),
+            "unmet_mobile_requests": unmet_mobile, "unmet_fixed_requests": unmet_fixed,
+            "unmet_mobile_kwh": unmet_mobile_kwh, "unmet_fixed_kwh": unmet_fixed_kwh,
+            "outside_requests": self.outside, "total_requests": total_requests, "invalid_actions": invalid,
+            "executed_modes": modes, "cumulative_profit": self.cumulative_profit,
             "cumulative_discounted_profit": self.cumulative_discounted_profit,
             "discount": 0. if terminal else c.discount_per_period,
+            "metrics": {"outside_option_share": self.outside / total_requests if total_requests else 0.,
+                "served_request_share": float(served.sum()) / total_requests if total_requests else 0.,
+                "mcv_active_fraction": float(np.mean(modes != Mode.WAIT)),
+                "mcv_service_utilization": float(mobile_delivered.sum()/(c.n_mcv*c.mobile_service_kw*c.period_hours)),
+                "fcs_service_utilization": np.divide(fixed_delivered, fcs_capacity,
+                    out=np.zeros(c.n_fcs), where=fcs_capacity > 0)},
             "energy_ledger": {"before_kwh": before, "after_kwh": self.energy.copy(),
                 "travel_kwh": travel_kwh, "mobile_delivered_kwh": mobile_delivered,
                 "charge_grid_kwh": charge_grid, "export_grid_kwh": export_grid,
-                "fcs_charge_grid_kwh": fcs_charge_grid,
-                "fcs_export_grid_kwh": fcs_export_grid,
-                "fixed_grid_kwh": fixed_grid, "balance_residual_kwh": residual},
+                "fcs_charge_grid_kwh": fcs_charge_grid, "fcs_export_grid_kwh": fcs_export_grid,
+                "fixed_delivered_kwh": fixed_delivered, "fixed_grid_kwh": fixed_grid,
+                "balance_residual_kwh": residual},
         }
         self.period += 1
         self.stage = 2 if terminal else 0
-        self.mobile_prices = np.full(c.n_mcv, c.price_min)
-        self.mobile_demand.fill(0)
-        self.fixed_demand.fill(0)
-        self.outside = 0
-        self.requests = np.zeros(c.n_zones, dtype=np.int64) if terminal else self._arrivals()
+        self._prepare_period(terminal=terminal)
         return self.observe(), float(reward), terminal, False, info
 
     def observe(self):
@@ -291,23 +400,37 @@ class ChargingSimulator:
             raise RuntimeError("Call reset() first")
         c = self.config
         t = min(self.period, c.horizon-1)
+        details = np.column_stack((self.request_origins, self.request_energy_kwh,
+                                   self.request_choices, self.accessible_fcs)).astype(np.float64)
+        pricing_mask = np.repeat(self.mobile_available[:, None], len(c.price_levels), axis=1)
+        if self.stage != 0:
+            pricing_mask.fill(False)
         return {
             "stage": self.stage, "period": np.array([self.period], dtype=np.int64),
             "locations": self.locations.copy(), "energy_kwh": self.energy.copy(),
-            "requests_by_zone": self.requests.copy(), "mobile_prices": self.mobile_prices.copy(),
+            "arrival_rates": c.resolved_arrival_rates[t].copy() if self.stage != 2 else np.zeros(c.n_zones),
+            "requests_by_zone": self.requests.copy(), "potential_energy_kwh": self.potential_energy_kwh.copy(),
+            "request_details": details, "mobile_prices": self.mobile_prices.copy(),
             "mobile_demand": self.mobile_demand.copy(), "fixed_demand": self.fixed_demand.copy(),
+            "mobile_requested_kwh": self.mobile_requested_kwh.copy(), "fixed_requested_kwh": self.fixed_requested_kwh.copy(),
             "outside_requests": np.array([self.outside], dtype=np.int64),
-            "fcs_retail_prices": np.asarray(c.fcs_retail_per_kwh, dtype=float).copy(),
+            "mobile_wait_hours": self.mobile_wait_hours.copy(), "mobile_available": self.mobile_available.astype(np.int8),
+            "eligible_mcvs": self.eligible_mcvs.astype(np.int8), "fcs_wait_hours": self.fcs_wait_hours.copy(),
+            "fcs_retail_prices": self.fcs_retail_prices.copy(), "fcs_discharge_prices": self.fcs_discharge_prices.copy(),
             "grid_buy_price": np.array([c.grid_buy_per_kwh[t]], dtype=float),
-            "grid_sell_price": np.array([c.grid_sell_per_kwh[t]], dtype=float),
-            "action_mask": self.feasible_actions().astype(np.int8),
+            "pricing_mask": pricing_mask.astype(np.int8), "action_mask": self.feasible_actions().astype(np.int8),
         }
 
     def local_observation(self, m):
-        """Proposal-style partial dispatch observation; other MCV states are excluded."""
+        """Shared-policy dispatch input including peer fleet state (paper zeta_mt)."""
         self._require(1)
-        if not isinstance(m, int) or not 0 <= m < self.config.n_mcv:
+        if isinstance(m, (bool, np.bool_)) or not isinstance(m, (int, np.integer)) or not 0 <= m < self.config.n_mcv:
             raise ValueError("Invalid MCV id")
         obs = self.observe()
-        return {key: (value[m:m+1].copy() if key in ("locations", "energy_kwh", "action_mask") else value)
-                for key, value in obs.items()}
+        peers = np.arange(self.config.n_mcv) != m
+        obs["agent_id"] = np.array([m], dtype=np.int64)
+        obs["other_locations"] = self.locations[peers].copy()
+        obs["other_energy_kwh"] = self.energy[peers].copy()
+        for key in ("locations", "energy_kwh", "action_mask"):
+            obs[key] = obs[key][m:m+1].copy()
+        return obs

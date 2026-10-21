@@ -33,6 +33,8 @@
     55.0
   ],
   "reserve_kwh": 5.0,
+  "request_min_kwh": 5.0,
+  "request_max_kwh": 15.0,
   "request_kwh": 10.0,
   "max_requests_per_zone": 12,
   "mean_requests_by_zone": [
@@ -55,6 +57,7 @@
     0.8,
     0.7
   ],
+  "arrival_rates": null,
   "fcs_retail_per_kwh": [
     0.42,
     0.44
@@ -87,14 +90,25 @@
     0.1,
     0.1
   ],
+  "fcs_charge_price_profile": null,
+  "fcs_discharge_price_profile": null,
+  "price_noise_distribution": "uniform",
+  "price_noise_scale": 0.05,
   "price_min": 0.2,
   "price_max": 1.0,
-  "mobile_utility_intercept": 3.8,
-  "fixed_utility_intercept": 3.2,
-  "outside_utility": 0.0,
+  "price_levels": [
+    0.2,
+    0.3,
+    0.4,
+    0.5,
+    0.6,
+    0.8,
+    1.0
+  ],
   "price_sensitivity_per_dollar": 0.7,
-  "mobile_distance_disutility_per_km": 0.12,
-  "fixed_distance_disutility_per_km": 0.25,
+  "mobile_wait_cost_per_hour": 1.0,
+  "fixed_wait_cost_per_hour": 1.0,
+  "fixed_travel_cost_per_km": 0.25,
   "max_fcs_access_km": 8.0,
   "speed_kmph": 20.0,
   "travel_kwh_per_km": 0.35,
@@ -116,6 +130,7 @@
   ],
   "operating_cost_per_mcv_period": 0.5,
   "unmet_penalty_per_kwh": 0.3,
-  "terminal_value_per_stored_kwh": 0.12,
-  "discount_per_period": 0.99
+  "terminal_value_per_stored_kwh": 0.0,
+  "discount_per_period": 0.99,
+  "charging_utility_intercept": 0.0
 }

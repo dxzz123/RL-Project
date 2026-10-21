@@ -18,10 +18,13 @@ def main():
     rows = []
     while sim.stage != 2:
         # Pricing is supplied first. No dispatch action has been selected yet.
-        prices = np.array([0.50]*scenario.n_mcv)
+        prices = np.array([scenario.price_levels[len(scenario.price_levels)//2]]*scenario.n_zones)
         obs, reward, terminated, truncated, choice_info = sim.quote_prices(prices)
         print(f"Period {sim.period}: requests={obs['requests_by_zone'].tolist()}")
-        print("  Mobile choices (MCV x zone):", obs["mobile_demand"].tolist())
+        print("  Mobile choices (pooled by zone):", obs["mobile_demand"].tolist())
+        print("  Mobile requested energy (kWh):", obs["mobile_requested_kwh"].round(2).tolist())
+        print("  FCS charge/discharge prices:", obs["fcs_retail_prices"].round(3).tolist(),
+              obs["fcs_discharge_prices"].round(3).tolist())
         print("  Fixed choices:", obs["fixed_demand"].tolist(),
               "outside:", int(obs["outside_requests"][0]))
         # Service locations and fixed stations are separate destinations.

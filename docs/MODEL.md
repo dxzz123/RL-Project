@@ -1,506 +1,215 @@
-<!-- # Decision model and simulator contract
+# How the charging model works
 
-This document describes the implemented model, rather than a learning algorithm. The basic procedure is pricing by the operator followed by endogenous user choices and decentralized MCV dispatch. This document specifies the demand distributions, choice utilities, service duration, capacities, or energy accounting. The choices below settle those details for an initial simulator and are adjustable research assumptions.
+This project models an operator that owns fixed charging stations and mobile charging vehicles. In each period, the operator sets mobile prices, customers choose a charging option, and the mobile vehicles decide where to go. The simulator then calculates how much energy is delivered, how vehicle batteries change, and how much profit the operator earns.
 
-## Entities, units, and defaults
+This guide explains those rules. The default numerical values describe an example city and have not been fitted to real-world, more complicated configurations. [TRAINING.md](TRAINING.md) explains how SA-PPO–MAPPO learns to make the pricing and vehicle decisions.
 
-The operator owns fixed charging stations (FCSs) and mobile charging vehicles (MCVs). Zones have coordinates in kilometers; travel distance is Manhattan distance, the sum of the absolute coordinate differences between zones. The default scenario has four zones, two FCSs, two MCVs, and 12 one-hour periods. Vehicle and station indices start at zero.
+## 1. The city, energy units, and order of decisions
 
-| Zone | Coordinates (km) | Fixed station | Initial MCV |
-|---|---|---|---|
-| 0 | `(0, 0)` | FCS 0 | — |
-| 1 | `(4, 0)` | — | MCV 0 |
-| 2 | `(0, 4)` | — | MCV 1 |
-| 3 | `(4, 4)` | FCS 1 | — |
+A **node** represents a location or service zone in the city. A customer's electric vehicle is an **EV**, a mobile charging vehicle is an **MCV**, and a fixed charging station is an **FCS**. We use `z` to identify a node, `m` a mobile vehicle, `f` a station, and `t` a time period. Periods run from `0` to `T-1`, where `T` is the number of periods in an episode.
 
-Thus the MCVs initially occupy different locations from the FCSs. This is an initial-state choice, not a permanent separation constraint: vehicles can visit an FCS to recharge or discharge, then move elsewhere. Station locations stay fixed throughout an episode.
+The default city has four nodes, two stations, two mobile vehicles, and 12 one-hour periods. Node coordinates are `(0,0)`, `(4,0)`, `(0,4)`, and `(4,4)` km. Stations are at nodes 0 and 3; mobile vehicles start at nodes 1 and 2, each with 55 kWh in its battery. Distance is Manhattan distance, which is the sum of horizontal and vertical distances, as on a rectangular street grid. This distance is used when checking station access and calculating travel time, energy, and cost.
 
-| Quantity | Unit / convention |
+| Quantity | Unit |
 |---|---|
-| Vehicle battery inventory, reserve, capacity | Stored kWh |
-| EV request | Delivered kWh; every customer requests `request_kwh` |
-| Service power | Delivered kW |
-| Fleet charging power | Grid-input kW |
-| Fleet discharge power | Grid-export kW |
-| Fleet exchange action and station exchange budget | Grid-side kWh |
-| FCS EV service capacity | Delivered kWh per period |
-| Mobile and fixed retail price | Dollars per delivered kWh |
-| Grid buy and sell price | Dollars per grid-side kWh |
-| Travel | km, hours, and stored kWh consumed |
-| Unmet-demand penalty | Dollars per unserved requested kWh |
-| Terminal inventory value | Dollars per remaining stored kWh |
+| Energy inside a mobile vehicle's battery, including its reserve and capacity | Stored kWh |
+| Request energy and customer delivery | Delivered kWh |
+| MCV service power | Delivered kW |
+| MCV recharge / export amounts and the station's MCV energy limit | Grid-side kWh |
+| Charging / discharging power | Grid-side kW |
+| Maximum energy a station can deliver to customer EVs | Delivered kWh per period |
+| Unit price | Dollars per applicable kWh |
+| Travel and waiting | km and hours |
+| Customer inconvenience | Dollars |
 
-The numeric defaults are synthetic. They support inspection and testing, without establishing empirical realism or a profitable operating strategy.
+Stored energy is measured inside an MCV battery; delivered energy is what reaches the customer's EV; grid-side energy is measured at the grid connection. Charging and discharging losses mean these amounts can differ.
 
-## Physical period and information sequence
+Every period contains two decisions—pricing and dispatch—in this order:
 
-Let period indices be `t = 0, ..., T-1`. Let `L_m` and `E_m` be each vehicle's location and stored energy.
+1. **Pricing, stage 0:** generate the arriving customers, their energy needs, and station prices. Estimate waiting times. The operator sees this information and the fleet's locations and batteries, then chooses one mobile price per node from a fixed list.
+2. **Customer choice:** each customer chooses mobile service at their origin, a station they can access, or the outside option, which means leaving the operator's system. These choices produce the information available for dispatch, called the post-choice state.
+3. **Dispatch, stage 1:** all mobile vehicles submit their actions together. The simulator determines which customers are served and how shared station capacity is used, executes the actions, and calculates the period's profit.
+4. **Next period:** move to the next time period, generate new customer requests and station prices, and return to stage 0. After all `T` periods, the episode ends at stage 2.
 
-1. **Pricing state, stage 0.** The operator observes the fleet, current EV requests by zone, known FCS retail prices, and current grid buy/sell prices.
-2. **Price action.** The operator sets one price `p_m` per MCV, bounded by `price_min` and `price_max`. Prices apply per delivered kWh and to the individual MCV, not to a zone.
-3. **User choices.** Each request chooses a named MCV, an FCS, or the outside option. The sampled choices become fixed demand for this period.
-4. **Dispatch state, stage 1.** Each MCV can inspect a local observation and select one mode and one target zone. The simulator receives all dispatch actions together.
-5. **Operation.** Each MCV travels to its target and uses the remaining period for its selected operation. Joint fleet station limits are resolved. FCS EV service occurs in parallel.
-6. **Reward and next period.** The operator receives period profit. New EV arrivals are drawn, unless the horizon is complete. The next pricing state begins at period `t+1`.
+Customers do not try another provider after making their choice. Unserved requests do not carry over to later periods.
 
-Pricing has no elapsed physical time and returns zero reward. Dispatch advances time by one period and returns the whole period reward. The final dispatch sets `terminated=True`; the simulator has no early termination or time-limit truncation. Calls after termination require a new `reset()`.
+## 2. How customer requests and station prices are generated
 
-## Exogenous arrivals
-
-For each zone `z`, independently,
+One **request** means one customer asking for a certain amount of charging energy. For each node and period, the simulator independently draws the number of arriving customers from a Poisson distribution. The configured average arrival count is `lambda`; the actual count is `N`. Each customer requests an energy amount `q_r` drawn uniformly between the configured lower and upper bounds. The total energy requested at that node is the sum of the individual amounts:
 
 ```math
-N_{tz}\sim\mathrm{Binomial}\left(N_{\max},
-\frac{\mu_z h_t}{N_{\max}}\right).
+N_{tz} \sim \mathrm{Poisson}(\lambda_{tz}),
+\qquad q_r \sim \mathrm{Uniform}(q_{\min}, q_{\max}),
+\qquad \overline d_{tz}=\sum_{r\in R_{tz}}q_r.
 ```
 
-Here `N_max = max_requests_per_zone`, `mu_z = mean_requests_by_zone[z]`, and `h_t = arrival_profile[t]`. Validation requires each probability to lie in `[0,1]`. Draws are independent over zones and periods, with period-specific means. Every customer has the same requested energy `q = request_kwh`.
+The average arrival count normally equals the zone's **baseline demand multiplied by a time-dependent multiplier**. For example, a baseline of 4 customers and a multiplier of 0.5 give an average of 2 customers in that period. The actual count can still be 0, 1, 2, 3, or more. There is no artificial upper limit on arrivals.
 
-The realized counts, rather than just their means, are observed before pricing. `reset(options={"requests": [...]})` can override the first-period counts for a controlled experiment. It does not replace the later arrival process.
+The configuration calls the time-dependent multiplier `arrival_profile` and the zone's baseline demand `mean_requests_by_zone`. Alternatively, `arrival_rates` can directly provide a table of average arrival counts, with one row per period and one column per zone. In that case, this table replaces the baseline-times-multiplier calculation.
 
-## Endogenous user choices
+The default bounds $q_{\min}$ and $q_{\max}$ are 5 and 15 kWh. Each customer's requested energy is drawn uniformly within this range, so equal-width intervals are equally likely. These bounds apply to each customer, rather than to the zone's total requested energy.
 
-Users within a zone are homogeneous. For a request in zone `z`, a mobile option `m` has deterministic utility
+**The request list groups customers by their origin zone.** Within a period, each customer keeps the same position in this list while their provider choice and service outcome are calculated. For example, if zone 0 has two customers and zone 1 has one, the list contains the two zone-0 customers followed by the zone-1 customer.
+
+For controlled examples, `reset(options={"requests": counts})` lets you specify the first period's customer counts yourself. Those customers all request the configured constant `request_kwh`, unless you also supply their individual energies in `request_energy_kwh`. A supplied energy list must follow the same customer order and stay within the allowed energy bounds.
+
+You can also supply `accessible_fcs` to say which stations each customer may consider. This is a table with one row per customer and one column per station: `True` means accessible and `False` means inaccessible. Its shape is `[sum(counts), n_fcs]`. These optional inputs require explicit customer counts. The manual inputs affect only the first period; later periods return to random generation.
+
+For each station and period, the simulator draws one random percentage change, `epsilon`, and applies it to both the customer charging price and the price paid for MCV energy exported through that station:
 
 ```math
-u^M_{zm}=b_M-\alpha q p_m-\delta_M d(L_m,z).
+p^{F,C}_{tf}=\max\{0,\overline p^{F,C}_{tf}(1+\epsilon_{tf})\},
+\qquad p^{F,D}_{tf}=\max\{0,\overline p^{F,D}_{tf}(1+\epsilon_{tf})\}.
 ```
 
-An FCS `f`, located in zone `z_f`, has utility
+Baseline station prices can be set separately for each period and station using `fcs_charge_price_profile` and `fcs_discharge_price_profile`. Each table has one row per period and one column per station. Without these tables, each station's customer-price baseline stays constant over time, while the export-price baseline follows the same time pattern at every station.
+
+By default, the random percentage change is uniformly distributed between -5% and +5%, so both station prices move up or down together. The configuration can instead use normally distributed changes or turn randomness off. `price_noise_scale` sets the uniform distribution's half-width or the normal distribution's standard deviation. A calculated price below zero is set to zero. Prices are generated once at the start of a period and stay fixed through pricing and dispatch. For a given scenario, the baseline patterns stay fixed across episodes, while random arrivals and price changes can differ.
+
+The separate wholesale electricity purchase price, `grid_buy_per_kwh[t]`, is what the operator pays for energy from the external grid. Transfers between its own stations and mobile vehicles do not create an additional payment in the profit calculation.
+
+## 3. Which services customers can use, and their estimated delays
+
+A mobile vehicle is **eligible** for a node if it can reach that node within the period, keep the required battery reserve, and still deliver at least the smallest allowed request, `request_min_kwh`. This minimum-energy reserve is a simulator assumption which can be changed later. An eligible vehicle may still lack enough time or energy for a larger request.
+
+When at least one vehicle is eligible, the estimated mobile delay is the average travel time of those vehicles. Here `M_z` is the set of eligible vehicles, `d(L_m,z)` is the distance from vehicle `m` to the node, and `v` is vehicle speed:
 
 ```math
-u^F_{zf}=b_F-\alpha q p^F_f-\delta_F d(z,z_f).
+\widehat w^M_{tz}=\frac{1}{|M_z|}\sum_{m\in M_z}\frac{d(L_m,z)}{v}.
 ```
 
-The outside utility is `u_out`. Utilities are dimensionless: `alpha` multiplies the request's dollar bill, and the distance coefficient multiplies kilometers. The choice probabilities are multinomial logit:
+If no vehicle is eligible, customers at that node cannot choose mobile service. The code records a delay of zero in this case, so it must also check `mobile_available` and `eligible_mcvs`; zero delay alone does not mean immediate service. This delay is an estimate made before dispatch and does not promise that a particular vehicle will serve the customer.
+
+By default, a customer may consider a fixed station if it is within the allowed travel distance and can deliver at least the smallest allowed request. In a controlled example, a manually supplied accessibility table can replace the distance rule and allow a more distant station. The station must still have enough capacity for the minimum request. A station with no customer-service capacity is unavailable.
+
+We also need to estimate station waiting times. To estimate a station's possible demand, `L_f`, the simulator divides each customer's requested energy equally among the stations that customer may consider. This is only a calculation for estimating congestion; it does not split an actual customer's charging across stations. With station customer-service capacity `K_f`, the estimated wait is
 
 ```math
-P_{zj}=\frac{\exp(u_{zj})}{\sum_{k\in\mathcal A_z}\exp(u_{zk})}.
+\widehat w^F_{tf}=\frac{\Delta t}{2}\max\left\{0,\frac{L_f}{K_f}-1\right\},\qquad K_f>0.
 ```
 
-The outside option is always available. A mobile option is available only if that MCV could travel to this zone and serve at least one full request within the period, using its current battery and service power. An FCS is available if the zone is within its access radius and its EV capacity admits at least one full request. Unavailable options have probability zero.
+A station with no customer-service capacity stores zero wait but remains unavailable. Other stations use this simple waiting estimate before customers choose, and keep it fixed for the whole period. The estimate is not recalculated after seeing their choices. Mobile-vehicle recharge and export use separate station capacity and do not affect these customer waiting estimates.
 
-The simulator samples a multinomial count vector for each zone. `mobile_demand[m,z]` counts customers who selected vehicle `m` in zone `z`; `fixed_demand[f]` aggregates customers who selected FCS `f`.
+## 4. How prices influence each customer's choice
 
-These availability checks do not guarantee eventual service. A vehicle can be attractive to customers in several zones but can serve only one zone in the period. Also, an FCS can attract more demand than it can serve. Dispatch and capacity determine the served quantities. Customers who are not served do not switch provider, carry demand forward, or join a queue. Outside-option customers generate no revenue or unmet-demand penalty.
+The operator chooses one mobile price, `p_z`, for each node from the fixed list `Scenario.price_levels`. All customers at that node see the same price. In the Python interface, `quote_prices` accepts dollar-per-kWh amounts from this list, while `quote_price_levels` and Gymnasium's `price_levels` action accept positions in the list, such as index 0 for its first entry. A node without mobile availability receives a valid placeholder price, but customers there still cannot choose mobile charging.
 
-## Dispatch actions and feasibility
+A customer chooses mobile service at their origin, rather than choosing a named mobile vehicle. For request `r` at node `z`, the customer compares payment plus inconvenience, with inconvenience expressed in dollars:
 
-Each MCV receives one `DispatchAction(mode, target_zone, energy_kwh)`.
+```math
+c^M_r=p_zq_r+a_M\widehat w^M_{tz},
+\qquad c^F_{rf}=p^{F,C}_{tf}q_r+b_F d(z,z_f)+a_F\widehat w^F_{tf}.
+```
 
-| Mode | Effect |
+Here `a_M` is the customer's cost per hour of waiting for mobile service, `a_F` is the cost per hour of waiting at a station, and `b_F` is the inconvenience cost per kilometre of traveling to a station. Mobile waiting cost uses the average arrival time of eligible vehicles. For example, 10 kWh at 0.60 dollars/kWh costs 6 dollars before any waiting inconvenience is added.
+
+Let `A_r` contain the charging options this customer may consider: mobile charging, if available, and accessible fixed stations. The outside option means leaving without using the operator's service, and its baseline preference score is zero. The positive parameter `eta` determines how strongly cost reduces the appeal of a charging option. The parameter `b` is a common charging benefit that makes all charging options more attractive relative to leaving. The following logit model converts these scores into probabilities:
+
+```math
+u_r^k=b-\eta c_r^k,\quad u_r^O=0,\qquad
+P_r(k)=\frac{\exp(b-\eta c_r^k)}{1+\sum_{j\in A_r}\exp(b-\eta c_r^j)},\quad k\in A_r,
+\qquad
+P_r(O)=\frac{1}{1+\sum_{j\in A_r}\exp(b-\eta c_r^j)}.
+```
+
+The simulator randomly selects exactly one option using these probabilities. The possible outcomes include leaving, written as `O`, as well as the charging options in `A_r`. An unavailable service has zero chance of selection. If no charging option is available, the customer always leaves.
+
+The default `b=0` is the original choice rule. Under this rule, nonnegative charging costs give each charging option a weight no greater than the outside option's weight of one, so many customers may leave.
+
+The optional `b=3` scenario adds a charging benefit relative to leaving. `b=2` and `b=4` let us compare smaller and larger benefits. These are changes to the customer model, with values chosen for experiments rather than estimated from real customer data. For unchanged costs and available options, increasing `b` makes leaving less likely, while keeping customers' relative preferences among charging providers unchanged. With no available provider, the customer still leaves. The simulator and adaptive pricing benchmark use the same probability calculation in `choice.py`. See [OUTSIDE_OPTION.md](OUTSIDE_OPTION.md) for details.
+
+Each customer's choice stays attached to their own request. Customers choosing mobile charging are grouped by origin node, and any vehicle visiting that node may serve those requests. Customers choosing a fixed station are grouped by their chosen station. Customers who leave are counted separately and do not incur an unmet-service penalty.
+
+## 5. How vehicles serve customers and share station capacity
+
+Each mobile vehicle chooses an operation, called its **mode**, and a destination node. Recharge and export actions also specify how much grid-side energy the vehicle requests:
+
+| Mode | Operation |
 |---|---|
-| `WAIT` | Stay at the current zone; no travel or energy exchange. |
-| `SERVE` | Travel to one zone and serve as many of this MCV's selected customers there as feasible. |
-| `REPOSITION` | Travel to a zone without serving or exchanging energy. |
-| `RECHARGE` | Travel to an FCS and request grid-input kWh. |
-| `DISCHARGE` | Travel to an FCS and request grid-export kWh from the MCV battery through the FCS connection. |
+| `WAIT` | Remain at the current node |
+| `SERVE` | Travel to a node and serve its mobile request pool |
+| `REPOSITION` | Travel without serving or exchanging energy |
+| `RECHARGE` | Travel to an FCS and receive grid energy |
+| `DISCHARGE` | Travel to an FCS and export battery energy |
 
-`energy_kwh` is used only for recharge/discharge; it is ignored for the other modes. The simulator clips exchange requests to the feasible physical quantity. The mode/zone action mask does not encode a continuous energy bound or joint station competition.
+An **action mask** marks which combinations of operation and destination a vehicle can physically carry out. It checks each vehicle separately, so a valid action does not reserve customer demand or station capacity. Another vehicle may use those resources first. An action that violates the physical rules is carried out as `WAIT` and reported in `invalid_actions`.
 
-For travel distance `d`, available operating time and travel energy are
-
-```math
-h=\Delta-d/v,\qquad e^{\mathrm{travel}}=\kappa d.
-```
-
-Travel must fit within the period and leave at least the battery reserve. A vehicle completes travel within the period; there is no in-transit state. Every vehicle performs at most one operation, and cannot serve multiple zones or recharge and serve in the same period.
-
-Let `eta_M` denote mobile service efficiency and `P_M` the delivered service power. The maximum number of full requests vehicle `m` can serve in zone `z` is
+Travel takes both time and battery energy. If distance is `d` and speed is `v`, the time left for charging operations is the period length minus travel time. The energy used for travel is distance multiplied by the vehicle's energy use per kilometre, `kappa`:
 
 ```math
-k_{mz}=\left\lfloor\frac{\min\{\eta_M(E_m-e^{\mathrm{travel}}-E_{\min}),\ hP_M\}_+}{q}\right\rfloor.
+h=\Delta t-d/v,\qquad E^{\mathrm{travel}}=\kappa d.
 ```
 
-The served count is the smaller of `k_mz` and its selected demand in that zone. Partial EV requests are not served.
-
-A `WAIT` action must name the current zone. `SERVE` must have positive selected demand and admit at least one full request. Recharge/discharge requires an FCS, positive remaining operating time, positive station exchange capacity, and room to charge or available energy to export. Well-formed but individually infeasible actions execute `WAIT` and are listed in `info["invalid_actions"]`. Malformed actions raise an error before state changes.
-
-## FCS capacities and joint fleet exchange
-
-Each FCS has two separate per-period resource banks:
-
-- `fcs_ev_capacity_kwh[f]`: energy delivered to EVs.
-- `fcs_fleet_exchange_capacity_kwh[f]`: total grid-input charging plus grid-export discharge of the MCV fleet.
-
-FCS EV service and fleet exchange do not compete for a common limit in this version. FCS EVs are served up to `floor(ev_capacity / q)` requests. The number of charging ports, queues, and customer waiting times are not modeled.
-
-The exchange bank is a per-period energy limit. It does not implement an instantaneous station power limit or schedule exchange start times among vehicles with different travel times.
-
-For `DISCHARGE`, the vehicle supplies energy to the station-side grid through the FCS connection. The exported quantity earns the current grid sell price. This implements the proposal's MCV discharge/grid-support option as a grid-connected energy transaction. It does not charge a modeled FCS battery or directly allocate MCV output to individual EV orders. The FCS has no storage state, and the simulator does not model instantaneous electrical power flows. FCS retail service and MCV export are therefore accounted for as separate grid purchases and exports rather than netted station flows.
-
-After travel, a recharge request is capped by the requested grid kWh, remaining time times charging power, and `(battery_capacity - energy) / charge_efficiency`. A discharge request is capped by requested grid kWh, remaining time times discharge power, and `(energy - reserve) * discharge_efficiency`.
-
-For station `f`, let the resulting grid-side requests be `x_m`, including both charging and export. If their total exceeds station capacity `C_f`, each receives the same proportional factor:
+After travel, a vehicle's maximum delivery is limited by both its battery energy above the required reserve and how much it can deliver in the remaining time. In the formula below, `eta_M` is service efficiency and `P_M` is service power:
 
 ```math
-\widehat x_m=x_m\min\left\{1,\frac{C_f}{\sum_{j\text{ at }f}x_j}\right\}.
+Q^{\max}_{mz}=\max\left\{0,\min\left[\eta_M(E_m-E^{\mathrm{travel}}-E_{\min}),hP_M\right]\right\}.
 ```
 
-The factor is one if total demand is zero. Charging and discharging share the gross exchange budget; they are not netted. Simultaneous charging and export at an FCS are permitted. There are no station storage dynamics. Grid sell prices cannot exceed grid buy prices under the current scenario validation.
+The simulator processes vehicles in vehicle-number order: vehicle 0 first, then vehicle 1, and so on. At a chosen node, it checks the remaining customer requests in their original list order. A request is served in full if it fits the vehicle's remaining energy-delivery limit. A request that is too large is skipped, while a smaller later request may still fit. Served requests are removed so another vehicle cannot serve them again.
 
-## Energy conservation
+For example, with a 24 kWh delivery limit and requests of `[15, 12, 8]` kWh, the vehicle serves 15, skips 12, and serves 8, delivering 23 kWh. This rule is called **first-fit allocation**. It does not search for the most profitable combination or partially serve requests. Fixed stations check requests in the same way, up to their customer-service energy limit. No customer request is divided across vehicles.
 
-Let `Q_m` be EV energy delivered by MCV `m`, `C_m` its allocated grid-input charging, and `X_m` its allocated grid-export discharge. For every period,
+Each fixed station has separate limits for charging customer EVs and exchanging energy with mobile vehicles. First, each mobile vehicle's requested recharge or export amount is reduced as needed to fit its remaining time, power, battery limits, and efficiency. The station then adds the recharge and export amounts together. If their total exceeds its mobile-vehicle energy limit, every amount is reduced by the same proportion. Energy drawn and energy exported both count toward this limit; one does not cancel the other.
+
+The model limits total energy over the period without scheduling individual charging ports or tracking total power at every instant. Fixed stations have no storage batteries.
+
+## 6. How batteries change and profit is calculated
+
+For mobile vehicle `m`, let `C_m` be the energy drawn from the grid, `X_m` the energy exported to the grid, and `Q_m` the energy delivered to customers. Its battery loses energy through travel, service, and export, and gains energy through recharge. Charging and discharging efficiencies account for losses:
 
 ```math
-E'_m=E_m-e_m^{\mathrm{travel}}+\eta_C C_m
--\frac{Q_m}{\eta_M}-\frac{X_m}{\eta_D}.
+E'_m=E_m-E^{\mathrm{travel}}_m+\eta_C C_m-Q_m/\eta_M-X_m/\eta_D,
+\qquad E_{\min}\leq E'_m\leq E_{\max}.
 ```
 
-All final vehicle inventories must be between reserve and battery capacity. The simulator checks this equation numerically on every dispatch and reports its residual in the energy ledger.
+The simulator reports these amounts in an **energy ledger**, a record of where energy came from and where it went. It also reports the difference between the recorded battery change and the sum of the energy flows. A difference near zero confirms that the accounting balances. Stored battery energy, grid-side energy, and energy delivered to customers are measured at different points and must be converted using the relevant efficiencies.
 
-The ledger reports fleet exchange both per MCV (`charge_grid_kwh`, `export_grid_kwh`) and aggregated by FCS (`fcs_charge_grid_kwh`, `fcs_export_grid_kwh`). Station vectors follow FCS index order, which is distinct from zone indices.
-
-FCS delivery `Q^F_f` purchases `Q^F_f / eta_F` grid kWh. It does not draw from a modeled FCS battery. Travel energy is drawn from MCV batteries and is separate from the dollar travel cost.
-
-## Profit and objective
-
-Define mobile and FCS retail prices `p_m`, `p^F_f`, and period grid buy/sell prices `g^buy_t`, `g^sell_t`. Let `U_t` be the number of customers who selected an operator service but were not served. Period profit is
+The operator owns both mobile and fixed charging, so the reward includes profit from both. Let `Q_mz` be energy delivered by a mobile vehicle at a node, `Q_f` energy delivered to customers at a station, and `X_f` energy exported by mobile vehicles through that station. Let `U` be the requested energy left unserved among customers who chose the operator's service. The period's profit is
 
 ```math
 \begin{aligned}
-r_t={}&\sum_m p_m Q_m+\sum_f p^F_f Q^F_f
-+g_t^{\mathrm{sell}}\sum_m X_m\\
-&-g_t^{\mathrm{buy}}\left(\sum_m C_m+\sum_f Q^F_f/\eta_F\right)
--c_{\mathrm{travel}}\sum_m d_m\\
-&-c_{\mathrm{op}}|\mathcal M|-c_{\mathrm{unmet}}qU_t
-+\mathbf1_{\{t=T-1\}}s\sum_m E'_m.
+r_t={}&\sum_{m,z}p_zQ_{mz}+\sum_f p^{F,C}_{tf}Q_f+\sum_f p^{F,D}_{tf}X_f\\
+&-g^{\mathrm{buy}}_t\left(\sum_m C_m+\sum_f Q_f/\eta_F\right)
+-c_{\mathrm{travel}}\sum_m d_m-c_{\mathrm{op}}|M|-c_{\mathrm{unmet}}U\\
+&+\mathbf{1}_{\{t=T-1\}}s\sum_m E'_m.
 \end{aligned}
 ```
 
-Operating cost is charged for every MCV every period, including vehicles that wait. Unmet cost includes unserved selected MCV and FCS demand. Outside choices are excluded. `terminal_value_per_stored_kwh = s` values all remaining battery inventory, including reserve, at the final dispatch.
+Read the equation as customer charging revenue plus grid-export revenue, minus electricity purchase, travel, operating, and unmet-service costs. Export revenue uses the price paid at the station through which energy is exported. Electricity purchase cost uses the external wholesale price, so internal transfers between the operator's stations and vehicles are not charged again. Every mobile vehicle incurs an operating cost each period, even when idle. The unmet-service penalty depends on the actual unserved kWh of customers who chose the operator's service.
 
-Initial stored energy is provided without a purchase charge: its historical acquisition cost is treated as sunk. Terminal salvage is an explicit modeling choice and changes the incentive to deplete batteries near the horizon. Comparisons of scenarios with different initial batteries should account for that convention. The simulator reports each revenue and cost term separately.
+The model can optionally assign a value to battery energy remaining at the end of the episode. This is called **terminal inventory value** and defaults to zero which can also be changed to other values. Export through a station sends energy to the grid; it does not fill station storage or increase that station's capacity for serving customer EVs.
 
-The FCSs and MCVs belong to one integrated operator. Payments between an FCS and an MCV would be internal transfers and are not additional external service revenue. `DISCHARGE` revenue comes from selling exported energy to the grid; `RECHARGE` incurs the grid purchase cost. No separate FCS-to-MCV retail charging fee is included in total operator profit.
+The vehicles start with energy already in their batteries. The operator is not charged for buying this initial energy during the episode. This convention matters when comparing scenarios with different starting battery levels.
 
-The intended objective is
+The output `reward_terms` lists each revenue and cost separately. `served_request_mask` records which customers were served, and `assigned_mcv` identifies the mobile vehicle assigned to each mobile-served request. These outputs describe the period just completed, even when the next observation already contains a new period's customers.
 
-```math
-\mathbb E\left[\sum_{t=0}^{T-1}\gamma^t r_t\right],
-\qquad \gamma=\texttt{discount\_per\_period}.
-```
+The output `info["metrics"]` reports the shares of customers who leave or receive service, the fraction of mobile vehicles that are active, and how much service capacity the vehicles and stations use. Mobile service utilization is measured against the vehicles' full-period nominal delivery capacity. These describe what happened in a period; they do not by themselves establish whether training improved the policy. Customers who leave are tracked separately from customers who choose a service but remain unserved.
 
-`cumulative_profit` is the raw sum; `cumulative_discounted_profit` uses the expression above. Pricing transitions return continuation discount `1`; nonterminal dispatch transitions return `gamma`; terminal dispatch returns `0`. A future learner must handle these stage-specific continuation discounts. Applying a fixed gamma to both calls introduces an extra discount within every physical period. Gymnasium's `info` dictionary exposes these values, but a generic RL library will not necessarily consume them automatically.
+## 7. What the policies can see and how future profit is valued
 
-## Observations and shared dynamics
+The **pricing state** is the information available before prices are chosen: the current period, vehicle locations and batteries, configured average arrivals, actual customer requests and their accessible stations, station charging and export prices, the wholesale electricity price, and estimated waiting times and service availability. The **dispatch state** adds the posted mobile prices, the option each customer actually chose, and totals of chosen customer counts and requested energy.
 
-The full observation includes stage, period, all vehicle locations and energies, current requests, all mobile prices, selected demand, outside count, FCS retail prices, current grid prices, and a dispatch mode/zone mask. The mask is active at dispatch and zero at pricing and termination. Arrays returned to the caller are copies.
+The `request_details` table has one row per customer. Its columns record origin zone, requested kWh, provider choice, and accessibility to each station. With `N` customers and `n_fcs` stations, its shape is `[N, 3+n_fcs]`, stored as `float64`. The choice code is `-1` before the customer chooses, `0` for mobile service, `1..n_fcs` for fixed stations, and `n_fcs+1` for leaving.
 
-`local_observation(m)` is available only at dispatch. It retains vehicle `m`'s location, energy, and action mask, while omitting other MCV locations and energies. It still includes the period, all quoted prices, and aggregate selected demand. Known scenario constants can be shared with agents.
+The number of customer rows can change each period. Gymnasium therefore uses a variable-length sequence, `Sequence(Box(...), stack=True)`, rather than imposing a maximum request count. The learner encodes each request and combines the resulting features into a fixed-size input for its networks. It includes request order because service allocation checks requests in order. A trainer that expects a fixed-length input needs an adapter to handle these variable-length requests.
 
-The full state supports a finite-horizon Markov decision model under the specified independent arrival process. Local observations are partial: another MCV's hidden inventory and action can affect station sharing. Independently selected actions still feed into one joint transition and one operator reward. These partial views are not independent local MDPs. A decentralized training protocol, centralized critic, per-agent reward allocation, and learning implementation are not supplied here.
+Some outputs give one value per zone: `mobile_demand` has shape `[n_zones]`. Others give one value for each vehicle and zone: `served_mobile` and `delivered_mobile_kwh` have shape `[n_mcv,n_zones]` and describe the completed period. `fcs_retail_prices` and `fcs_discharge_prices` each give one price per station, replacing the old single `grid_sell_price` observation. Price values may include any nonnegative result of the configured random price changes. Request counts use `int64` storage without an artificial demand cap.
 
-The `ChargingEnv` Gymnasium wrapper preserves these dynamics. Its action dictionary always has four fields: `prices` (floating-point vector), `modes` (integer vector with values 0–4), `targets` (integer zone vector), and `energy_kwh` (floating-point vector). Each vector has one entry per MCV. Pricing reads only `prices`; dispatch reads the other fields. All four must pass the advertised action-space validation, including at stages where some are ignored. One `step()` therefore means one decision stage, not one complete physical period.
+The `pricing_mask` marks available price choices during stage 0, and `action_mask` marks available vehicle actions during stage 1. A node without mobile service has no available price choice. The policy supplies a valid placeholder index such as `0` and excludes that node from its probability calculation, rather than trying to choose from an empty list.
 
-## Simplifications to review before research experiments
+After pricing, each vehicle receives its own input through `local_observation(m)`. This includes its location, battery, available actions, and `agent_id`, as well as other vehicles' locations and batteries and the shared customer, price, and waiting-time information. This is the coordination information called `zeta_mt`. Every vehicle can use the same neural network while receiving different inputs, and all vehicles learn from the same total operator profit.
 
-The initial implementation assumes homogeneous request energy and preferences; independent bounded arrivals; deterministic travel time and energy; a single-period operation per vehicle; no customer retry, backlog, or queue; known grid and fixed retail price schedules; separate FCS service and fleet exchange capacity; proportional fleet exchange allocation; common vehicle physical parameters; no battery degradation; and synthetic choice/cost coefficients.
-
-The proposal does not establish these assumptions. Change the corresponding model and checks before claiming results for a richer physical system. In particular, heterogeneous EV needs, en-route vehicles, shared station power, and waiting customers would require additional state and transition logic rather than just a new parameter value. -->
-
-# Decision framework for a hybrid charging network
-
-This framework describes an integrated operator managing Fixed Charging Stations (FCSs) and Mobile Charging Vehicles (MCVs) to maximize expected cumulative operational profit. MCVs can deliver charging energy to EV customers or export battery energy to the grid through an FCS connection.
-
-The policy symbols below describe proposed learning components. The current simulator implements the system dynamics, observations, and rewards; it does not implement or train these policies.
-
-## 1. Two-stage decision architecture
-
-Each physical period follows a pricing decision, customer choice, and a dispatch decision:
+The aim is to maximize expected total profit across the episode, discounting later profit by a factor `gamma` per period. Two value functions estimate the remaining discounted profit: `V^P` just before pricing, and `V^D` after customers choose but before dispatch. They are related as follows:
 
 ```math
-s_t
-\xrightarrow{\text{Stage 1: pricing}} p_t^M
-\xrightarrow{\text{Customer choice}} D_t
+\max\mathbb E\left[\sum_{t=0}^{T-1}\gamma^t r_t\right],\qquad
+V^P(s_t)=\mathbb E[V^D(\widetilde s_t)\mid s_t],\qquad
+V^D(\widetilde s_t)=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
 ```
 
-```math
-\widetilde{s}_t
-\xrightarrow{\text{Stage 2: dispatch}} a_t^D
-\xrightarrow{\text{System transition}} (r_t,s_{t+1}).
-```
+Pricing and dispatch are two decisions within the same physical period. Future profit is therefore discounted only when moving to the next period, rather than at both decisions. The simulator reports this in `info["discount"]`: `1.0` after pricing, `discount_per_period` after a nonfinal dispatch, and `0.0` when the episode ends.
 
-### Stage 1: Pricing phase
+The learner has separate pricing and dispatch critics, which are networks that estimate these two values. When calculating learning targets, its trace coefficient is one between pricing and dispatch, and `gae_lambda` between periods. This is a training implementation choice. [TRAINING.md](TRAINING.md) explains the network architectures, PPO losses, learning-target calculations, and evaluation procedure.
 
-An abbreviated pricing state is
-
-```math
-s_t =
-\left(
-\{(l_{mt},e_{mt})\}_{m\in\mathcal{M}},
-\lambda_t,p_t^F
-\right).
-```
-
-Here $l_{mt}$ and $e_{mt}$ are vehicle locations and stored energies, $\lambda_t$ denotes realized EV request counts by zone, and $p_t^F$ denotes FCS retail prices. The full implemented state also includes the period index and known grid buy and sell prices.
-
-The operator quotes a price for each MCV using a proposed pricing policy:
-
-```math
-p_m\in[p_{\min},p_{\max}],
-\qquad
-p_t^M\sim\pi^P_{\theta_1}(\cdot\mid s_t).
-```
-
-The bounds $p_{\min}$ and $p_{\max}$ correspond to `price_min` and `price_max`.
-
-### Customer choice
-
-Customers choose among available MCVs, FCSs, and an outside option after observing the quoted prices. Their random choices induce endogenous demand:
-
-```math
-D_t=D(p_t^M;\xi_t).
-```
-
-Here $\xi_t$ represents customer-choice randomness.
-
-### Stage 2: Dispatch phase
-
-After customer choices, the post-choice state is
-
-```math
-\widetilde{s}_t=(s_t,p_t^M,D_t).
-```
-
-An abbreviated local observation for MCV $m$ and its proposed dispatch policy are
-
-```math
-o_{mt}=(l_{mt},e_{mt},p_t^F,p_t^M,D_t),
-\qquad
-a^D_{mt}\sim\pi^D_{\theta_{2m}}(\cdot\mid o_{mt}).
-```
-
-The full local observation also includes the period index and feasibility information. Dispatch advances time by one physical period and returns period profit $r_t$.
-
-## 2. Exogenous request arrivals
-
-EV charging requests arrive independently across zones $z$ and periods $t$. Every customer requests the same energy quantity $q$, specified by `request_kwh`.
-
-The number of requests in zone $z$ at period $t$ follows
-
-```math
-N_{tz}\sim\mathrm{Binomial}
-\left(
-N_{\max},\frac{\mu_z h_t}{N_{\max}}
-\right).
-```
-
-- $N_{\max}$: maximum requests per zone, `max_requests_per_zone`.
-- $\mu_z$: baseline mean requests in zone $z$, `mean_requests_by_zone[z]`.
-- $h_t$: arrival-profile multiplier, `arrival_profile[t]`.
-
-Validation requires $0\leq\mu_z h_t/N_{\max}\leq1$.
-
-## 3. Endogenous customer choice model
-
-Customers evaluate available options using a multinomial logit model based on price and distance.
-
-### Utility equations
-
-For a customer in zone $z$, mobile option $m$ has utility
-
-```math
-u^M_{zm}=b_M-\alpha q p_m-\delta_M d(L_m,z).
-```
-
-Fixed station $f$, located in zone $z_f$, has utility
-
-```math
-u^F_{zf}=b_F-\alpha q p^F_f-\delta_F d(z,z_f).
-```
-
-The outside option has fixed utility $u_{\mathrm{out}}$.
-
-- $b_M,b_F$: base utility constants.
-- $\alpha$: sensitivity to the customer's total charging bill.
-- $p_m,p^F_f$: retail prices per delivered kWh.
-- $\delta_M,\delta_F$: distance-disutility coefficients.
-- $d(\cdot,\cdot)$: Manhattan distance in kilometers.
-- $L_m$: current zone of MCV $m$.
-
-For zone coordinates $(x_i,y_i)$ and $(x_j,y_j)$, the distance is
-
-```math
-d(i,j)=\left\|(x_i,y_i)-(x_j,y_j)\right\|_1
-=|x_i-x_j|+|y_i-y_j|.
-```
-
-This assumes travel along an axis-aligned street grid. For example, the distance from $(0,0)$ to $(4,4)$ is $4+4=8$ km. The same distance matrix is used for customer distance penalties, the FCS access radius, MCV travel time, travel energy, travel costs, and dispatch feasibility.
-
-### Choice probabilities
-
-The probability that a customer in zone $z$ chooses option $j$ is
-
-```math
-P_{zj}=
-\frac{\exp(u_{zj})}
-{\sum_{k\in\mathcal{A}_z}\exp(u_{zk})}.
-```
-
-The set $\mathcal{A}_z$ contains the available options, including the outside option. An MCV is available only if its battery energy and remaining operating time allow at least one full request. An FCS is available if it lies within the access radius and its EV-service capacity permits at least one full request. Unavailable options have probability zero.
-
-Availability does not guarantee that all customers who select an option will receive service. An FCS can attract more requests than it can fulfill. An MCV can attract requests in several zones but serve only one zone in the period. Unserved customers do not queue, retry another provider, or carry demand forward.
-
-## 4. Dispatch actions and physical constraints
-
-Each MCV chooses one mode and one target zone per period.
-
-| Mode | Function |
-| --- | --- |
-| `WAIT` | Stay in the current zone without movement or energy exchange. |
-| `SERVE` | Travel to a target zone and deliver energy to selected EV customers. |
-| `REPOSITION` | Move to a zone without serving or exchanging energy. |
-| `RECHARGE` | Travel to an FCS and purchase grid energy to charge the MCV battery. |
-| `DISCHARGE` | Travel to an FCS and export battery energy to the grid. |
-
-### Travel time and energy
-
-For distance $d$, the remaining operating time and travel energy consumption are
-
-```math
-h=\Delta-\frac{d}{v},
-\qquad
-e^{\mathrm{travel}}=\kappa d.
-```
-
-Here $\Delta$ is period duration (one hour by default), $v$ is speed in km/h, and $\kappa$ is travel energy consumption in kWh/km. Travel must fit within the period and leave the battery reserve intact.
-
-### Serving capacity
-
-The maximum number of full requests MCV $m$ can serve in zone $z$ is
-
-```math
-k_{mz}=
-\left\lfloor
-\frac{
-\min\left\{
-\eta_M(E_m-e^{\mathrm{travel}}-E_{\min}),\,hP_M
-\right\}_+
-}{q}
-\right\rfloor.
-```
-
-Here $E_m$ is stored battery energy, $E_{\min}$ is the reserve, $\eta_M$ is service efficiency, and $P_M$ is delivered service power in kW. The notation $x_+=\max(x,0)$ clips negative capacity to zero. Actual service is limited by both this capacity and the customers who selected that vehicle in the target zone.
-
-## 5. Station capacity and proportional scaling
-
-Fixed Charging Stations (FCSs) manage their energy using two entirely separate budgets per period: one for regular EV customers, and one for Mobile Charging Vehicles (MCVs).
-
-### 1. The two separate energy budgets
-
-- **EV-service capacity:** Energy reserved strictly for regular EV customers.
-- **Fleet exchange capacity:** Grid energy reserved for MCVs to either recharge their batteries or discharge energy back to the grid.
-
-These budgets do not interact. An MCV discharging energy back to the grid does not add to the EV-service budget, because stations in this model have no storage batteries; they act as connections to the power grid. Both budgets are measured in kWh per period.
-
-### 2. Serving regular EV customers (all or nothing)
-
-Regular EV customers require a fixed, full amount of energy per charge. There are no partial charges.
-
-If a station has an EV budget of 40 kWh and each customer needs 10 kWh, the station can serve up to four cars per period. If six customers choose that station, four are served and two are turned away as unmet demand. Unused capacity does not roll over to the next period, and unserved customers do not wait in line.
-
-### 3. Processing MCV requests (two-step verification)
-
-When MCVs arrive at a station to charge or discharge, the system calculates their energy allowance in two steps.
-
-#### Step 1: Individual physical limits
-
-Before checking the station's budget, the system clips each MCV's request down to what is physically possible. The energy it can exchange depends on:
-
-- The time it has left in the period, after accounting for travel time.
-- Its maximum charging or discharging power. Power multiplied by the remaining time gives the energy it can exchange during that time.
-- Its battery limits: it cannot charge past its maximum capacity or discharge below its required minimum reserve. Charging and discharging efficiency are included when converting between grid energy and stored battery energy.
-
-#### Step 2: Proportional station sharing
-
-Once all individual MCV requests are verified, the system adds them up.
-
-Crucially, **charging and discharging both consume the station's fleet exchange budget**. They are added together as **gross energy**, rather than canceling each other out. If the total verified energy request is at or below the station's fleet budget, everyone gets their full verified request.
-
-If total requests exceed the station's fleet budget, every MCV gets scaled back by the exact same percentage.
-
-#### Example of proportional scaling
-
-Suppose the following MCV requests have already passed the individual physical limits in Step 1:
-
-- **Station budget:** 40 kWh.
-- **MCV A wants to charge:** 30 kWh.
-- **MCV B wants to discharge:** 20 kWh.
-- **Total requested:** 50 kWh.
-
-Because the total request (50 kWh) is larger than the budget (40 kWh), the station can only fulfill 80% of the total request: 40 divided by 50.
-
-- MCV A gets exactly 80% of its charging request: **24 kWh**.
-- MCV B gets exactly 80% of its discharging request: **16 kWh**.
-
-The station is now maxed out at **40 kWh of gross exchange capacity**. Even though its net grid import is only **8 kWh** (24 kWh pulled from the grid minus 16 kWh pushed back), the system applies the per-period budget to the sum of energy exchanged in both directions. This is a per-period energy limit; the model does not schedule charging ports or enforce a shared instantaneous station power limit.
-
-## 6. Energy conservation and state update
-
-Stored battery energy at the end of the period obeys
-
-```math
-E'_m=
-E_m-e_m^{\mathrm{travel}}
-+\eta_C C_m
--\frac{Q_m}{\eta_M}
--\frac{X_m}{\eta_D}.
-```
-
-- $C_m$: allocated grid-input energy used to charge the MCV; $\eta_C$ is charging efficiency.
-- $Q_m$: energy delivered to EV customers; $\eta_M$ is service efficiency.
-- $X_m$: energy exported to the grid; $\eta_D$ is discharging efficiency.
-
-The feasible final inventory satisfies
-
-```math
-E_{\min}\leq E'_m\leq E_{\max},
-```
-
-where $E_{\max}$ is the configured battery capacity. Energy quantities are measured in kWh; power quantities are measured in kW.
-
-## 7. Financial objective and reward dynamics
-
-Period profit includes retail revenue, grid transactions, operating costs, unmet-demand penalties, and final-period salvage value:
-
-```math
-\begin{aligned}
-r_t={}&
-\sum_m p_m Q_m+\sum_f p^F_f Q^F_f
-+g_t^{\mathrm{sell}}\sum_m X_m\\
-&-g_t^{\mathrm{buy}}
-\left(\sum_m C_m+\sum_f\frac{Q^F_f}{\eta_F}\right)
--c_{\mathrm{travel}}\sum_m d_m\\
-&-c_{\mathrm{op}}|\mathcal{M}|
--c_{\mathrm{unmet}}qU_t
-+\mathbf{1}_{\{t=T-1\}}s\sum_m E'_m.
-\end{aligned}
-```
-
-### Revenue and cost terms
-
-- $\sum_m p_mQ_m+\sum_f p^F_fQ^F_f$: retail revenue from energy delivered to EVs.
-- $g_t^{\mathrm{sell}}\sum_mX_m$: grid-export revenue.
-- $g_t^{\mathrm{buy}}(\sum_mC_m+\sum_fQ^F_f/\eta_F)$: electricity purchase cost, accounting for FCS service efficiency $\eta_F$.
-- $c_{\mathrm{travel}}\sum_md_m$: travel cost.
-- $c_{\mathrm{op}}|\mathcal{M}|$: operating cost for every MCV in every period, including vehicles that wait.
-- $c_{\mathrm{unmet}}qU_t$: penalty for customers who selected an operator service but were not served; outside-option customers are excluded.
-- $\mathbf{1}_{\{t=T-1\}}s\sum_mE'_m$: terminal inventory value at $s$ dollars per stored kWh.
-
-Here $Q^F_f$ is energy delivered to EVs by FCS $f$, $d_m$ is MCV travel distance, and $g_t^{\mathrm{buy}}$ and $g_t^{\mathrm{sell}}$ are the known grid buy and sell prices.
-
-### Long-term optimization objective
-
-The intended learning objective is expected cumulative discounted profit:
-
-```math
-\max_{\pi^P,\pi^D}
-\mathbb{E}\left[
-\sum_{t=0}^{T-1}\gamma^t r_t
-\right],
-\qquad 0\leq\gamma\leq1.
-```
-
-The parameter $\gamma$ corresponds to `discount_per_period`. Discounting applies once per physical period. The pricing transition has continuation discount one; a nonterminal dispatch transition has continuation discount $\gamma$, and the terminal dispatch transition has continuation discount zero.
+The same environment also supports [fitted-value dispatch](FITTED_VALUE.md), which holds pricing fixed and learns the future value of fleet states. That controller uses the existing physical transitions and profit accounting; its learned value replaces the dispatch rule rather than changing customer behavior.

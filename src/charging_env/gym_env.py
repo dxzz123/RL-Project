@@ -19,25 +19,42 @@ class ChargingEnv(gym.Env):
         self.render_mode = render_mode
         maximum_exchange = max(c.mobile_charge_kw, c.mobile_discharge_kw)*c.period_hours
         self.action_space = spaces.Dict({
-            "prices": spaces.Box(c.price_min, c.price_max, (c.n_mcv,), dtype=np.float64),
+            "price_levels": spaces.MultiDiscrete(np.full(c.n_zones, len(c.price_levels))),
             "modes": spaces.MultiDiscrete(np.full(c.n_mcv, len(Mode))),
             "targets": spaces.MultiDiscrete(np.full(c.n_mcv, c.n_zones)),
             "energy_kwh": spaces.Box(0., maximum_exchange, (c.n_mcv,), dtype=np.float64),
         })
-        total_requests = c.n_zones*c.max_requests_per_zone
-        def count(shape, maximum=total_requests):
+        # Poisson arrivals have no finite model cap.  int64 is the storage limit,
+        # not a sampling/truncation threshold.
+        def count(shape, maximum=np.iinfo(np.int64).max):
             return spaces.Box(0, maximum, shape, dtype=np.int64)
+        def nonnegative(shape):
+            return spaces.Box(0., np.inf, shape, dtype=np.float64)
+        request_low = np.array([0., c.request_min_kwh, -1.] + [0.]*c.n_fcs)
+        request_high = np.array([c.n_zones-1., c.request_max_kwh, c.n_fcs+1.] + [1.]*c.n_fcs)
         self.observation_space = spaces.Dict({
             "stage": spaces.Discrete(3), "period": count((1,), c.horizon),
             "locations": spaces.MultiDiscrete(np.full(c.n_mcv, c.n_zones)),
             "energy_kwh": spaces.Box(0., c.battery_capacity_kwh, (c.n_mcv,), dtype=np.float64),
-            "requests_by_zone": count((c.n_zones,), c.max_requests_per_zone),
-            "mobile_prices": spaces.Box(c.price_min, c.price_max, (c.n_mcv,), dtype=np.float64),
-            "mobile_demand": count((c.n_mcv, c.n_zones), c.max_requests_per_zone),
+            "requests_by_zone": count((c.n_zones,)),
+            "arrival_rates": nonnegative((c.n_zones,)),
+            "potential_energy_kwh": nonnegative((c.n_zones,)),
+            "request_details": spaces.Sequence(spaces.Box(request_low, request_high, dtype=np.float64), stack=True),
+            "mobile_prices": spaces.Box(c.price_min, c.price_max, (c.n_zones,), dtype=np.float64),
+            "mobile_demand": count((c.n_zones,)),
+            "mobile_requested_kwh": nonnegative((c.n_zones,)),
+            "fixed_requested_kwh": nonnegative((c.n_fcs,)),
             "fixed_demand": count((c.n_fcs,)), "outside_requests": count((1,)),
-            "fcs_retail_prices": spaces.Box(0., max(c.fcs_retail_per_kwh), (c.n_fcs,), dtype=np.float64),
+            "mobile_wait_hours": nonnegative((c.n_zones,)),
+            "mobile_available": spaces.MultiBinary(c.n_zones),
+            "eligible_mcvs": spaces.MultiBinary((c.n_mcv, c.n_zones)),
+            "fcs_wait_hours": nonnegative((c.n_fcs,)),
+            # Normal multiplicative shocks are clipped below at zero, but have
+            # no upper bound; observation bounds must allow their full support.
+            "fcs_retail_prices": nonnegative((c.n_fcs,)),
+            "fcs_discharge_prices": nonnegative((c.n_fcs,)),
             "grid_buy_price": spaces.Box(0., max(c.grid_buy_per_kwh), (1,), dtype=np.float64),
-            "grid_sell_price": spaces.Box(0., max(c.grid_sell_per_kwh), (1,), dtype=np.float64),
+            "pricing_mask": spaces.MultiBinary((c.n_zones, len(c.price_levels))),
             "action_mask": spaces.MultiBinary((c.n_mcv, len(Mode), c.n_zones)),
         })
 
@@ -48,10 +65,12 @@ class ChargingEnv(gym.Env):
         return self.simulator.reset(options=options)
 
     def step(self, action):
+        if not self.simulator._ready:
+            raise RuntimeError("Call reset() first")
         if not self.action_space.contains(action):
             raise ValueError("Action does not match action_space (use correct shapes and dtypes)")
         if self.simulator.stage == 0:
-            return self.simulator.quote_prices(action["prices"])
+            return self.simulator.quote_price_levels(action["price_levels"])
         return self.simulator.dispatch([
             DispatchAction(Mode(int(mode)), int(target), float(kwh))
             for mode, target, kwh in zip(action["modes"], action["targets"], action["energy_kwh"])

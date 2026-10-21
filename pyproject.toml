@@ -4,10 +4,13 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mobile-charging-env"
-version = "0.1.1"
-description = "Two-stage pricing and dispatch simulator for fixed and mobile EV charging"
+version = "0.3.0"
+description = "Two-stage mobile charging simulator with SA-PPO and MAPPO training"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.26,<3", "gymnasium>=1.0,<2"]
+
+[project.optional-dependencies]
+train = ["torch>=2.4,<3"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
