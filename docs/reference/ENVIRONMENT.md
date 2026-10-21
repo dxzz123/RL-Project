@@ -1,6 +1,6 @@
 # Using and inspecting the environment
 
-Use this guide to run the simulator, change its settings, or understand what it returns. A **transition** is one step from the current situation to the next after an action. An **observation** is the information returned for making a decision. [MODEL.md](MODEL.md) explains the physical rules; this page explains the Python calls that apply them. Those calls and their input/output fields form the **application programming interface (API)**. The names in backticks are the actual code names you will see in Python.
+Use this guide to run the simulator, change its settings, or understand what it returns. A **transition** is one step from the current situation to the next after an action. An **observation** is the information returned for making a decision. [MODEL.md](../MODEL.md) explains the physical rules; this page explains the Python calls that apply them. Those calls and their input/output fields form the **application programming interface (API)**. The names in backticks are the actual code names you will see in Python.
 
 ## 1. Choose the interface that fits the task
 
@@ -8,9 +8,9 @@ Use this guide to run the simulator, change its settings, or understand what it 
 
 `ChargingEnv` provides the same simulator through **Gymnasium**, a standard Python interface used by reinforcement-learning tools. Its `step` method handles one decision stage at a time. A learner using it must still handle the pricing/dispatch stages, lists of allowed actions called **masks**, once-per-period discounting, and changing numbers of customer requests.
 
-Both interfaces use the same physical model. The earlier PPO, joint PPO, and fitted-value controller all call `ChargingSimulator` directly. [TRAINING.md](TRAINING.md) shows their separate commands.
+Both interfaces use the same physical model. The earlier PPO, joint PPO, and fitted-value controller all call `ChargingSimulator` directly. [TRAINING.md](../TRAINING.md) shows their separate commands.
 
-This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The joint PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [COMPARISON.md](COMPARISON.md) for the comparison.
+This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The joint PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [COMPARISON.md](../COMPARISON.md) for the comparison.
 
 ## 2. Run one period with the direct API
 
@@ -138,7 +138,7 @@ Battery afterward: 55 - 1.4 - 10.526316 = 43.073684 stored kWh
 
 Across both vehicles, export earns 2 dollars, travel costs 2 dollars, and operation costs 1 dollar. Period profit is therefore -1 dollar. This example checks units, losses, and accounting; its action sequence is not intended to maximize profit. FCSs have no storage batteries, so the exported energy passes through their grid connections.
 
-The manual example, `examples/manual_walkthrough.py`, demonstrates service, recharge, discharge, repositioning, and waiting over an episode. It writes `outputs/manual_episode.csv`. Use a debugger breakpoint to compare its `reward_terms` and `energy_ledger` with [MODEL.md](MODEL.md).
+The manual example, `examples/manual_walkthrough.py`, demonstrates service, recharge, discharge, repositioning, and waiting over an episode. It writes `outputs/manual_episode.csv`. Use a debugger breakpoint to compare its `reward_terms` and `energy_ledger` with [MODEL.md](../MODEL.md).
 
 ## 6. Understand observations without confusing their units
 
@@ -170,7 +170,7 @@ The number of customer rows can change each period. Gymnasium represents this as
 
 Call `local_observation(m)` after pricing to get the input for vehicle `m`. It contains that vehicle's location, battery, allowed-action mask, and `agent_id`, plus the other vehicles' locations and batteries and shared customer, demand, price, and waiting information. Arrays describing the current vehicle have one vehicle row; arrays describing peers contain the other vehicles.
 
-The earlier PPO uses this per-vehicle API for its observation with peer information, $`\zeta_{m,t}`$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [LEGACY_PPO.md](LEGACY_PPO.md) explains these actors, critics, and optional role features. The joint PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
+The earlier PPO uses this per-vehicle API for its observation with peer information, $`\zeta_{m,t}`$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [LEGACY_PPO.md](../methods/LEGACY_PPO.md) explains these actors, critics, and optional role features. The joint PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
 
 ## 7. Submit valid actions
 
@@ -237,4 +237,4 @@ The period summary `info["metrics"]` counts the shares of **all arriving custome
 
 **Utilization** compares energy delivered with available service capacity. Mobile service utilization divides delivered mobile kWh by the fleet's nominal capacity for a full period; it does not subtract travel time from that denominator. Station utilization divides station delivery by its customer-service energy limit and is reported as zero when that limit is zero.
 
-These measurements describe operations. To judge a learned policy, compare independent profit, service, and risk results against benchmarks; see the reading guide in [README.md](../README.md).
+These measurements describe operations. To judge a learned policy, compare independent profit, service, and risk results against benchmarks; see the reading guide in [README.md](../../README.md).

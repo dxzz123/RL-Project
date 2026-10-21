@@ -6,7 +6,7 @@ Paths under `outputs/` refer to local experiment records and are not included in
 
 **The targeted changes produced a small average gain, but did not produce a consistently better controller.** All three fresh runs reached 500 updates. On 512 new base-test scenarios, mean discounted profit rose from **115.93 for the previous policies to 116.72 for the new policies**. Seed 7 worsened, and every new seed remained below the retuned inventory rule's **125.51**.
 
-This report records the completed **2026-10-18** follow-up to [the first SiLU + b=3 study](SILU_B3_STUDY.md). Both old and new policies use the **same b=3 customer model**. In that model, b is an optional baseline boost to the customer's score for charging rather than leaving the system; it is not battery capacity B. The business-profit objective and environment constraints remain the same. [MODEL.md](../MODEL.md), [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md), and [NOTATION.md](../NOTATION.md) explain the operating model and its symbols.
+This report records the completed **2026-10-18** follow-up to [the first SiLU + b=3 study](SILU_B3_STUDY.md). Both old and new policies use the **same b=3 customer model**. In that model, b is an optional baseline boost to the customer's score for charging rather than leaving the system; it is not battery capacity B. The business-profit objective and environment constraints remain the same. [MODEL.md](../MODEL.md), [OUTSIDE_OPTION.md](../reference/OUTSIDE_OPTION.md), and [NOTATION.md](../reference/NOTATION.md) explain the operating model and its symbols.
 
 A **policy** is the learned rule for choosing actions. A **seed** is a number that makes a sequence of random values repeatable; changing the training seed can change the learned policy. **Discounted profit** gives slightly less weight to profit earned later in an episode.
 
@@ -53,7 +53,7 @@ The behavior findings (`outputs/b3_gap_diagnostics/findings.json`) and training 
 
 ## What changes were tested, and why?
 
-An **actor** chooses actions; a **critic** predicts future profit to help train the actor. PPO (Proximal Policy Optimization) learns from simulated episodes. Its **entropy** term encourages the actor to keep trying a range of actions. A **gradient** indicates how network parameters should change to reduce training error; **gradient clipping** limits its size before the optimizer applies the update. These definitions help explain the changes below. [Earlier PPO reference](../LEGACY_PPO.md) walks through the full training cycle.
+An **actor** chooses actions; a **critic** predicts future profit to help train the actor. PPO (Proximal Policy Optimization) learns from simulated episodes. Its **entropy** term encourages the actor to keep trying a range of actions. A **gradient** indicates how network parameters should change to reduce training error; **gradient clipping** limits its size before the optimizer applies the update. These definitions help explain the changes below. [Earlier PPO reference](../methods/LEGACY_PPO.md) walks through the full training cycle.
 
 We tested the changes together. The results show how that combination performed; they do not measure the separate effect of each change.
 
@@ -228,7 +228,7 @@ A next experiment should explicitly test learning complete recharge-and-service 
 
 All three full runs had finite metrics, zero invalid evaluation actions, and exact checkpoint-reload evaluation. Across the six validation checkpoints at updates **375 through 500**, the profit ranges had widths **2.82, 2.34, and 0.92** for seeds 7, 19, and 37. The three-policy mean ranged from **115.10 to 116.49**. This was a late **plateau**: measured profit changed little but remained below the rule. It does not prove convergence toward a limiting policy or establish that the policy is good. Seed 19 was still improving at the final checkpoint. Training was not extended after testing.
 
-The complete suite passed **142 tests**: the prior 112 plus 30 for identity, normalization, potential cancellation, entropy schedules, separate clipping, checkpoint compatibility, imitation isolation, and experiment guards. All **7,808 rule-validation** and **16,896 independent-test** policy episodes had zero invalid actions. Both development diagnostic passes also had zero invalid actions. See [VALIDATION.md](../VALIDATION.md) for the current documentation of these checks.
+The complete suite passed **142 tests**: the prior 112 plus 30 for identity, normalization, potential cancellation, entropy schedules, separate clipping, checkpoint compatibility, imitation isolation, and experiment guards. All **7,808 rule-validation** and **16,896 independent-test** policy episodes had zero invalid actions. Both development diagnostic passes also had zero invalid actions. See [VALIDATION.md](../reference/VALIDATION.md) for the current documentation of these checks.
 
 Training cost was **288,000 PPO physical periods** for the three fresh full runs, plus **57,600 PPO periods** for the two pilots and **3,072 teacher-demonstration periods** for the rejected guided pilot. Each final model had the same **96,000-period** PPO budget as its old control, but the extra development budget is part of this study's cost. `outputs/b3_improved_study/analysis.json` records evaluation and diagnostic costs separately.
 

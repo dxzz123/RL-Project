@@ -4,11 +4,11 @@ Training teaches the operator two connected decision rules: **what mobile price 
 
 The policies are implemented by **neural networks**: calculations with adjustable numbers called **parameters**, or weights. Training changes those numbers using experience collected from the simulator. Sampling different actions lets the policy **explore**, meaning try alternatives to discover useful behavior. Settings we choose before a run, such as the learning rate or number of episodes, are called **hyperparameters**. They control how learning proceeds.
 
-The basic loop is: run complete episodes, record the choices and profits, adjust the networks, then run new episodes. Periodically, the trainer also measures performance without changing the networks. The rest of this guide explains each part of that loop. Read [the model walkthrough](MODEL.md) for the physical system and customer behavior, and use [the notation guide](NOTATION.md) to match mathematical symbols to their Python names.
+The basic loop is: run complete episodes, record the choices and profits, adjust the networks, then run new episodes. Periodically, the trainer also measures performance without changing the networks. The rest of this guide explains each part of that loop. Read [the model walkthrough](../MODEL.md) for the physical system and customer behavior, and use [the notation guide](../reference/NOTATION.md) to match mathematical symbols to their Python names.
 
 The framework is **Stage-Aware PPO–Multi-Agent PPO (SA-PPO–MAPPO)**. **PPO**, short for Proximal Policy Optimization, is a method for adjusting action probabilities cautiously using collected experience. **Stage-aware** means the implementation accounts for the different information and timing of pricing and dispatch. **Multi-agent** means several vehicles learn to act toward the same team objective. The implementation uses PPO's clipped learning rule, described in [the PPO paper](https://arxiv.org/abs/1707.06347), and shared vehicle policies with global value estimates, following [MAPPO](https://arxiv.org/abs/2103.01955). There is some choice freedom in the network and training settings; this guide records the choices made in this project.
 
-This guide covers the retained earlier implementation in `rl/trainer.py`, `rl/networks.py`, and `rl/returns.py`. For installation and a choice of training commands, start with [TRAINING.md](TRAINING.md). For joint PPO, read [JOINT_PPO.md](JOINT_PPO.md). [COMPARISON.md](COMPARISON.md) explains their differences and compares both with approximate dynamic programming on shared test scenarios.
+This guide covers the retained earlier implementation in `rl/trainer.py`, `rl/networks.py`, and `rl/returns.py`. For installation and a choice of training commands, start with [TRAINING.md](../TRAINING.md). For joint PPO, read [JOINT_PPO.md](JOINT_PPO.md). [COMPARISON.md](../COMPARISON.md) explains their differences and compares both with approximate dynamic programming on shared test scenarios.
 
 Read Sections 1, 3, and 4 to understand the algorithm. Section 5 is a detailed option reference; Sections 6 and 8 explain saved results and continuation. Section 7 records older experiment settings, not the current comparison protocol.
 
@@ -28,7 +28,7 @@ The following table connects the decision sequence to the **API**, the Python me
 | After prices and customer choice | Post-choice state $`\widetilde{s}_t`$, including the customers' actual choices $`D_t`$ | `stage == 1`; dispatch actors act |
 | After physical execution | Period profit $`r_t`$, then the next state | `dispatch(...)` returns the reward; next stage is `0`, or `2` at termination |
 
-The **first and second decision stages** map to API stages **0 and 1**. API stage `2` means that the episode has ended; it is not a third decision stage. [ENVIRONMENT.md](ENVIRONMENT.md) gives the complete API fields, reset behavior, and action masks.
+The **first and second decision stages** map to API stages **0 and 1**. API stage `2` means that the episode has ended; it is not a third decision stage. [ENVIRONMENT.md](../reference/ENVIRONMENT.md) gives the complete API fields, reset behavior, and action masks.
 
 The simulator runs periods; the trainer organizes learning into the following units:
 
@@ -60,10 +60,7 @@ Here `--updates 10` means 10 collect-and-learn cycles, and `--episodes-per-updat
 
 The CLI automatically uses a fresh output directory. If `outputs/sa_ppo_mappo` already exists, it chooses `outputs/sa_ppo_mappo_2`, then `_3`, and prints the actual path. You can repeat the same command while preserving previous results. A **checkpoint** is a saved snapshot of the networks and training state; continuing from one also writes to a fresh destination, as explained in Section 8. Direct Python training calls and the dedicated study runners still require an unused destination.
 
-Two other ways to start training use the same command options:
-
-- `python examples/train_sa_ppo_mappo.py` calls the same training entry point.
-- In VS Code, select `.venv/bin/python`, then choose **Run and Debug → Train earlier PPO/MAPPO (b=3, small run)** to run with breakpoints. That launch preset explicitly selects `b=3` and SiLU; a CLI call without those flags keeps the earlier defaults.
+To use a debugger in VS Code, select `.venv/bin/python`, then choose **Run and Debug → Train earlier PPO/MAPPO (b=3, small run)** to run with breakpoints. That launch preset explicitly selects `b=3` and SiLU; a CLI call without those flags keeps the earlier defaults.
 
 ### Choose the customer model explicitly
 
@@ -75,7 +72,7 @@ python -m charging_env.rl.train --scenario configs/toy_city.json \
   --output-dir outputs/sa_ppo_mappo_longer
 ```
 
-The original customer-choice model has a common charging benefit $`b=0`$, called `charging_utility_intercept` in the configuration. `configs/utility_b3.json` sets $`b=3`$ for both mobile and fixed-station service, making charging more attractive relative to leaving. The outside option's preference score stays zero, and cost sensitivity remains $`\eta=0.7`$. The `utility_b2.json` and `utility_b4.json` files let us compare smaller and larger charging benefits. These change customer behavior in the environment, rather than how the networks learn. See [the outside-option explanation](OUTSIDE_OPTION.md).
+The original customer-choice model has a common charging benefit $`b=0`$, called `charging_utility_intercept` in the configuration. `configs/utility_b3.json` sets $`b=3`$ for both mobile and fixed-station service, making charging more attractive relative to leaving. The outside option's preference score stays zero, and cost sensitivity remains $`\eta=0.7`$. The `utility_b2.json` and `utility_b4.json` files let us compare smaller and larger charging benefits. These change customer behavior in the environment, rather than how the networks learn. See [the outside-option explanation](../reference/OUTSIDE_OPTION.md).
 
 The scenario is saved inside each checkpoint. A changed customer model requires a new run: `--scenario` cannot replace the scenario of a resumed or evaluated checkpoint. Both `run_convergence.py` and `run_policy_benchmarks.py` accept `--scenario`, but their defaults do not change merely because a JSON file exists.
 
@@ -126,7 +123,7 @@ Request position in the list is included because service allocation checks reque
 
 ### Optional architecture experiments
 
-An **activation function** transforms values inside a neural network, allowing it to learn relationships more complex than a straight-line calculation. **Hidden layers** are the intermediate calculations between inputs and outputs. Tanh compresses values into the range from -1 to 1. SiLU smoothly rescales its input and allows large positive outputs. `--dispatch-final-activation silu` replaces only the dispatch actor's last hidden activation, `dispatch_actor.encoder.body[-1]`, with `nn.SiLU()`. The default is `tanh`; this flag does not change the other activations, actors, critics, masks, or action distributions. [The activation report](archive/ACTIVATION_EXPERIMENT.md) describes the controlled comparison.
+An **activation function** transforms values inside a neural network, allowing it to learn relationships more complex than a straight-line calculation. **Hidden layers** are the intermediate calculations between inputs and outputs. Tanh compresses values into the range from -1 to 1. SiLU smoothly rescales its input and allows large positive outputs. `--dispatch-final-activation silu` replaces only the dispatch actor's last hidden activation, `dispatch_actor.encoder.body[-1]`, with `nn.SiLU()`. The default is `tanh`; this flag does not change the other activations, actors, critics, masks, or action distributions. [The activation report](../archive/ACTIVATION_EXPERIMENT.md) describes the controlled comparison.
 
 **Layer normalization**, or LayerNorm, rescales the values within a hidden layer before its activation. This can make their scale easier to learn from, but does not guarantee a better policy. `--encoder-layer-norm` adds it before both activations in the main dense layers of all four networks, while leaving their request-processing networks unchanged. A **dense layer** is a layer whose outputs each use all its inputs. These choices of network structure are called the **architecture** and are saved in checkpoints. Compare different architectures using new training runs with clearly recorded budgets.
 
@@ -343,7 +340,7 @@ Evaluation JSON reports actual profit, once-per-period discounted profit, revenu
 
 Four evaluation episodes are enough for a basic execution check but too few for a reliable performance conclusion. **Convergence** means learning has settled toward a limiting solution. A flat observed profit curve only shows that measured performance has stabilized over that range; it does not prove the policy has found the best solution.
 
-[VALIDATION.md](VALIDATION.md) records execution checks. [POLICY_BENCHMARKS.md](archive/POLICY_BENCHMARKS.md) explains the comparisons, and [TRAINING_ANALYSIS.md](archive/TRAINING_ANALYSIS.md) reports the earlier longer study.
+[VALIDATION.md](../reference/VALIDATION.md) records execution checks. [POLICY_BENCHMARKS.md](../archive/POLICY_BENCHMARKS.md) explains the comparisons, and [TRAINING_ANALYSIS.md](../archive/TRAINING_ANALYSIS.md) reports the earlier longer study.
 
 ## 7. Run a longer study
 
@@ -369,7 +366,7 @@ python experiments/run_convergence.py --seed 7
 
 It writes to `outputs/convergence_study/seed_7/` and also saves `checkpoint_250.pt` after update 250. That snapshot has used 48,000 learning periods, making it possible to compare policies given the same amount of simulated training experience. Use `--output-root outputs/convergence_repeat` for a new directory. The script learns from training episodes and chooses checkpoints using validation; independent testing is a separate step.
 
-Later studies ask different questions. [The SiLU + b=3 report](archive/SILU_B3_STUDY.md) changes both a network activation and customers' willingness to charge. [The targeted b=3 report](archive/B3_TRAINING_IMPROVEMENTS.md) investigates pricing, battery replenishment, and coordination, then trains three fresh seeds and tests on independent scenarios. Its runner explicitly turns on its chosen experimental options. The ordinary training command still uses the defaults in Section 5; those options do not turn on just because a study used them.
+Later studies ask different questions. [The SiLU + b=3 report](../archive/SILU_B3_STUDY.md) changes both a network activation and customers' willingness to charge. [The targeted b=3 report](../archive/B3_TRAINING_IMPROVEMENTS.md) investigates pricing, battery replenishment, and coordination, then trains three fresh seeds and tests on independent scenarios. Its runner explicitly turns on its chosen experimental options. The ordinary training command still uses the defaults in Section 5; those options do not turn on just because a study used them.
 
 The optional `charging_env.rl.warmstart.warm_start_from_inventory` helper tries **behavior cloning**, also called imitation learning. It first teaches the actors to copy examples from the inventory rule, rather than learning those examples from profit feedback. This initialization is called a **warm start**. Report the teacher-demonstration episodes and supervised learning steps separately from PPO's training budget. The helper never mixes teacher actions into an on-policy PPO batch. This experiment was tested in a development pilot but was not selected for the latest three full training runs.
 

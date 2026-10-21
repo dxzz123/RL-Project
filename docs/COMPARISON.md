@@ -4,7 +4,9 @@ The project currently has **three learned controllers**: fitted-value dispatch, 
 
 On the latest shared independent tests, **fitted-value dispatch earns the most profit in the base and low-inventory cases**. **Joint PPO improves on earlier PPO**, but remains below fitted value and the time-dependent inventory rule. Service-first has the highest mean profit in the high-demand case. There is therefore no single winner across all three cases.
 
-This page explains those results and their limits. For commands, start with [TRAINING.md](TRAINING.md). For the model being controlled, see [MODEL.md](MODEL.md). The full method guides are [FITTED_VALUE.md](FITTED_VALUE.md), [JOINT_PPO.md](JOINT_PPO.md), and [LEGACY_PPO.md](LEGACY_PPO.md).
+This page explains those results and their limits. For commands, start with [TRAINING.md](TRAINING.md). For the model being controlled, see [MODEL.md](MODEL.md). The full method guides are [FITTED_VALUE.md](methods/FITTED_VALUE.md), [JOINT_PPO.md](methods/JOINT_PPO.md), and [LEGACY_PPO.md](methods/LEGACY_PPO.md).
+
+For a quick answer, go to the [results table](#results-on-the-same-independent-scenarios). To understand the ranking, read [how the methods choose actions](#how-approximate-dp-and-ppo-make-decisions), then [the operating behavior behind the gap](#operating-behavior-behind-the-profit-gap).
 
 ## What every controller is trying to achieve
 
@@ -153,7 +155,7 @@ For the current two-vehicle base scenario, fitted-value dispatch is the stronges
 
 ## View the evidence without training again
 
-From the project root, these commands display the completed scorecard and figure:
+The tables and figure on this page are included in the repository. If you also have the saved study in `outputs/paper_ppo_study/`, run these commands from the project root to display its scorecard and figure:
 
 ```bash
 python3 experiments/summarize_paper_ppo_study.py --show

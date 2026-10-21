@@ -4,7 +4,7 @@ This controller learns **how valuable each fleet state is for the rest of the ep
 
 The controller uses a fixed mobile price of **0.60 dollars/kWh** in the main `b=3` scenario. It learns dispatch, not pricing. It currently supports exactly **two mobile charging vehicles (MCVs)**.
 
-Read [MODEL.md](MODEL.md) for the operating model, [TRAINING.md](TRAINING.md) for the common terminal workflow, and [COMPARISON.md](COMPARISON.md) for the current comparison with both PPO implementations and the important rules. This guide explains how approximate DP works and where to find it in the code.
+Read [MODEL.md](../MODEL.md) for the operating model, [TRAINING.md](../TRAINING.md) for the common terminal workflow, and [COMPARISON.md](../COMPARISON.md) for the current comparison with both PPO implementations and the important rules. This guide explains how approximate DP works and where to find it in the code.
 
 ## Why future battery value matters
 
@@ -119,7 +119,7 @@ python -m charging_env.rl.fitted_train \
   --output-dir outputs/fitted_value
 ```
 
-Fitted-value training needs the base NumPy dependencies, not PyTorch. The `[train]` extra is needed when running either PPO or a comparison that includes PPO. See [TRAINING.md](TRAINING.md) for setup.
+Fitted-value training needs the base NumPy dependencies, not PyTorch. The `[train]` extra is needed when running either PPO or a comparison that includes PPO. See [TRAINING.md](../TRAINING.md) for setup.
 
 Keep `--scenario configs/utility_b3.json`: omitting it selects the original `b=0` defaults. The command prints the actual output directory. If the requested name exists, the CLI automatically uses a numbered sibling such as `outputs/fitted_value_2`.
 
@@ -150,17 +150,17 @@ print("Mean discounted profit:", result["mean_discounted_profit"])
 print("Invalid actions:", result["invalid_actions"])
 ```
 
-Loading `policy.scenario` preserves the training scenario. These example seeds differ from the recorded comparison, so the resulting mean need not match that table. To assess superiority, use the same independent scenarios for every compared controller; [COMPARISON.md](COMPARISON.md) explains the completed experiment and its limitations.
+Loading `policy.scenario` preserves the training scenario. These example seeds differ from the recorded comparison, so the resulting mean need not match that table. To assess superiority, use the same independent scenarios for every compared controller; [COMPARISON.md](../COMPARISON.md) explains the completed experiment and its limitations.
 
 ## Results and implementation references
 
-In the latest shared base test, approximate DP earns **137.76 dollars per episode**, above Joint PPO's **123.19** and earlier PPO's **117.42**. It also leads under low initial inventory, while service-first is stronger under high demand. The current results, uncertainty intervals, and fairness qualifications are maintained in [COMPARISON.md](COMPARISON.md).
+In the latest shared base test, approximate DP earns **137.76 dollars per episode**, above Joint PPO's **123.19** and earlier PPO's **117.42**. It also leads under low initial inventory, while service-first is stronger under high demand. The current results, uncertainty intervals, and fairness qualifications are maintained in [COMPARISON.md](../COMPARISON.md).
 
-The first fitted-value study completed on **2026-10-20** and used different test scenarios. Its [archived report](archive/FITTED_VALUE_STUDY.md) preserves the historical results, evidence, and reproduction commands. Use those instructions if you need to build the approximate-DP and earlier-PPO control directory for the current six-method study. Do not mix the two studies' test means.
+The first fitted-value study completed on **2026-10-20** and used different test scenarios. Its [archived report](../archive/FITTED_VALUE_STUDY.md) preserves the historical results, evidence, and reproduction commands. Use those instructions if you need to build the approximate-DP and earlier-PPO control directory for the current six-method study. Do not mix the two studies' test means.
 
 | Code or test | What to read there |
 |---|---|
-| [fitted_value.py](../src/charging_env/rl/fitted_value.py) | State sampling, interpolation, dispatch, backward fitting, checkpoints |
-| [fitted_train.py](../src/charging_env/rl/fitted_train.py) | Training CLI and automatic output-directory naming |
-| [policies.py](../src/charging_env/benchmarks/policies.py) | `joint_dispatch_outcomes`, shared candidate grid and one-period outcomes |
-| [test_fitted_value.py](../tests/test_fitted_value.py) | Bellman backups, interpolation, terminal accounting, and checkpoint validation |
+| [fitted_value.py](../../src/charging_env/rl/fitted_value.py) | State sampling, interpolation, dispatch, backward fitting, checkpoints |
+| [fitted_train.py](../../src/charging_env/rl/fitted_train.py) | Training CLI and automatic output-directory naming |
+| [policies.py](../../src/charging_env/benchmarks/policies.py) | `joint_dispatch_outcomes`, shared candidate grid and one-period outcomes |
+| [test_fitted_value.py](../../tests/test_fitted_value.py) | Bellman backups, interpolation, terminal accounting, and checkpoint validation |

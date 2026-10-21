@@ -1,8 +1,8 @@
 # Notation and the link to Python
 
-This guide defines the mathematical notation used in the model and maps each quantity to its Python representation. [JOINT_PPO.md](JOINT_PPO.md) explains the joint PPO training equations, also recorded in the [algorithm specification](MDP_RL_2.pdf). Section 5 collects the modeling conventions that apply throughout the project.
+This guide defines the mathematical notation used in the model and maps each quantity to its Python representation. [JOINT_PPO.md](../methods/JOINT_PPO.md) explains the joint PPO training equations, also recorded in the [algorithm specification](../MDP_RL_2.pdf). Section 5 collects the modeling conventions that apply throughout the project.
 
-Start with [MODEL.md](MODEL.md) for the physical model and [ENVIRONMENT.md](ENVIRONMENT.md) for the Python interface. Use this page as a reference when a symbol or array index is unclear. In the tables, **Symbol** is the notation used in equations, **Meaning** explains it, **Unit or type** says what kind of quantity it is, and the Python column shows where to find it in code. A set is a collection of objects; an index identifies one object in that collection.
+Start with [MODEL.md](../MODEL.md) for the physical model and [ENVIRONMENT.md](ENVIRONMENT.md) for the Python interface. Use this page as a reference when a symbol or array index is unclear. In the tables, **Symbol** is the notation used in equations, **Meaning** explains it, **Unit or type** says what kind of quantity it is, and the Python column shows where to find it in code. A set is a collection of objects; an index identifies one object in that collection.
 
 ## 1. Four distinctions that prevent most confusion
 
@@ -147,7 +147,7 @@ V^D(\widetilde s_t)&=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
 \end{aligned}
 ```
 
-The **value** is the expected remaining return under the policies: the average sum of future profits, accounting for discounting. A critic network learns to predict it. The **horizon** is the episode's final operating period; nothing is earned after it, so the remaining value is zero. **Discounting** gives later profit less weight. There is no discount between pricing and dispatch within the same period. In Python the identical objective is `sum(gamma ** period * reward)` over `period=0,...,horizon-1`. Joint PPO denotes these stage values by $`V_1`$ and $`V_2`$. Training details are in [JOINT_PPO.md](JOINT_PPO.md) and [LEGACY_PPO.md](LEGACY_PPO.md); optional reward shaping belongs to the earlier PPO implementation. Reported economic profits continue to use $`r_t`$.
+The **value** is the expected remaining return under the policies: the average sum of future profits, accounting for discounting. A critic network learns to predict it. The **horizon** is the episode's final operating period; nothing is earned after it, so the remaining value is zero. **Discounting** gives later profit less weight. There is no discount between pricing and dispatch within the same period. In Python the identical objective is `sum(gamma ** period * reward)` over `period=0,...,horizon-1`. Joint PPO denotes these stage values by $`V_1`$ and $`V_2`$. Training details are in [JOINT_PPO.md](../methods/JOINT_PPO.md) and [LEGACY_PPO.md](../methods/LEGACY_PPO.md); optional reward shaping belongs to the earlier PPO implementation. Reported economic profits continue to use $`r_t`$.
 
 ### Joint PPO notation
 
@@ -165,7 +165,7 @@ The dispatch critic target is $`\hat A_{2,t}+V_{2,\mathrm{old}}`$, combining the
 
 Joint PPO's four operations are **service, idle/move, charge, and discharge**. The simulator uses five mode codes because it separates idle-at-current-node (`WAIT`) from idle-at-another-node (`REPOSITION`). The adapter in `paper_ppo.py` performs this translation. All controllers use the same physical simulator after this translation.
 
-Approximate DP uses a different object: a table of expected future profit indexed by period, fleet locations, and a battery-energy grid. Its notation, interpolation, and Bellman update are explained in [FITTED_VALUE.md](FITTED_VALUE.md). It has no PPO advantage or policy-ratio loss.
+Approximate DP uses a different object: a table of expected future profit indexed by period, fleet locations, and a battery-energy grid. Its notation, interpolation, and Bellman update are explained in [FITTED_VALUE.md](../methods/FITTED_VALUE.md). It has no PPO advantage or policy-ratio loss.
 
 ### Energy accounting
 
@@ -192,7 +192,7 @@ e_{m,t+1}=e_{m,t}-E^{\mathrm{travel}}_{m,t}
 -\frac{X_{m,t}}{\eta_D}.
 ```
 
-An efficiency always has a subscript here, such as $`\eta_C`$. The unsubscripted $`\eta`$ is customer cost sensitivity. The lower battery bound $`e_{\min}`$ maps to `reserve_kwh`, and $`\nu`$ maps to `terminal_value_per_stored_kwh`. Serving requests only in full and assigning a value to battery energy left at the episode's end are also implementation assumptions. Their effects are explained in [MODEL.md](MODEL.md).
+An efficiency always has a subscript here, such as $`\eta_C`$. The unsubscripted $`\eta`$ is customer cost sensitivity. The lower battery bound $`e_{\min}`$ maps to `reserve_kwh`, and $`\nu`$ maps to `terminal_value_per_stored_kwh`. Serving requests only in full and assigning a value to battery energy left at the episode's end are also implementation assumptions. Their effects are explained in [MODEL.md](../MODEL.md).
 
 ## 5. Modeling conventions
 
@@ -219,4 +219,4 @@ These conventions keep the equations, observations, and reported results consist
 
 7. **Mathematical and Python indices differ.** Equations use $`t=1,\ldots,T`$, stored energy $`e_{m,t}`$, and station-node price subscripts. Python periods start at zero and station arrays use station slots. The tables above provide the mapping; neither convention changes the underlying dynamics.
 
-Empirical results are reported in [COMPARISON.md](COMPARISON.md) and the saved study outputs linked there. Numerical examples in this guide illustrate definitions and are not performance measurements.
+Empirical results are reported in [COMPARISON.md](../COMPARISON.md) and the saved study outputs linked there. Numerical examples in this guide illustrate definitions and are not performance measurements.

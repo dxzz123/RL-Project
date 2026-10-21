@@ -4,11 +4,11 @@ This project models an operator that owns fixed charging stations and mobile cha
 
 This guide explains the common simulation used by every controller: how customers arrive and choose, how vehicles deliver energy, and how profit is counted. The numerical values describe a small example city; they have not been calibrated to real customer or fleet data. [TRAINING.md](TRAINING.md) explains how to run the controllers, and [COMPARISON.md](COMPARISON.md) explains how approximate dynamic programming and the two PPO implementations make decisions.
 
-The environment returns a rich observation for inspection. Each controller decides which parts it uses. In particular, the joint PPO hides current requests from its pricing networks; the earlier PPO can use them. Section 7 makes this distinction explicit.
+For a first reading, follow the order of events: arrivals, customer choice, vehicle dispatch, then energy and profit. The equations make each rule precise; the surrounding explanations describe what it means in operation.
 
 ## 1. The city, energy units, and order of decisions
 
-A **node** represents a location or service zone in the city. A customer's electric vehicle is an **EV**, a mobile charging vehicle is an **MCV**, and a fixed charging station is an **FCS**. In the equations, $`i`$ identifies a node, $`m`$ a mobile vehicle, $`j`$ a node containing a station, and $`t=1,\ldots,T`$ an operating period. Python counts periods from `0` to `T-1` and stores station arrays by slot `f`; station slot `f` is at node `fcs_zones[f]`. These are the conventions in [NOTATION.md](NOTATION.md).
+A **node** represents a location or service zone in the city. A customer's electric vehicle is an **EV**, a mobile charging vehicle is an **MCV**, and a fixed charging station is an **FCS**. In the equations, $`i`$ identifies a node, $`m`$ a mobile vehicle, $`j`$ a node containing a station, and $`t=1,\ldots,T`$ an operating period. Python counts periods from `0` to `T-1` and stores station arrays by slot `f`; station slot `f` is at node `fcs_zones[f]`. These are the conventions in [NOTATION.md](reference/NOTATION.md).
 
 The default city has four nodes, two stations, two mobile vehicles, and 12 one-hour periods. Node coordinates are `(0,0)`, `(4,0)`, `(0,4)`, and `(4,4)` km. Stations are at nodes 0 and 3; mobile vehicles start at nodes 1 and 2, each with 55 kWh in its battery. Distance is Manhattan distance, which is the sum of horizontal and vertical distances, as on a rectangular street grid. This distance is used when checking station access and calculating travel time, energy, and cost.
 
@@ -126,7 +126,7 @@ The simulator randomly selects exactly one option using these probabilities. The
 
 The default `b=0` is the original choice rule. Under this rule, nonnegative charging costs give each charging option a weight no greater than the outside option's weight of one, so many customers may leave.
 
-The optional `b=3` scenario adds a charging benefit relative to leaving. `b=2` and `b=4` let us compare smaller and larger benefits. These are changes to the customer model, with values chosen for experiments rather than estimated from real customer data. For unchanged costs and available options, increasing `b` makes leaving less likely, while keeping customers' relative preferences among charging providers unchanged. With no available provider, the customer still leaves. The simulator and adaptive pricing benchmark use the same probability calculation in `choice.py`. See [OUTSIDE_OPTION.md](OUTSIDE_OPTION.md) for details.
+The optional `b=3` scenario adds a charging benefit relative to leaving. `b=2` and `b=4` let us compare smaller and larger benefits. These are changes to the customer model, with values chosen for experiments rather than estimated from real customer data. For unchanged costs and available options, increasing `b` makes leaving less likely, while keeping customers' relative preferences among charging providers unchanged. With no available provider, the customer still leaves. The simulator and adaptive pricing benchmark use the same probability calculation in `choice.py`. See [OUTSIDE_OPTION.md](reference/OUTSIDE_OPTION.md) for details.
 
 Each customer's choice stays attached to their own request. Customers choosing mobile charging are grouped by origin node, and any vehicle visiting that node may serve those requests. Customers choosing a fixed station are grouped by their chosen station. Customers who leave are counted separately and do not incur an unmet-service penalty.
 
@@ -203,15 +203,7 @@ The output `info["metrics"]` reports the shares of customers who leave or receiv
 
 The **raw pricing observation** contains: the current period, vehicle locations and batteries, configured average arrivals, actual customer requests and their accessible stations, station charging and export prices, the wholesale electricity price, and estimated waiting times and service availability. The **raw dispatch observation** adds the posted mobile prices, the option each customer actually chose, and totals of chosen customer counts and requested energy.
 
-The `request_details` table has one row per customer. Its columns record origin zone, requested kWh, provider choice, and accessibility to each station. With `N` customers and `n_fcs` stations, its shape is `[N, 3+n_fcs]`, stored as `float64`. The choice code is `-1` before the customer chooses, `0` for mobile service, `1..n_fcs` for fixed stations, and `n_fcs+1` for leaving.
-
-The number of customer rows can change each period. Gymnasium therefore uses a variable-length sequence, `Sequence(Box(...), stack=True)`, rather than imposing a maximum request count. The PPO dispatch networks encode each request and combine the resulting features into a fixed-size input. It includes request order because service allocation checks requests in order. A trainer that expects a fixed-length input needs an adapter to handle these variable-length requests.
-
-Some outputs give one value per zone: `mobile_demand` has shape `[n_zones]`. Others give one value for each vehicle and zone: `served_mobile` and `delivered_mobile_kwh` have shape `[n_mcv,n_zones]` and describe the completed period. `fcs_retail_prices` and `fcs_discharge_prices` each give one price per station, replacing the old single `grid_sell_price` observation. Price values may include any nonnegative result of the configured random price changes. Request counts use `int64` storage without an artificial demand cap.
-
-The `pricing_mask` marks available price choices during stage 0, and `action_mask` marks available vehicle actions during stage 1. A node without mobile service has no available price choice. The policy supplies a valid placeholder index such as `0` and excludes that node from its probability calculation, rather than trying to choose from an empty list.
-
-The earlier PPO obtains each vehicle's input through `local_observation(m)`. This includes its location, battery, available actions, and `agent_id`, as well as other vehicles' locations and batteries and the shared customer, price, and waiting-time information. This is the coordination information called `zeta_mt`. Every vehicle can use the same neural network while receiving different inputs, and all vehicles learn from the same total operator profit.
+Each controller uses its permitted inputs. Earlier PPO can use current requests before pricing; Joint PPO hides those requests until dispatch. The table below summarizes the differences. Array shapes, action masks, and Python field names are collected in the [environment API reference](reference/ENVIRONMENT.md).
 
 The common economic objective is to maximize expected total profit across the episode, discounting later profit by a factor `gamma` per period. Two value functions estimate the remaining discounted profit: `V^P` just before pricing, and `V^D` after customers choose but before dispatch. They are related as follows:
 
@@ -232,8 +224,8 @@ The information used by a controller and the way it estimates future profit are 
 
 | Controller | Pricing input and decision | Dispatch and future-value estimate |
 |---|---|---|
-| [Earlier SA-PPO–MAPPO](LEGACY_PPO.md) | Uses the rich pre-choice observation, including current requests; learns prices | Uses per-vehicle observations and separate neural pricing/dispatch critics |
-| [Joint PPO](JOINT_PPO.md) | Hides current request details, counts, total requested energy, and waiting estimates from both pricing networks; learns prices from time, fleet, arrival means, and current prices | Uses the global post-choice observation and separate neural critics; clips the fleet action ratio jointly |
-| [Fitted-value approximate DP](FITTED_VALUE.md) | Uses a fixed mobile price in the completed study | Uses post-choice requests to compare candidate fleet actions, then adds a learned table value for the next fleet state |
+| [Earlier SA-PPO–MAPPO](methods/LEGACY_PPO.md) | Uses the rich pre-choice observation, including current requests; learns prices | Uses per-vehicle observations and separate neural pricing/dispatch critics |
+| [Joint PPO](methods/JOINT_PPO.md) | Hides current request details, counts, total requested energy, and waiting estimates from both pricing networks; learns prices from time, fleet, arrival means, and current prices | Uses the global post-choice observation and separate neural critics; clips the fleet action ratio jointly |
+| [Fitted-value approximate DP](methods/FITTED_VALUE.md) | Uses a fixed mobile price in the completed study | Uses post-choice requests to compare candidate fleet actions, then adds a learned table value for the next fleet state |
 
 Both PPO methods discount only between periods. Their generalized advantage estimation (GAE), which constructs learning signals from critic prediction errors, differs: the earlier PPO uses trace coefficient 1 between pricing and dispatch, whereas the joint PPO uses `gae_lambda` at that transition as well as between periods. This is a difference in training targets; it does not change physical time or the simulator's reward. Approximate DP instead learns its value table by working backward from the end of the horizon. See [COMPARISON.md](COMPARISON.md) for the consequences and the measured comparison.

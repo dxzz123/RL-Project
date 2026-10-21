@@ -8,7 +8,7 @@ Paths under `outputs/` refer to local experiment records and are not included in
 
 This report records the completed **2026-10-17 historical comparison under b=0**, the original customer-choice model. The existing network weights were **frozen**, meaning they were kept fixed throughout evaluation. There was no further training or change to the profit formula. It followed [the longer-training investigation](TRAINING_ANALYSIS.md): the training curve showed whether performance had settled down, while these benchmarks showed how good the resulting decisions were. Later b=3 results are in [SILU_B3_STUDY.md](SILU_B3_STUDY.md) and [B3_TRAINING_IMPROVEMENTS.md](B3_TRAINING_IMPROVEMENTS.md).
 
-Start with [MODEL.md](../MODEL.md) for the operating process and [NOTATION.md](../NOTATION.md) for symbols. Below, MCV means mobile charging vehicle and FCS means fixed charging station. One episode contains 12 physical periods. Profit is discounted by 0.99 per period: later profit receives slightly less weight than earlier profit. It includes both mobile and FCS business operations.
+Start with [MODEL.md](../MODEL.md) for the operating process and [NOTATION.md](../reference/NOTATION.md) for symbols. Below, MCV means mobile charging vehicle and FCS means fixed charging station. One episode contains 12 physical periods. Profit is discounted by 0.99 per period: later profit receives slightly less weight than earlier profit. It includes both mobile and FCS business operations.
 
 ## What should a useful policy do well?
 
@@ -166,6 +166,6 @@ python -m pip install 'matplotlib>=3.9,<4'
 python experiments/plot_policy_benchmarks.py --output-dir outputs/policy_benchmarks_repeat
 ```
 
-The complete experiment used **61 × 64 rule-validation executions**, **18 × 256 default-test executions**, and **2 × 12 × 128 stress-test executions**: **11,584 policy episodes in total**. These count each policy's run through an episode; several policies can run on the same scenario. Every execution had zero invalid actions. The suite at the time passed **81 tests**, including 17 new checks for the separate physical prediction model, joint action search, separation of random number streams, and the shared interface used to run policies. See [VALIDATION.md](../VALIDATION.md) for the current suite.
+The complete experiment used **61 × 64 rule-validation executions**, **18 × 256 default-test executions**, and **2 × 12 × 128 stress-test executions**: **11,584 policy episodes in total**. These count each policy's run through an episode; several policies can run on the same scenario. Every execution had zero invalid actions. The suite at the time passed **81 tests**, including 17 new checks for the separate physical prediction model, joint action search, separation of random number streams, and the shared interface used to run policies. See [VALIDATION.md](../reference/VALIDATION.md) for the current suite.
 
 Saved artifacts include the complete JSON (`outputs/policy_benchmarks/summary.json`), default-case CSV (`outputs/policy_benchmarks/base/summary.csv`), profit decomposition (`outputs/policy_benchmarks/gap_diagnostics.json`), PNG chart (`outputs/policy_benchmarks/comparison.png`), and vector PDF (`outputs/policy_benchmarks/comparison.pdf`).

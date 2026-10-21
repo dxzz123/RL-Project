@@ -6,7 +6,7 @@ Paths under `outputs/` refer to local experiment records and are not included in
 
 A dispatch policy is the learned rule for choosing vehicle actions. It should make different decisions when vehicle energy, locations, or customer requests change. The original trained policy appeared to respond very little to those changes. This experiment asked whether a small neural-network change could help: replace the dispatch actor's **last hidden Tanh activation with SiLU**.
 
-This **pilot experiment** used a fixed training budget and was completed on **2026-10-17** under the baseline customer model, $`b=0`$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../NOTATION.md) for symbols.
+This **pilot experiment** used a fixed training budget and was completed on **2026-10-17** under the baseline customer model, $`b=0`$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../methods/LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../reference/NOTATION.md) for symbols.
 
 ## 1. Why test a different activation?
 
@@ -168,4 +168,4 @@ The two full-convergence commands retain the established 500-update configuratio
 
 ## 6. Verification record
 
-The activation change retained the original **81 passing tests** and added **9 tests**. They checked that only the intended dispatch activation changed, starting weights otherwise matched, invalid settings were rejected, older checkpoints still loaded, and resumed SiLU training exactly restored both the optimizer and random-number generator (RNG). They also checked unchanged action masks and likelihood calculations, finite learning signals, rejection of architecture changes through the CLI when loading a checkpoint, and a small train/save/reload run. This is the historical verification count for this change; [VALIDATION.md](../VALIDATION.md) reports the current suite.
+The activation change retained the original **81 passing tests** and added **9 tests**. They checked that only the intended dispatch activation changed, starting weights otherwise matched, invalid settings were rejected, older checkpoints still loaded, and resumed SiLU training exactly restored both the optimizer and random-number generator (RNG). They also checked unchanged action masks and likelihood calculations, finite learning signals, rejection of architecture changes through the CLI when loading a checkpoint, and a small train/save/reload run. This is the historical verification count for this change; [VALIDATION.md](../reference/VALIDATION.md) reports the current suite.

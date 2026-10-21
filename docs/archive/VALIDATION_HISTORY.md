@@ -1,6 +1,6 @@
 # Historical validation record
 
-> Historical record through 2026-10-21. For the current checks and their scope, use [VALIDATION.md](../VALIDATION.md); for performance, use [COMPARISON.md](../COMPARISON.md).
+> Historical record through 2026-10-21. For the current checks and their scope, use [VALIDATION.md](../reference/VALIDATION.md); for performance, use [COMPARISON.md](../COMPARISON.md).
 
 Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
 
@@ -10,7 +10,7 @@ The latest recorded complete **test suite**, meaning all automated checks run to
 
 On 2026-10-20, three additional CLI checks brought the suite from 142 to 145 tests by verifying that repeated PPO commands preserve earlier results and use separate destinations. The fitted-value implementation then added 19 learning/checkpoint checks and 10 compact-benchmark checks, bringing the total to 174. Historical study counts below remain records of their earlier stages. Joint PPO then added 29 learning, interface, and checkpoint tests, plus eight study-protocol guards, bringing the total to 211.
 
-[MODEL.md](../MODEL.md) describes the intended behavior, and [ENVIRONMENT.md](../ENVIRONMENT.md) shows how to inspect one simulator step. [Earlier PPO reference](../LEGACY_PPO.md) explains the learning terms used below. In training, a **validation set** specifically means scenarios used to monitor performance and choose checkpoints; this page covers the broader task of checking the implementation and its recorded results.
+[MODEL.md](../MODEL.md) describes the intended behavior, and [ENVIRONMENT.md](../reference/ENVIRONMENT.md) shows how to inspect one simulator step. [Earlier PPO reference](../methods/LEGACY_PPO.md) explains the learning terms used below. In training, a **validation set** specifically means scenarios used to monitor performance and choose checkpoints; this page covers the broader task of checking the implementation and its recorded results.
 
 ## 1. Run the checks yourself
 
@@ -30,7 +30,7 @@ python examples/fcs_discharge_walkthrough.py
 python examples/check_gym.py
 ```
 
-The manual example writes `outputs/manual_episode.csv`; it demonstrates a fixed action sequence rather than an optimized policy. The controlled export example has a hand calculation in [ENVIRONMENT.md](../ENVIRONMENT.md#5-check-a-transition-by-hand).
+The manual example writes `outputs/manual_episode.csv`; it demonstrates a fixed action sequence rather than an optimized policy. The controlled export example has a hand calculation in [ENVIRONMENT.md](../reference/ENVIRONMENT.md#5-check-a-transition-by-hand).
 
 A short training execution check is a separate operation:
 
@@ -54,17 +54,17 @@ Some tests deliberately choose customer assignments to check difficult cases, su
 
 The Gymnasium checker verifies that observations and actions have the declared formats and allowed values, including a request table whose number of rows can change. It does not show that any PPO library can process that table or correctly handle two decisions per physical period. Separate trainer tests check the recording and processing of these episodes.
 
-A warning about an **unbounded observation** means the model does not assign that quantity a fixed upper limit. Random customer counts and normally distributed price changes have this property. Counts use `int64` computer storage without an artificial demand cap. Gymnasium can also warn that recharge/export actions are measured in actual kWh rather than scaled fractions. These warnings describe interface choices; they do not by themselves indicate a failed physical calculation. [ENVIRONMENT.md](../ENVIRONMENT.md) explains the formats.
+A warning about an **unbounded observation** means the model does not assign that quantity a fixed upper limit. Random customer counts and normally distributed price changes have this property. Counts use `int64` computer storage without an artificial demand cap. Gymnasium can also warn that recharge/export actions are measured in actual kWh rather than scaled fractions. These warnings describe interface choices; they do not by themselves indicate a failed physical calculation. [ENVIRONMENT.md](../reference/ENVIRONMENT.md) explains the formats.
 
 ### Learning calculations and saved models
 
 Training tests check when future profit is discounted, that credit calculations stop between episodes, that actors use allowed-action masks, that recorded action probabilities can be calculated again, that learned parameters change during updates, and that checkpoints save and restore training state. Recalculating action probabilities is called **likelihood replay**; it checks the numbers used to compare the old and new policies.
 
-With GAE parameter $`\lambda_{\mathrm{GAE}}=1`$, the targets for both critics equal the full discounted return from the current period through the end of the episode. At zero, they instead use the current period's reward plus a discounted critic prediction from the next pricing state, with no future prediction after the episode ends. Using a critic prediction for later outcomes is called **bootstrapping**. The pricing target still includes customer choice and dispatch in the current period. The symbol $`\lambda_{i,t}`$ means average customer arrivals and is unrelated to this learning parameter; see [NOTATION.md](../NOTATION.md).
+With GAE parameter $`\lambda_{\mathrm{GAE}}=1`$, the targets for both critics equal the full discounted return from the current period through the end of the episode. At zero, they instead use the current period's reward plus a discounted critic prediction from the next pricing state, with no future prediction after the episode ends. Using a critic prediction for later outcomes is called **bootstrapping**. The pricing target still includes customer choice and dispatch in the current period. The symbol $`\lambda_{i,t}`$ means average customer arrivals and is unrelated to this learning parameter; see [NOTATION.md](../reference/NOTATION.md).
 
 Other tests check the probability of choosing all node prices together, exclusion of nodes without mobile service, vehicle action and energy-fraction probabilities, empty and large request lists, and how request features are combined for the networks. They check that vehicle observations are correct, policies stay fixed during collection, all four networks update, and saved numerical results remain valid.
 
-Later tests cover the optional activation and normalization settings, explicit vehicle identity, the training-only inventory signal, final-period handling, exploration schedules, and limits on gradient size. They also check that imitation examples remain separate from PPO data and that experiment scripts reject inconsistent settings or overlapping data splits. [Earlier PPO reference](../LEGACY_PPO.md) defines these options and explains their purpose.
+Later tests cover the optional activation and normalization settings, explicit vehicle identity, the training-only inventory signal, final-period handling, exploration schedules, and limits on gradient size. They also check that imitation examples remain separate from PPO data and that experiment scripts reject inconsistent settings or overlapping data splits. [Earlier PPO reference](../methods/LEGACY_PPO.md) defines these options and explains their purpose.
 
 Checkpoint tests check that loading reproduces evaluation and restores the optimizer history and random-number state needed to continue training. This is **reproducibility**: repeating the recorded calculation from its saved setup. It does not establish that the policy has found the most profitable decisions.
 
@@ -80,7 +80,7 @@ Three fresh 500-update runs collected **288,000 physical periods**. Each complet
 
 On the base test, Joint PPO earned **123.19** versus earlier PPO at **117.42**. The paired improvement was **5.77**, with 95% interval **[4.95, 6.55]**; all three individual seed intervals were positive. Joint PPO remained below the time-dependent rule at **133.41** and fitted value at **137.76**. Only the predeclared criterion for improvement over earlier PPO passed. Low-inventory seed 19 declined, so the base consistency finding does not apply across every stress condition.
 
-The independent audit recalculates paired uncertainty, actual-model risks, business-profit ledgers, operating metrics, and budgets from saved episodes and checks the original PDF, code snapshot, protocols, and checkpoint hashes. [JOINT_PPO.md](../JOINT_PPO.md) explains the details, operating gap, curves, commands, and limits. The 211-test log (`outputs/paper_ppo_study/logs/unit_tests.log`), independent audit (`outputs/paper_ppo_study/analysis.json`), and executed-source snapshot (`outputs/paper_ppo_study/provenance/executed_training_source`) support this record. Small execution checks are recorded separately and were not used to select the main method.
+The independent audit recalculates paired uncertainty, actual-model risks, business-profit ledgers, operating metrics, and budgets from saved episodes and checks the original PDF, code snapshot, protocols, and checkpoint hashes. [JOINT_PPO.md](../methods/JOINT_PPO.md) explains the details, operating gap, curves, commands, and limits. The 211-test log (`outputs/paper_ppo_study/logs/unit_tests.log`), independent audit (`outputs/paper_ppo_study/analysis.json`), and executed-source snapshot (`outputs/paper_ppo_study/provenance/executed_training_source`) support this record. Small execution checks are recorded separately and were not used to select the main method.
 
 ### Fitted-value dispatch, 2026-10-20
 
@@ -119,12 +119,12 @@ The following test counts record the suite at each development stage. Smaller ea
 | Longer training and monitoring | 64 | Ten monitoring checks; longer runs earned positive profit but did not establish a generally better hyperparameter choice | [TRAINING_ANALYSIS.md](TRAINING_ANALYSIS.md) |
 | Frozen-policy benchmarks | 81 | Seventeen benchmark checks; historical `b=0` RL remained below the inventory rule | [POLICY_BENCHMARKS.md](POLICY_BENCHMARKS.md) |
 | Dispatch activation pilot | 90 | Nine activation checks, including legacy loading and exact continuation | [ACTIVATION_EXPERIMENT.md](ACTIVATION_EXPERIMENT.md) |
-| Charging-benefit extension | 108 | Choice, numerical stability, mask, checkpoint, benchmark, and scenario-routing checks | [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md) |
+| Charging-benefit extension | 108 | Choice, numerical stability, mask, checkpoint, benchmark, and scenario-routing checks | [OUTSIDE_OPTION.md](../reference/OUTSIDE_OPTION.md) |
 | First SiLU + `b=3` study | 112 | Four experiment guards; three 500-update policies still trailed retuned inventory dispatch | [SILU_B3_STUDY.md](SILU_B3_STUDY.md) |
 | Targeted `b=3` training study | 142 | Thirty role, normalization, shaping, training, imitation, and experiment checks | [B3_TRAINING_IMPROVEMENTS.md](B3_TRAINING_IMPROVEMENTS.md) |
-| Automatic CLI run directories | 145 | Three checks for repeated commands, artifact preservation, and checkpoint continuation | [Earlier PPO reference](../LEGACY_PPO.md) |
-| Fitted-value dispatch and compact comparison | 174 | Nineteen value-learning/checkpoint checks and ten compact-rule checks; all three seeds beat the primary rule on the base test | [FITTED_VALUE.md](../FITTED_VALUE.md) |
-| Joint PPO | 211 | Twenty-nine PPO/interface tests and eight protocol guards; all three base seeds beat earlier PPO, but stronger inventory methods remain ahead | [JOINT_PPO.md](../JOINT_PPO.md) |
+| Automatic CLI run directories | 145 | Three checks for repeated commands, artifact preservation, and checkpoint continuation | [Earlier PPO reference](../methods/LEGACY_PPO.md) |
+| Fitted-value dispatch and compact comparison | 174 | Nineteen value-learning/checkpoint checks and ten compact-rule checks; all three seeds beat the primary rule on the base test | [FITTED_VALUE.md](../methods/FITTED_VALUE.md) |
+| Joint PPO | 211 | Twenty-nine PPO/interface tests and eight protocol guards; all three base seeds beat earlier PPO, but stronger inventory methods remain ahead | [JOINT_PPO.md](../methods/JOINT_PPO.md) |
 
 The longer-training study included a **control**, a comparison run retaining the earlier settings, trained for 48,000 physical periods. Three runs with adjusted settings each used 96,000 periods. On 256 independent scenes, the adjusted policies averaged 16.309 discounted profit, with training-seed standard deviation 0.306, compared with their initial mean of -37.060. Here standard deviation describes the spread across the separate training seeds. Comparisons using equal amounts of training data limit how confidently the gain can be attributed to the new settings.
 

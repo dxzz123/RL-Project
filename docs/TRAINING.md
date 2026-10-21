@@ -19,7 +19,7 @@ In VS Code, choose `.venv/bin/python` with **Python: Select Interpreter**. The R
 
 ## View the results already available
 
-You do not need to retrain to inspect the completed experiment:
+The [comparison report](COMPARISON.md) and [figure](assets/algorithm_comparison.png) are included in the repository and can be read without installing anything. If you also have the saved study in `outputs/paper_ppo_study/`, these commands display its scorecard and figure:
 
 ```bash
 python3 experiments/summarize_paper_ppo_study.py --show
@@ -34,9 +34,9 @@ The [comparison guide](COMPARISON.md) explains each row, why approximate DP is n
 
 | Your purpose | Command module | Detailed guide |
 |---|---|---|
-| Learn a continuation-value table and search fleet actions using the known model | `charging_env.rl.fitted_train` | [Approximate DP / fitted value](FITTED_VALUE.md) |
-| Train pricing and fleet dispatch with joint PPO | `charging_env.rl.paper_train` | [Joint PPO](JOINT_PPO.md) |
-| Study or continue the earlier SA-PPO/MAPPO implementation | `charging_env.rl.train` | [Earlier PPO/MAPPO](LEGACY_PPO.md) |
+| Learn a continuation-value table and search fleet actions using the known model | `charging_env.rl.fitted_train` | [Approximate DP / fitted value](methods/FITTED_VALUE.md) |
+| Train pricing and fleet dispatch with joint PPO | `charging_env.rl.paper_train` | [Joint PPO](methods/JOINT_PPO.md) |
+| Study or continue the earlier SA-PPO/MAPPO implementation | `charging_env.rl.train` | [Earlier PPO/MAPPO](methods/LEGACY_PPO.md) |
 
 A **policy** is the controller's decision rule. A **checkpoint** saves a learned policy and the scenario/settings needed to load it. The two PPO trainers save `.pt` files, but their checkpoints are different formats and must be loaded with the matching trainer. Approximate DP saves `.npz` arrays and metadata.
 
@@ -49,7 +49,7 @@ python -m charging_env.rl.fitted_train \
   --output-dir outputs/fitted_value
 ```
 
-This method learns dispatch continuation values for exactly two vehicles. It uses a fixed mobile price of 0.60 dollars/kWh under this scenario, then searches joint dispatch actions with that value. `--grid-step` sets battery-grid spacing in kWh; `--samples` sets the number of demand/price draws used at each time/state query. Smaller grid spacing or more samples increases training work. There is no PPO update count: fitting works backward once through the finite horizon. See [FITTED_VALUE.md](FITTED_VALUE.md) for the equations and saved-policy example.
+This method learns dispatch continuation values for exactly two vehicles. It uses a fixed mobile price of 0.60 dollars/kWh under this scenario, then searches joint dispatch actions with that value. `--grid-step` sets battery-grid spacing in kWh; `--samples` sets the number of demand/price draws used at each time/state query. Smaller grid spacing or more samples increases training work. There is no PPO update count: fitting works backward once through the finite horizon. See [FITTED_VALUE.md](methods/FITTED_VALUE.md) for the equations and saved-policy example.
 
 ### Joint PPO: check a short training run
 
@@ -83,7 +83,7 @@ python -m charging_env.rl.train \
   --output-dir outputs/earlier_ppo
 ```
 
-This selects `b=3` and the SiLU final dispatch activation. It does not reproduce every optional change used in the saved earlier-PPO control models. Their exact settings are stored with the checkpoints and described in [the historical targeted-training report](archive/B3_TRAINING_IMPROVEMENTS.md). The [earlier PPO reference](LEGACY_PPO.md) documents all flags, network structure, and the older learning equations.
+This selects `b=3` and the SiLU final dispatch activation. It does not reproduce every optional change used in the saved earlier-PPO control models. Their exact settings are stored with the checkpoints and described in [the historical targeted-training report](archive/B3_TRAINING_IMPROVEMENTS.md). The [earlier PPO reference](methods/LEGACY_PPO.md) documents all flags, network structure, and the older learning equations.
 
 ## Find the files from a run
 
@@ -123,13 +123,16 @@ python -m charging_env.rl.paper_train \
   --eval-policy stochastic
 ```
 
-This prints a fresh evaluation; it does not reproduce the recorded scorecard. Repeating the same seed bank repeats those scenarios. To evaluate earlier PPO, use `charging_env.rl.train` and one of its checkpoints; to evaluate approximate DP, use the short Python example in [FITTED_VALUE.md](FITTED_VALUE.md). Each method guide explains its evaluation options.
+This prints a fresh evaluation; it does not reproduce the recorded scorecard. Repeating the same seed bank repeats those scenarios. To evaluate earlier PPO, use `charging_env.rl.train` and one of its checkpoints; to evaluate approximate DP, use the short Python example in [FITTED_VALUE.md](methods/FITTED_VALUE.md). Each method guide explains its evaluation options.
 
 ## Reproduce the six-method study
 
 The current comparison trains three joint-PPO models and evaluates them alongside three frozen approximate-DP models, three frozen earlier-PPO models, and three tuned heuristic families. The learned-method mean rows average the three model results; they do not combine the models into an ensemble.
 
-The commands below require the existing control files in `outputs/fitted_value_study/fitted/seed_{7,19,37}/` and `outputs/fitted_value_study/ppo/seed_{7,19,37}/`. These are present in this local project. If starting without those artifacts, the [fitted-value guide](FITTED_VALUE.md) and [archive index](archive/README.md) explain the earlier studies that produced them. This workflow deliberately reuses fixed controls, rather than silently retraining different ones.
+The commands below require the existing control files in `outputs/fitted_value_study/fitted/seed_{7,19,37}/` and `outputs/fitted_value_study/ppo/seed_{7,19,37}/`. These are present in this local project. If starting without those artifacts, the [fitted-value guide](methods/FITTED_VALUE.md) and [archive index](archive/README.md) explain the earlier studies that produced them. This workflow deliberately reuses fixed controls, rather than silently retraining different ones.
+
+<details>
+<summary>Full reproduction procedure — expand after preparing the control models</summary>
 
 Choose an unused study directory and keep it unchanged through all phases:
 
@@ -163,8 +166,10 @@ python experiments/plot_paper_ppo_study.py \
 
 The recorded study used 512 base scenarios and 256 scenarios for each of two stress cases. No test result selected the models or heuristic settings. These banks reproduce that experiment; if you use their results to guide a new algorithm, reserve a new untouched bank before claiming new independent performance. The current runner fixes its seed banks in code, so a newly designed study must explicitly change and document them before initialization.
 
+</details>
+
 ## Judge a result
 
 Compare **discounted business profit per episode** on the same scenario seeds. Keep customer model, physical settings, checkpoint choice, and execution mode explicit. Training randomness, validation for selection, and final testing have different roles; using one set for all three produces an optimistic comparison.
 
-Read profit alongside service, recharge, travel, and unmet-demand measures. Then check whether improvements hold across training seeds and changed operating conditions. [COMPARISON.md](COMPARISON.md) applies that reasoning to the saved results; [VALIDATION.md](VALIDATION.md) separates implementation correctness from performance evidence.
+Read profit alongside service, recharge, travel, and unmet-demand measures. Then check whether improvements hold across training seeds and changed operating conditions. [COMPARISON.md](COMPARISON.md) applies that reasoning to the saved results; [VALIDATION.md](reference/VALIDATION.md) separates implementation correctness from performance evidence.

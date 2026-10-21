@@ -1,6 +1,6 @@
 # What the checks establish
 
-The project needs two kinds of evidence: the implementation must follow its rules, and a trained controller must earn useful profit on new scenarios. A checkpoint that reloads correctly can still contain a weak policy. This page covers correctness and reproducibility; [COMPARISON.md](COMPARISON.md) covers measured performance.
+The project needs two kinds of evidence: the implementation must follow its rules, and a trained controller must earn useful profit on new scenarios. A checkpoint that reloads correctly can still contain a weak policy. This page covers correctness and reproducibility; [COMPARISON.md](../COMPARISON.md) covers measured performance.
 
 The current full suite contains **218 tests** covering the simulator, interfaces, all three learners, and study protocols. The completed joint-PPO comparison also records 12,288 test policy episodes with zero invalid actions. Those are separate facts: the first concerns implementation checks, the second concerns execution of the saved experiment.
 
@@ -22,7 +22,7 @@ python examples/fcs_discharge_walkthrough.py
 python examples/check_gym.py
 ```
 
-The manual example writes `outputs/manual_episode.csv` and follows a fixed script; it is not an optimized controller. The export example has a [hand calculation](ENVIRONMENT.md#5-check-a-transition-by-hand). Short training commands for all three learners are in [TRAINING.md](TRAINING.md). Repeated standalone training commands choose numbered output directories automatically.
+The manual example writes `outputs/manual_episode.csv` and follows a fixed script; it is not an optimized controller. The export example has a [hand calculation](ENVIRONMENT.md#5-check-a-transition-by-hand). Short training commands for all three learners are in [TRAINING.md](../TRAINING.md). Repeated standalone training commands choose numbered output directories automatically.
 
 ## What is tested
 
@@ -38,13 +38,13 @@ The manual example writes `outputs/manual_episode.csv` and follows a fixed scrip
 
 **Likelihood replay** recalculates recorded action probabilities before learning changes them. **Checkpoint continuation** verifies that restored optimizer and random-generator state produce the same next update. Tests of synthetic edge cases, such as two vehicles sharing a constrained station, establish behavior for those cases; they do not estimate their frequency in practice.
 
-The two PPO advantage calculations are intentionally different. At GAE trace coefficient 1, both implementations' targets reduce to the full discounted return for their learning rewards. At coefficient 0, earlier PPO still combines customer choice and dispatch in its pricing target; joint PPO's pricing target uses the old dispatch critic directly. [LEGACY_PPO.md](LEGACY_PPO.md) and [JOINT_PPO.md](JOINT_PPO.md) give their respective equations. Passing one method's tests must not be interpreted as establishing that the methods are identical.
+The two PPO advantage calculations are intentionally different. At GAE trace coefficient 1, both implementations' targets reduce to the full discounted return for their learning rewards. At coefficient 0, earlier PPO still combines customer choice and dispatch in its pricing target; joint PPO's pricing target uses the old dispatch critic directly. [LEGACY_PPO.md](../methods/LEGACY_PPO.md) and [JOINT_PPO.md](../methods/JOINT_PPO.md) give their respective equations. Passing one method's tests must not be interpreted as establishing that the methods are identical.
 
 Gymnasium may warn about unbounded observations because arrivals have no artificial count cap and one supported price-noise distribution is unbounded. It may also warn that energy actions use kWh rather than normalized fractions. These are interface choices described in [ENVIRONMENT.md](ENVIRONMENT.md). The checker validates the interface; it does not establish that an arbitrary off-the-shelf PPO implementation can handle this two-stage, variable-request problem.
 
 ## Evidence behind the current comparison
 
-The files listed below are local experiment records under `outputs/`, which is not included in Git. Use the saved study files or [reproduce the experiment](TRAINING.md#reproduce-the-six-method-study) to inspect them.
+The files listed below are local experiment records under `outputs/`, which is not included in Git. Use the saved study files or [reproduce the experiment](../TRAINING.md#reproduce-the-six-method-study) to inspect them.
 
 The latest study trained joint PPO with seeds 7, 19, and 37 for 500 updates each. It reused three saved approximate-DP models and three earlier-PPO models, and selected one rule from each of three heuristic families using separate validation scenarios.
 
@@ -58,7 +58,7 @@ The latest study trained joint PPO with seeds 7, 19, and 37 for 500 updates each
 
 Three new PPO runs collected 288,000 training physical periods in total. Rule selection evaluated 82 candidates on 128 validation scenarios, or 10,496 policy episodes. Final testing ran 12 controllers on 512 base scenarios and 256 scenarios in each of two stress cases: 12,288 policy episodes over 1,024 distinct scenarios. Both rule validation and final testing recorded zero invalid actions.
 
-The saved audit checks individual episode profits, paired uncertainty intervals, reward components, operating measures, training budgets, and source/checkpoint fingerprints. The post-installation check replayed 18 recorded episodes across all nine learned models; those replays check reproduction and are not extra independent performance evidence. The [comparison guide](COMPARISON.md) interprets the scores and explains why they do not prove general superiority or global convergence.
+The saved audit checks individual episode profits, paired uncertainty intervals, reward components, operating measures, training budgets, and source/checkpoint fingerprints. The post-installation check replayed 18 recorded episodes across all nine learned models; those replays check reproduction and are not extra independent performance evidence. The [comparison guide](../COMPARISON.md) interprets the scores and explains why they do not prove general superiority or global convergence.
 
 ## Reproduce a recorded experiment
 
@@ -66,4 +66,4 @@ Saved protocols identify the implementation and checkpoints used by each study. 
 
 Starting or continuing a study requires its exact frozen source files. Use a fresh study directory after changing the implementation. The saved-results viewer (`--show`) reads the completed analysis without rerunning policies or modifying evidence.
 
-[The historical validation record](archive/VALIDATION_HISTORY.md) contains earlier test counts, execution checks, and study evidence.
+[The historical validation record](../archive/VALIDATION_HISTORY.md) contains earlier test counts, execution checks, and study evidence.

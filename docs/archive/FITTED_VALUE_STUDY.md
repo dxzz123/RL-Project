@@ -2,7 +2,7 @@
 
 Paths under `outputs/` refer to local experiment records and are not included in Git. Use the saved study files or reproduce the experiment to inspect them; [TRAINING.md](../TRAINING.md) explains the setup and current workflow.
 
-This report preserves the first five-method comparison of approximate DP with earlier PPO and three rules. The current six-method comparison also includes Joint PPO and uses different test scenarios; read [COMPARISON.md](../COMPARISON.md) for that result. [FITTED_VALUE.md](../FITTED_VALUE.md) explains the method itself.
+This report preserves the first five-method comparison of approximate DP with earlier PPO and three rules. The current six-method comparison also includes Joint PPO and uses different test scenarios; read [COMPARISON.md](../COMPARISON.md) for that result. [FITTED_VALUE.md](../methods/FITTED_VALUE.md) explains the method itself.
 
 ## What was compared
 
@@ -32,7 +32,7 @@ On the base test, approximate DP gained **4.37 dollars** over the validation-sel
 
 The intervals use 5,000 paired scenario resamples with these trained models fixed. They do not quantify arbitrary retraining uncertainty. The higher-demand case raises arrival means by 50%; the low-inventory case starts each vehicle at 35 kWh. Service-first wins under higher demand, so the base advantage is not universal across operating conditions.
 
-Approximate DP used model queries and exact current-action calculations, whereas PPO learned from episode rollouts. This was a comparison of complete controllers, not equal model access or equal computation. Three fitted-value runs made 373,248 state/draw queries and evaluated 53,714,325 candidate outcomes. Rule selection used 10,496 policy episodes; final testing used 9,216 policy episodes over 1,024 distinct scenarios, with zero invalid actions. The automated suite at that time passed 174 tests; later additions are recorded in [VALIDATION.md](../VALIDATION.md).
+Approximate DP used model queries and exact current-action calculations, whereas PPO learned from episode rollouts. This was a comparison of complete controllers, not equal model access or equal computation. Three fitted-value runs made 373,248 state/draw queries and evaluated 53,714,325 candidate outcomes. Rule selection used 10,496 policy episodes; final testing used 9,216 policy episodes over 1,024 distinct scenarios, with zero invalid actions. The automated suite at that time passed 174 tests; later additions are recorded in [VALIDATION.md](../reference/VALIDATION.md).
 
 ## Reproduce this study or build its control directory
 

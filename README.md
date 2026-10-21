@@ -1,69 +1,49 @@
-# Mobile charging: model, controllers, and experiments
+# Mobile charging: pricing and fleet dispatch
 
-This project studies an operator that owns fixed charging stations and mobile charging vehicles. Each period, it sets mobile prices, customers choose where to charge, and the mobile fleet travels, serves customers, recharges, or exports energy. The simulator accounts for battery energy and business profit.
+This project studies how an operator can earn profit from fixed charging stations and mobile charging vehicles. The example city has four locations, two stations, and two mobile vehicles. An episode covers twelve one-hour periods.
 
-Three learned controllers use this same simulator:
+Each period follows the same sequence:
 
-| Method | What it learns | Guide |
-|---|---|---|
-| **Approximate dynamic programming (ADP)**, called **fitted-value dispatch** in the code | The future value of fleet locations and batteries; uses that value to search dispatch actions with a fixed mobile price | [FITTED_VALUE.md](docs/FITTED_VALUE.md) |
-| **Joint PPO** | Pricing and dispatch policies, using interleaved advantages and a joint fleet probability ratio | [JOINT_PPO.md](docs/JOINT_PPO.md) |
-| **Earlier PPO/MAPPO** | Pricing and a shared vehicle policy, with different action representations and learning rules | [LEGACY_PPO.md](docs/LEGACY_PPO.md) |
+1. Set a mobile charging price at each location.
+2. Customers choose mobile charging, an accessible station, or leave without charging.
+3. Dispatch the mobile vehicles to serve customers, recharge, export energy, move, or wait.
+4. Calculate energy use and business profit, then begin the next period.
 
-**Approximate DP currently earns the highest base-case test profit.** Joint PPO improves on earlier PPO, but still trails approximate DP and the strongest inventory rule. This is a result for the saved models in this example city: approximate DP has access to the one-period model and searches candidate actions, while PPO learns from episodes. [COMPARISON.md](docs/COMPARISON.md) gives the shared test results, assumptions, uncertainty, and stress cases.
+For example, fully serving a 10-kWh mobile request at 0.60 dollars/kWh earns 6 dollars in revenue. Profit also accounts for energy purchases, travel, operating costs, and unmet-service penalties. Recharging costs money now but can make later service possible; the controllers must balance those consequences.
 
-## Read in this order
+**Approximate dynamic programming (ADP)** learns the future value of the fleet and searches dispatch actions using the known model. **Proximal Policy Optimization (PPO)** learns policies for pricing and dispatch from simulated experience. Joint PPO and the earlier PPO implementation are both retained for comparison.
 
-1. [Model](docs/MODEL.md): what happens in one period, why customers choose a provider, and how energy and profit are calculated.
-2. [Training and results](docs/TRAINING.md): install, view the completed comparison, train a controller, and find its saved files.
-3. [Algorithm comparison](docs/COMPARISON.md): understand the differences between approximate DP and both PPO implementations, then interpret their performance.
-4. Open the method guide above when you need equations or implementation details.
+## Start here
 
-For a specific question, use [ENVIRONMENT.md](docs/ENVIRONMENT.md) for the Python API, [NOTATION.md](docs/NOTATION.md) for symbols and code mappings, [OUTSIDE_OPTION.md](docs/OUTSIDE_OPTION.md) for the customer benefit `b`, or [ARCHITECTURE.md](docs/ARCHITECTURE.md) to find the relevant code. [VALIDATION.md](docs/VALIDATION.md) records checks. Earlier experiment reports are in [docs/archive](docs/archive/README.md).
+| Your question | Read |
+|---|---|
+| What does the charging system do? | [Model walkthrough](docs/MODEL.md) |
+| Which controller performs better, and why? | [Current comparison](docs/COMPARISON.md) |
+| How do I train a controller or compare results? | [Training workflow](docs/TRAINING.md) |
 
-## Run the environment
+In the current base-case tests, ADP earns the most profit. Joint PPO improves on earlier PPO but still trails the strongest inventory rule. These results describe a small simulated city with assumed demand patterns; the comparison explains the limits of that conclusion.
 
-Open a terminal in the project folder containing `pyproject.toml`. Use the existing virtual environment:
+## Run a walkthrough
+
+Use Python 3.10 or later. In the project folder, create an environment with `python3 -m venv .venv` if one does not already exist, then run:
 
 ```bash
 source .venv/bin/activate
-python -m pip install -e '.[train]'
+python -m pip install -e .
 python examples/manual_walkthrough.py
 ```
 
-If `.venv` does not exist, create it once with `python3 -m venv .venv` before activation. Python 3.10 or later is required. The `[train]` extra installs PyTorch for PPO; `python -m pip install -e .` is sufficient for the simulator and approximate DP. The manual example follows scripted actions and saves `outputs/manual_episode.csv`; it is an explanation of the environment, not a performance benchmark.
+The walkthrough prints customer choices, battery levels, energy flows, and profit, and saves `outputs/manual_episode.csv`. It uses scripted actions to explain the simulator. PPO's additional dependencies and training commands are in the training workflow above.
 
-## See the completed comparison
+## Where things live
 
-From the project root:
+| Folder | Purpose |
+|---|---|
+| `src/charging_env/` | Simulator, controllers, and benchmark rules |
+| `configs/` | City and customer-model settings |
+| `examples/` | Small runnable demonstrations |
+| `docs/` | Three main guides, followed by optional method and reference material |
+| `experiments/` | Scripts for reproducible training and performance studies |
+| `tests/` | Checks for physical accounting, learning, and saved results |
 
-```bash
-python3 experiments/summarize_paper_ppo_study.py --show
-open docs/assets/algorithm_comparison.png
-```
-
-The first command prints the saved six-method comparison without training or installing PyTorch. The second opens its figure on macOS; on other systems, open that PNG normally. The figure is included in `docs/assets/`. The underlying study files are in this local project's `outputs/` folder, which is ignored by Git. To use the scorecard command in a source-only checkout, copy the saved study over or reproduce the experiment using [TRAINING.md](docs/TRAINING.md#reproduce-the-six-method-study).
-
-## Train a controller
-
-[TRAINING.md](docs/TRAINING.md) gives short commands for all three methods, with the same explicit `b=3` customer model. For example, a short joint-PPO execution check is:
-
-```bash
-python -m charging_env.rl.paper_train \
-  --scenario configs/utility_b3.json \
-  --updates 10 --episodes-per-update 4 --seed 7 \
-  --output-dir outputs/joint_ppo
-```
-
-You can repeat a standalone training command without renaming its output: the CLI automatically chooses `_2`, `_3`, and so on when needed, and prints the actual directory. A short run verifies execution; use independent comparisons to judge policy quality.
-
-## Check the project
-
-```bash
-python -m unittest discover -s tests -v
-python examples/check_gym.py
-```
-
-The full suite covers simulator accounting, customer choice, all three learners, checkpoint continuation, and experiment protocols. [VALIDATION.md](docs/VALIDATION.md) explains what those checks establish.
-
-The city and demand parameters are illustrative, not fitted to real operations. The model definitions, assumptions, and correspondence to Python fields are documented in [MODEL.md](docs/MODEL.md) and [NOTATION.md](docs/NOTATION.md).
+The [documentation index](docs/README.md) points to a specific explanation when you need more detail. Previous studies are kept in `docs/archive/`; they are optional background. Generated results live in `outputs/`, which is not included in Git.

@@ -18,7 +18,7 @@ The reported return discounts later profit:
 G=\sum_{t=1}^{T}\gamma^{t-1}r_t,\qquad T=12,\quad\gamma=0.99.
 ```
 
-Here, $`r_t`$ is profit in period $`t`$. Code stores the first period as index 0: `period = t - 1`. With `profit[period]` storing that period's profit, the equivalent calculation is `sum(gamma**period * profit[period] for period in range(T))`. Units are model dollars per episode, rather than annual returns or forecasts of real operating profit. The [notation guide](../NOTATION.md) explains the model-to-code indexing and stage conventions.
+Here, $`r_t`$ is profit in period $`t`$. Code stores the first period as index 0: `period = t - 1`. With `profit[period]` storing that period's profit, the equivalent calculation is `sum(gamma**period * profit[period] for period in range(T))`. Units are model dollars per episode, rather than annual returns or forecasts of real operating profit. The [notation guide](../reference/NOTATION.md) explains the model-to-code indexing and stage conventions.
 
 Two evaluation modes matter throughout this report:
 
@@ -66,7 +66,7 @@ This review found no basic error in reward signs, repeated inter-period discount
 
 The outer discount weight tells the actor how much each period should contribute to its learning score. GAE separately discounts future rewards when estimating return from a state. The old checkpoint default keeps the earlier approximation that gave each period equal weight in the actor score. Over 12 periods, the new outer weights range from 1 to about 0.895, so this change alone is too small to explain the large original decline.
 
-This experiment kept the environment, business-profit formula, network architecture, and demand distribution fixed. At the time of this experiment, **64 tests passed**, including ten new checks for stochastic-evaluation isolation, old checkpoint loading, separate learning rates, discount weights, evaluation statistics, initial-policy selection, and zero target variance. CPU execution was verified; CUDA was not run. The current project's later test count is reported in [VALIDATION.md](../VALIDATION.md).
+This experiment kept the environment, business-profit formula, network architecture, and demand distribution fixed. At the time of this experiment, **64 tests passed**, including ten new checks for stochastic-evaluation isolation, old checkpoint loading, separate learning rates, discount weights, evaluation statistics, initial-policy selection, and zero target variance. CPU execution was verified; CUDA was not run. The current project's later test count is reported in [VALIDATION.md](../reference/VALIDATION.md).
 
 ## How was the longer-training comparison designed?
 
@@ -158,7 +158,7 @@ Interpret the economics with the model assumptions in view: the fleet starts wit
 
 The complete test statistics (`outputs/convergence_study/candidate_test_aggregate.json`), late-training statistics (`outputs/convergence_study/training_stability.json`), PNG curves (`outputs/convergence_study/convergence.png`), and vector PDF (`outputs/convergence_study/convergence.pdf`) preserve the results. The seed-7 validation-selected checkpoint (`outputs/convergence_study/seed_7/best_checkpoint.pt`) and final checkpoint (`outputs/convergence_study/seed_7/checkpoint.pt`) are examples chosen in advance; seeds 19 and 37 also retain weights and logs. The original-settings final control (`outputs/baseline_experiment/final.pt`) is retained too.
 
-[Earlier PPO reference](../LEGACY_PPO.md) explains the training interface. VS Code provides **Train SA-PPO–MAPPO (long run with validation)**. Run the commands below from the project root, choosing new output directories:
+[Earlier PPO reference](../methods/LEGACY_PPO.md) explains the training interface. VS Code provides **Train SA-PPO–MAPPO (long run with validation)**. Run the commands below from the project root, choosing new output directories:
 
 ```bash
 source .venv/bin/activate

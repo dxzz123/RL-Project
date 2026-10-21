@@ -14,7 +14,7 @@ The reports below used different customer models, test scenarios, rule grids, an
 | [Earlier fitted-value study](FITTED_VALUE_STUDY.md) | `b=3` | Approximate DP versus earlier PPO and three rules; creates the controls reused in the latest study |
 | [Historical validation record](VALIDATION_HISTORY.md) | Multiple | The checks and evidence recorded at successive development stages |
 
-The [fitted-value guide](../FITTED_VALUE.md) explains the approximate-DP implementation and where to find its earlier five-method comparison. The latest six-method study reevaluates those fitted-value models and the targeted earlier-PPO models on fresh common scenarios, then adds Joint PPO.
+The [fitted-value guide](../methods/FITTED_VALUE.md) explains the approximate-DP implementation and where to find its earlier five-method comparison. The latest six-method study reevaluates those fitted-value models and the targeted earlier-PPO models on fresh common scenarios, then adds Joint PPO.
 
 ## Which saved models are reused?
 
@@ -41,6 +41,6 @@ Old executable scripts remain in `experiments/` because they share helper functi
 
 ## Model and algorithm specifications
 
-[MDP_RL.pdf](../MDP_RL.pdf) specifies the physical model. [MDP_RL_2.pdf](../MDP_RL_2.pdf) specifies Joint PPO. [proposal.pdf](../proposal.pdf) is the earlier project proposal. The sources have distinct roles; [NOTATION.md](../NOTATION.md) maps their notation to the implemented model and calls out implementation choices.
+[MDP_RL.pdf](../MDP_RL.pdf) specifies the physical model. [MDP_RL_2.pdf](../MDP_RL_2.pdf) specifies Joint PPO. [proposal.pdf](proposal.pdf) is the earlier project proposal. The sources have distinct roles; [NOTATION.md](../reference/NOTATION.md) maps their notation to the implemented model and calls out implementation choices.
 
 Each report retains the settings, results, and evidence for its experiment.

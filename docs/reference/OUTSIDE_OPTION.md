@@ -4,7 +4,7 @@ The **outside option** means a customer chooses neither mobile charging nor a fi
 
 The common charging-benefit parameter $`b`$ controls how attractive charging is compared with leaving. **Utility** is a preference score: a higher score makes an option more likely to be chosen. The default scenario uses charging utility $`-\eta\times\text{cost}`$, corresponding to $`b=0`$. Positive values add a benefit to all charging services. The supplied values of $`b`$ are experimental assumptions; they have not been estimated from customer data.
 
-Read [MODEL.md](MODEL.md) for the full period sequence and [NOTATION.md](NOTATION.md) for the mathematical symbols and Python names.
+Read [MODEL.md](../MODEL.md) for the full period sequence and [NOTATION.md](NOTATION.md) for the mathematical symbols and Python names.
 
 ## 1. What the charging benefit changes
 
@@ -105,12 +105,12 @@ python -m charging_env.rl.paper_train \
   --output-dir outputs/joint_ppo
 ```
 
-The standalone training commands automatically select a numbered sibling directory if the requested directory contains an earlier run. You can reuse the same command. A complete controlled study uses stricter output rules so its selected models and test evidence stay together; [TRAINING.md](TRAINING.md) explains both workflows.
+The standalone training commands automatically select a numbered sibling directory if the requested directory contains an earlier run. You can reuse the same command. A complete controlled study uses stricter output rules so its selected models and test evidence stay together; [TRAINING.md](../TRAINING.md) explains both workflows.
 
-For other methods, follow the commands in [FITTED_VALUE.md](FITTED_VALUE.md) and [LEGACY_PPO.md](LEGACY_PPO.md), again passing `configs/utility_b3.json` when training a new model. Resuming a checkpoint restores its saved scenario instead of substituting a different customer model.
+For other methods, follow the commands in [FITTED_VALUE.md](../methods/FITTED_VALUE.md) and [LEGACY_PPO.md](../methods/LEGACY_PPO.md), again passing `configs/utility_b3.json` when training a new model. Resuming a checkpoint restores its saved scenario instead of substituting a different customer model.
 
 ## 6. Compare controllers within the same market
 
 Increasing $`b`$ changes customer participation. Higher profit in b=3 than in b=0 would therefore combine a market change with any improvement in the controller. To compare controllers, train them for the same scenario, choose rule settings using separate validation episodes, then evaluate all methods on the same fresh test scenarios.
 
-The current comparison uses b=3 throughout and includes approximate DP, joint PPO, earlier PPO, and three useful rules. [COMPARISON.md](COMPARISON.md) explains what each method knows, what it optimizes, and how it performed. The earlier [SiLU + b=3 study](archive/SILU_B3_STUDY.md) and [targeted PPO improvements](archive/B3_TRAINING_IMPROVEMENTS.md) remain available as research history. Their separate test sets should not be mixed into the current comparison.
+The current comparison uses b=3 throughout and includes approximate DP, joint PPO, earlier PPO, and three useful rules. [COMPARISON.md](../COMPARISON.md) explains what each method knows, what it optimizes, and how it performed. The earlier [SiLU + b=3 study](../archive/SILU_B3_STUDY.md) and [targeted PPO improvements](../archive/B3_TRAINING_IMPROVEMENTS.md) remain available as research history. Their separate test sets should not be mixed into the current comparison.
