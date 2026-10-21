@@ -1,8 +1,10 @@
 # Does SiLU help the dispatch policy respond to its state?
 
+> Historical experiment. Its numbers belong to the scenarios and methods recorded here. Use [the current comparison](../COMPARISON.md) for approximate DP, both PPO versions, and the three main rules on shared tests. See [the archive index](README.md) for context.
+
 A dispatch policy is the learned rule for choosing vehicle actions. It should make different decisions when vehicle energy, locations, or customer requests change. The original trained policy appeared to respond very little to those changes. This experiment asked whether a small neural-network change could help: replace the dispatch actor's **last hidden Tanh activation with SiLU**.
 
-The supplied note recommended SiLU, rather than ReLU. This page records a **pilot**, a small preliminary experiment with a fixed training budget, completed on **2026-10-17** under the original customer model, $b=0$. It explains what changed, what the comparison found, and what the result does not establish. Read [TRAINING.md](TRAINING.md) for the full architecture, [MODEL.md](MODEL.md) for the environment, and [NOTATION.md](NOTATION.md) for symbols.
+The supplied note recommended SiLU, rather than ReLU. This page records a **pilot**, a small preliminary experiment with a fixed training budget, completed on **2026-10-17** under the original customer model, $b=0$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../NOTATION.md) for symbols.
 
 ## 1. Why test a different activation?
 
@@ -18,7 +20,7 @@ A diagnostic that left the saved models unchanged supported this concern. It exa
 | 19 | 0.001676 |
 | 37 | 0.002735 |
 
-Action probabilities also changed very little among states with identical **feasibility masks**, the lists of physically allowed actions. Inputs are normalized, meaning scaled using scenario quantities before entering the network. The largest absolute scaled input was `2.3214`; this check did not reveal an obvious extreme input scale. These findings motivated a controlled trial, without establishing that an activation change alone would improve decisions. The saved probe is [legacy_dispatch_shared_state_probe.json](../outputs/activation_diagnostics/legacy_dispatch_shared_state_probe.json).
+Action probabilities also changed very little among states with identical **feasibility masks**, the lists of physically allowed actions. Inputs are normalized, meaning scaled using scenario quantities before entering the network. The largest absolute scaled input was `2.3214`; this check did not reveal an obvious extreme input scale. These findings motivated a controlled trial, without establishing that an activation change alone would improve decisions. The saved probe is [legacy_dispatch_shared_state_probe.json](../../outputs/activation_diagnostics/legacy_dispatch_shared_state_probe.json).
 
 ## 2. What changed, and how checkpoints record it
 
@@ -132,7 +134,7 @@ Tanh had **99.74%** of final activations above `0.99` in absolute value. SiLU's 
 
 The pilot supported further testing of SiLU. It did **not** show that learning settled at a reliably good policy, that SiLU was better across training seeds, or that it beat the strong rule. Its 19,200-period budget also differs from the historical 96,000-period study; comparing its absolute profit with the older **16.49** result would not isolate the activation effect.
 
-Saved evidence includes the [full summary](../outputs/activation_pilot/summary.json), [frozen protocol](../outputs/activation_pilot/protocol.json), [frozen model hashes](../outputs/activation_pilot/frozen_models.json), [SiLU final checkpoint](../outputs/activation_pilot/silu/checkpoint.pt), and [Tanh final checkpoint](../outputs/activation_pilot/tanh/checkpoint.pt). No additional tuning or budget extension followed testing.
+Saved evidence includes the [full summary](../../outputs/activation_pilot/summary.json), [frozen protocol](../../outputs/activation_pilot/protocol.json), [frozen model hashes](../../outputs/activation_pilot/frozen_models.json), [SiLU final checkpoint](../../outputs/activation_pilot/silu/checkpoint.pt), and [Tanh final checkpoint](../../outputs/activation_pilot/tanh/checkpoint.pt). No additional tuning or budget extension followed testing.
 
 ## 5. Reproduce the pilot or start a separate study
 
@@ -164,4 +166,4 @@ The two full-convergence commands retain the established 500-update configuratio
 
 ## 6. Verification record
 
-The activation change retained the original **81 passing tests** and added **9 tests**. They checked that only the intended dispatch activation changed, starting weights otherwise matched, invalid settings were rejected, older checkpoints still loaded, and resumed SiLU training exactly restored both the optimizer and random-number generator (RNG). They also checked unchanged action masks and likelihood calculations, finite learning signals, rejection of architecture changes through the CLI when loading a checkpoint, and a small train/save/reload run. This is the historical verification count for this change; [VALIDATION.md](VALIDATION.md) reports the current suite.
+The activation change retained the original **81 passing tests** and added **9 tests**. They checked that only the intended dispatch activation changed, starting weights otherwise matched, invalid settings were rejected, older checkpoints still loaded, and resumed SiLU training exactly restored both the optimizer and random-number generator (RNG). They also checked unchanged action masks and likelihood calculations, finite learning signals, rejection of architecture changes through the CLI when loading a checkpoint, and a small train/save/reload run. This is the historical verification count for this change; [VALIDATION.md](../VALIDATION.md) reports the current suite.

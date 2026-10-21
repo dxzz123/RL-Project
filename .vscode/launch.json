@@ -2,6 +2,18 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Show saved algorithm comparison",
+      "type": "debugpy",
+      "request": "launch",
+      "program": "${workspaceFolder}/experiments/summarize_paper_ppo_study.py",
+      "args": [
+        "--show"
+      ],
+      "console": "integratedTerminal",
+      "cwd": "${workspaceFolder}",
+      "justMyCode": true
+    },
+    {
       "name": "Train manuscript joint PPO (b=3, small run)",
       "type": "debugpy",
       "request": "launch",
@@ -25,7 +37,7 @@
       "justMyCode": true
     },
     {
-      "name": "Train fitted-value dispatch (b=3)",
+      "name": "Train approximate DP / fitted value (b=3)",
       "type": "debugpy",
       "request": "launch",
       "module": "charging_env.rl.fitted_train",
@@ -46,11 +58,15 @@
       "justMyCode": true
     },
     {
-      "name": "Train SA-PPO–MAPPO (small run)",
+      "name": "Train earlier PPO/MAPPO (b=3, small run)",
       "type": "debugpy",
       "request": "launch",
       "module": "charging_env.rl.train",
       "args": [
+        "--scenario",
+        "configs/utility_b3.json",
+        "--dispatch-final-activation",
+        "silu",
         "--updates",
         "10",
         "--episodes-per-update",
@@ -58,44 +74,7 @@
         "--seed",
         "7",
         "--output-dir",
-        "outputs/sa_ppo_mappo"
-      ],
-      "console": "integratedTerminal",
-      "cwd": "${workspaceFolder}",
-      "justMyCode": true
-    },
-    {
-      "name": "Train SA-PPO–MAPPO (long run with validation)",
-      "type": "debugpy",
-      "request": "launch",
-      "module": "charging_env.rl.train",
-      "args": [
-        "--updates",
-        "500",
-        "--episodes-per-update",
-        "16",
-        "--epochs",
-        "6",
-        "--minibatch-size",
-        "192",
-        "--learning-rate",
-        "0.0003",
-        "--critic-learning-rate",
-        "0.001",
-        "--value-clip",
-        "0",
-        "--entropy-coef",
-        "0.005",
-        "--eval-episodes",
-        "32",
-        "--eval-interval",
-        "25",
-        "--eval-policy",
-        "stochastic",
-        "--seed",
-        "7",
-        "--output-dir",
-        "outputs/sa_ppo_mappo_long"
+        "outputs/earlier_ppo"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",

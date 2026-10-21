@@ -1,115 +1,154 @@
-# Interleaved joint PPO from the new manuscript
+# Manuscript joint PPO: learning prices and fleet dispatch
 
-This controller implements the four-page [new algorithm manuscript](MDP_RL_2.pdf). It learns both mobile prices and fleet dispatch. Its central idea is to connect the two decisions through their advantages, then judge a dispatch update by the probability of the **whole fleet action**.
+This is the PPO implementation of the four-page [MDP_RL (2) manuscript](MDP_RL_2.pdf). It learns **both mobile prices and vehicle dispatch**. A pricing decision changes which customers request service; the later dispatch decision determines how the fleet serves them. The method trains these two decisions together while keeping a separate value estimate for each stage.
 
-The earlier [SA-PPO/MAPPO](TRAINING.md) and [fitted-value controller](FITTED_VALUE.md) remain separate methods. This guide explains the new implementation, the choices needed to connect the manuscript to this simulator, and the independent performance comparison.
+The project also keeps [earlier SA-PPO/MAPPO](LEGACY_PPO.md) and [approximate DP](FITTED_VALUE.md). The two PPO implementations differ in their information, action representation, advantage calculation, and dispatch loss. They are not simply different names for the same trainer. [COMPARISON.md](COMPARISON.md) explains these differences side by side and reports their performance on the same independent test scenarios.
 
-The completed base test gives **123.19 for new PPO versus 117.42 for earlier PPO**, while fitted value remains higher at **137.76**. [Section 6](#6-train-or-evaluate-the-new-controller) gives terminal commands; [Section 8](#8-recorded-results) gives all results and limitations.
+Use [TRAINING.md](TRAINING.md) for the common setup and comparison workflow. This guide explains the manuscript implementation, its assumptions, and how to run a single model.
 
-## 1. What happens in a period
+## Follow one physical period
 
-The mathematical period is $t=1,\ldots,T$; the simulator's Python `period` is `t-1`.
+The model has two decisions within each physical period $t=1,\ldots,T$. Python stores this as `period = t - 1`.
 
-1. The pricing actor sees time, fleet locations and batteries, background arrival rates, and current fixed-station prices. It chooses mobile prices.
-2. Customers choose mobile charging, an accessible fixed station, or the outside option.
-3. The dispatch actor sees the realized choices and chooses one operation and destination for each vehicle. All vehicles' commands are submitted together.
-4. The simulator executes travel, service, and energy exchange. It reports profit and advances to the next period.
+1. **Set prices.** The pricing actor sees time, fleet locations and batteries, background arrival rates, and current station prices. It chooses a mobile price for each available node.
+2. **Observe customer choices.** Customers select mobile charging, an accessible fixed charging station (FCS), or the outside option.
+3. **Dispatch the fleet.** The dispatch actor sees the realized choices and selects an operation and destination for each mobile charging vehicle (MCV). The commands are submitted together.
+4. **Execute and earn profit.** The simulator applies travel, service, and energy exchanges, reports business profit, and advances to the next period.
 
-The simulator internally draws requests before pricing, as it did previously. The new pricing actor **and pricing critic** deliberately omit those realized requests and all demand-derived waiting estimates. This reproduces the manuscript's information boundary without changing the physical simulator. Observing the distribution's arrival rate is different from observing how many customers actually arrived.
+The simulator draws requests internally before pricing. For this controller, both the pricing actor and pricing critic hide the realized requests and demand-derived waiting estimates. Knowing that a node expects four requests is different from knowing that seven actually arrived. The dispatch networks receive the realized information after choice.
 
-There is no separate pricing-stage payment in this environment: $R^p_t=0$. Dispatch receives the original business reward $R^d_t$. Revenues, procurement costs, travel costs, penalties, and optional terminal inventory payment retain their existing definitions. This implementation uses no imitation learning, inventory reward shaping, or learned-value dispatch search.
+The pricing-stage reward is $R_t^p=0$. All current business profit appears as the dispatch-stage reward $R_t^d$: revenues minus procurement, travel, operating costs, and unmet-demand penalties, plus any configured terminal inventory payment. Pricing still matters because it changes subsequent choices and profit. See [MODEL.md](MODEL.md) for the accounting.
 
-## 2. Four networks with distinct jobs
+## Four networks, four jobs
 
-| Network | Information used | Job |
+An **actor** selects actions. A **critic** predicts remaining return and supplies a baseline for learning. There are four independent networks and optimizers:
+
+| Network | Input | Output |
 |---|---|---|
-| Pricing actor | The restricted pre-choice state | A categorical price distribution at each available node |
-| Pricing critic | The same restricted state | Remaining return before prices and customer choice |
-| Dispatch actor | The global post-choice state | One masked categorical operation/destination distribution per vehicle |
-| Dispatch critic | The global post-choice state | Remaining return after current customer choice |
+| Pricing actor | Restricted pre-choice state $S_t$ | Price probabilities at each available node |
+| Pricing critic $V_1$ | The same state $S_t$ | Expected remaining return before pricing and customer choice |
+| Dispatch actor | Global post-choice state $\widetilde S_t$ | Operation/destination probabilities for every vehicle |
+| Dispatch critic $V_2$ | The same state $\widetilde S_t$ | Expected remaining return after current customer choice |
 
-Each network owns its parameters and optimizer. The central dispatch actor has a global state encoder and separate vehicle outputs. Its fleet distribution factorizes over those outputs, conditional on the same global observation. This is centralized fleet dispatch, as described in the new manuscript.
+The dispatch actor uses one global encoder with a separate output for each vehicle. Given that global observation, its vehicle distributions factorize: the probability of a fleet action is the product of the probabilities of its component vehicle actions. The actor therefore considers fleet information without enumerating every joint action.
 
-An encoder converts physical quantities into scaled numerical features. The post-choice encoder also processes every request, including requested energy, location, and choice, with no artificial request-count cap. Time is included because the finite horizon changes the value of battery inventory. The chosen hidden width, activation, normalization, learning rates, and numerical safeguards are implementation settings: the PDF does not specify their numerical values.
+The critics are needed for training; dispatch decisions are taken from the actor rather than by searching a critic's predictions. This distinguishes the method from approximate DP, which evaluates action candidates using a continuation table at every decision.
 
-## 3. Credit passes through both decision stages
+The encoders scale physical quantities, include time, and process all observed requests without truncating the request list. The networks use SiLU activations and LayerNorm in the recorded experiment. These architecture choices and their numerical settings are implementation choices; the PDF does not specify them.
 
-An **advantage** estimates how much better a sampled action was than its critic's prediction. A **TD error** compares one step's reward plus the following critic prediction with the current prediction. With critic estimates recorded during rollout collection, Equations (4)-(7) give
+## How a later outcome teaches an earlier decision
 
-$$
-\delta^{(1)}_t=R^p_t+V_2(\widetilde S_t)-V_1(S_t),\qquad
-\delta^{(2)}_t=R^d_t+\gamma V_1(S_{t+1})-V_2(\widetilde S_t),
-$$
+A **temporal-difference error** compares a critic's prediction with immediate reward plus the following prediction. An **advantage** estimates whether a sampled action did better or worse than the critic expected. A positive advantage encourages the actor to make that action more likely; a negative one discourages it, subject to PPO's clipped objective.
 
-$$
-\widehat A_{2,t}=\delta^{(2)}_t+\gamma\lambda\widehat A_{1,t+1},\qquad
-\widehat A_{1,t}=\delta^{(1)}_t+\lambda\widehat A_{2,t}.
-$$
-
-At episode termination the next critic value and next advantage are zero. No return or advantage crosses into another episode.
-
-There is **no discount within a physical period**. The factor $\gamma$ applies only between dispatch and the next period's pricing. However, the manuscript applies the trace parameter $\lambda$ at **both** decision stages. The recursive coefficient across two pricing states is therefore $\gamma\lambda^2$. This differs from the earlier trainer, which applied $\lambda$ only between physical periods. At $\lambda=1$, both consistent critic targets reduce to ordinary discounted returns.
-
-### Critic targets and the optional A1 experiment
-
-Equations (9) and (11) use the corresponding stage's advantage plus its old critic estimate:
+The two stages have the following errors, using the critic values saved when collecting the episode:
 
 $$
-y_{1,t}=\widehat A_{1,t}+V^{\mathrm{old}}_1(S_t),\qquad
-y_{2,t}=\widehat A_{2,t}+V^{\mathrm{old}}_2(\widetilde S_t).
+\delta_t^{(1)}=R_t^p+V_2(\widetilde S_t)-V_1(S_t),
 $$
 
-The main implementation follows these formulas directly. Equation (11) in the supplied PDF uses the dispatch advantage A2; no correction to that equation is applied.
-
-The CLI option `--dispatch-critic-target pricing_advantage` retains the alternative $\widehat A_{1,t}+V^{\mathrm{old}}_2(\widetilde S_t)$ discussed during implementation. Its checkpoint records that choice. This is an experimental A1-target variant, not the formula printed in the supplied PDF and not the main reported algorithm.
-
-## 4. One PPO ratio for a complete fleet action
-
-For each stored physical period, dispatch log probability is the sum of the sampled vehicles' log probabilities. The new-to-old ratio is
-
 $$
-r^{(2)}_t=
-\exp\left(\sum_m[\log\pi^m_{\mathrm{new}}(a^m_t\mid\widetilde S_t)
--\log\pi^m_{\mathrm{old}}(a^m_t\mid\widetilde S_t)]\right).
+\delta_t^{(2)}=R_t^d+\gamma V_1(S_{t+1})-V_2(\widetilde S_t).
 $$
 
-The PPO objective clips this **one fleet ratio once**, using the team dispatch advantage. It does not clip each vehicle's ratio and average those losses. For example, two individual ratios of 1.15 produce a joint ratio of 1.3225; a clip range of 0.8-1.2 clips the joint change even though neither individual ratio exceeds 1.2. The earlier trainer's per-vehicle objective treats that example differently.
+The first asks whether the post-choice situation is better than expected before pricing. The second asks whether dispatch profit and the next fleet state are better than expected after choice. The physical-period discount $\gamma$ appears only when moving to the next period; pricing and dispatch within one period are not discounted relative to one another.
 
-Dispatch entropy, which rewards exploration, is also **summed over vehicles** before averaging over periods. Pricing uses the probability of the full node-price vector. An unavailable pricing node contributes probability one, log probability zero, and entropy zero.
+Generalized advantage estimation (GAE) combines these errors backward through the episode. The manuscript uses
 
-The main experiment follows the displayed objectives with raw advantages, uniform averages over collected physical periods, no pricing entropy bonus, and ordinary mean-squared critic losses. It does not use the earlier trainer's additional outer time-discount weights or value clipping. Networks remain fixed while episodes are collected; their old log probabilities, critic values, advantages, and targets remain fixed during the subsequent minibatch updates. The buffer is replaced on each iteration, despite the PDF's generic name “replay buffer.”
+$$
+\widehat A_{2,t}=\delta_t^{(2)}+\gamma\lambda\widehat A_{1,t+1},
+\qquad
+\widehat A_{1,t}=\delta_t^{(1)}+\lambda\widehat A_{2,t}.
+$$
 
-## 5. Discrete actions and physical feasibility
+The parameter $\lambda$ controls how much later errors enter the current advantage. Here it is applied at **both stages**, so the recursive coefficient from one pricing advantage to the next is $\gamma\lambda^2$. The earlier PPO trainer applies $\lambda$ only between physical periods. At termination, both the next critic value and next advantage are zero; information never crosses an episode boundary.
 
-The paper specifies four operations: **service, idle, charge, discharge**, paired with a destination. It does not specify a separate recharge/export quantity action. The adapter therefore uses the following explicit interpretation:
+Each critic is trained toward its own saved value plus its stage's advantage:
 
-| Paper operation | Simulator command |
+$$
+y_{1,t}=V_1^{\mathrm{old}}(S_t)+\widehat A_{1,t},
+\qquad
+y_{2,t}=V_2^{\mathrm{old}}(\widetilde S_t)+\widehat A_{2,t}.
+$$
+
+These are Equations (9) and (11) in the supplied PDF. In particular, **Equation (11) already uses the dispatch advantage $\widehat A_2$**; the implementation follows it directly. With $\lambda=1$, the targets reduce to ordinary discounted returns.
+
+An optional CLI setting, `--dispatch-critic-target pricing_advantage`, substitutes $\widehat A_1+V_2^{\mathrm{old}}$ for the dispatch target. It is retained as an experimental alternative, records its choice in the checkpoint, and is not the manuscript formula or the algorithm used in the main comparison.
+
+## Why the dispatch loss uses one fleet probability ratio
+
+PPO compares the probability of a recorded action under the updated actor with its probability under the actor that collected it. For dispatch, the manuscript uses the probability of the **whole fleet action**:
+
+$$
+r_t^{(2)}=
+\exp\left(\sum_m
+\left[\log\pi^m_{\mathrm{new}}(a_t^m\mid\widetilde S_t)
+-\log\pi^m_{\mathrm{old}}(a_t^m\mid\widetilde S_t)\right]\right).
+$$
+
+The dispatch surrogate to maximize is
+
+$$
+\min\left(r_t^{(2)}\widehat A_{2,t},
+\operatorname{clip}(r_t^{(2)},1-\epsilon,1+\epsilon)\widehat A_{2,t}\right),
+$$
+
+averaged over stored physical periods, with a dispatch entropy bonus to encourage exploration. Vehicle entropies are summed because the fleet distribution factorizes.
+
+For example, if each of two vehicle-action probabilities increases by a factor of 1.15, the fleet ratio is $1.15^2=1.3225$. For a positive advantage and $\epsilon=0.2$, the joint surrogate limits the rewarded increase to 1.2. Neither individual ratio would be clipped by the earlier per-vehicle objective. Clipping limits the incentive in the surrogate; it is not a hard guarantee that every resulting probability ratio stays inside the interval.
+
+Pricing similarly uses the probability of the complete node-price vector. Unavailable nodes contribute probability one and no gradient. The main experiment uses no pricing entropy bonus.
+
+## Action meanings and physical limits
+
+The PDF gives four operations and a destination. The adapter maps them to the existing simulator as follows:
+
+| Manuscript operation | Meaning in this implementation |
 |---|---|
-| Service | `SERVE` at the chosen mobile-request node |
-| Idle at the current node | `WAIT` |
-| Idle at a different node | `REPOSITION`, meaning travel there and do no service or exchange |
-| Charge | `RECHARGE` with the maximum individually feasible grid-energy request |
-| Discharge | `DISCHARGE` with the maximum individually feasible grid-energy request |
+| Service | Travel if needed, then serve whole requests at the chosen node |
+| Idle at the current node | Wait without moving |
+| Idle at another admissible node | Reposition there without service or exchange |
+| Charge | Request the maximum individually feasible grid energy at an FCS |
+| Discharge | Request the maximum individually feasible grid export at an FCS |
 
-The idle interpretation supplies the manuscript's destination choice without adding a fifth paper operation. Maximum exchange is constrained by travel time, remaining operating time, power, efficiency, battery capacity, and reserve. If vehicles share a station, the simulator applies its existing joint station-capacity allocation. This deterministic quantity rule is an integration choice; the manuscript does not state an exchange-quantity rule.
+The PDF does not specify a separate energy-quantity action. The maximum-exchange convention above is therefore an explicit integration choice. It accounts for travel, remaining time, power, battery capacity, reserve, and efficiency. When vehicles share a station, the simulator may allocate less than their requested amount under the existing joint capacity rule.
 
-Destinations are current mobile-request nodes together with fixed-station nodes. Staying at the current node is always retained as a safe idle option, including when no demand exists. Service and exchange choices also obey the simulator's physical action masks. Invalid categorical logits are set to negative infinity before the distribution is formed.
+Candidate destinations are current mobile-request nodes and FCS nodes. Each vehicle's current node is always retained for idle, including when there are no requests. Physically invalid operation/destination combinations are masked before sampling by setting their logits to negative infinity. This prevents individually invalid commands; shared-resource conflicts are handled by the simulator's allocation rules.
 
-This gives one small distribution per vehicle, rather than enumerating every possible fleet action. The earlier PPO learns a continuous energy fraction, while inventory rules and fitted value search half/full requested-energy choices. Those different action sets are recorded when comparing the complete controllers.
+These actions differ from the earlier PPO's learned continuous exchange fraction and approximate DP's half/full exchange grid. Performance comparisons therefore concern the complete implemented controllers, rather than an isolated change to the PPO loss.
 
-## 6. Train or evaluate the new controller
+## What happens in one training update
 
-To view the saved comparison immediately, run these commands from the project root:
+1. Freeze all four networks and collect complete episodes using the current actors.
+2. Save states, sampled actions, rewards, old log probabilities, and old critic predictions.
+3. Calculate advantages and critic targets once from those saved predictions.
+4. Run several minibatch epochs to update the two actors and two critics. The old probabilities and targets stay fixed throughout these epochs.
+5. Discard the collected buffer and collect fresh episodes for the next update.
 
-```bash
-python3 experiments/summarize_paper_ppo_study.py \
-  --study-dir outputs/paper_ppo_study --show
-open outputs/paper_ppo_study/paper_ppo_comparison.png
-```
+Although the PDF calls the storage a replay buffer, this implementation uses fresh **on-policy** data: it does not repeatedly mix in episodes from older policies. It uses the original rewards, with no inventory reward shaping or imitation learning.
 
-The first command prints all six methods under all three conditions. It reads the existing result file, requires only standard Python, and does not execute a policy or change any saved result. The second opens the figure on macOS.
+The completed comparison used the following settings:
 
-To train a new model, activate the existing virtual environment. The same `[train]` dependency extra used for the earlier PPO supplies PyTorch.
+| Setting | Value |
+|---|---|
+| Training seeds | 7, 19, 37 |
+| Updates / complete episodes per update | 500 / 16 |
+| Epochs / minibatch size | 6 / 192 physical periods |
+| Hidden layers | Two layers of width 64, SiLU and LayerNorm; separate request encoder after choice |
+| Actor / critic learning rates | 0.0003 / 0.001 |
+| Clip parameter $\epsilon$ | 0.2 |
+| Physical-period discount $\gamma$ / GAE parameter $\lambda$ | 0.99 / 0.95 |
+| Pricing / dispatch entropy coefficient | 0 / 0.01 |
+| Advantage normalization / critic-value clipping | Both disabled |
+| Gradient norm limit | 0.5 separately for each network |
+| KL-based early stopping | Disabled; all six epochs run |
+| Monitoring | 64 separate scenarios every 25 updates |
+| Primary tested checkpoint | Final update 500, stochastic execution |
+
+KL divergence measures how much action probabilities change. Here it is recorded for diagnosis but does not stop an update. Actor losses use uniform averages over collected periods and raw advantages; the earlier trainer's additional outer time-discount weights are not used. Critics use mean-squared error. These numerical choices are one implementation of the PDF, not a claim that its best possible hyperparameters have been found.
+
+## Run a single model
+
+From the project root, use the existing virtual environment and the `[train]` dependencies described in [TRAINING.md](TRAINING.md):
 
 ```bash
 source .venv/bin/activate
@@ -119,11 +158,20 @@ python -m charging_env.rl.paper_train \
   --output-dir outputs/paper_joint_ppo
 ```
 
-This short command checks execution; it is too small to establish strong performance. Repeated CLI training commands choose a fresh numbered output directory automatically and print its path. The original scenario remains `b=0` when `--scenario` is omitted, so keep the explicit `utility_b3.json` argument for the current market model.
+This small run checks execution; it does not establish good performance. Keep the explicit scenario argument because omitting it selects the original `b=0` defaults. If the requested output directory exists, the CLI chooses a numbered sibling automatically and prints the path.
 
-A checkpoint records which algorithm and critic-target interpretation produced it, the complete configuration, scenario, all four networks and optimizers, counters, and random-number state. New checkpoints have a distinct format and cannot silently be loaded as the earlier PPO. Reported profit always uses the original environment reward.
+| Saved file | Use |
+|---|---|
+| `checkpoint.pt` | Final model, all optimizers, configuration, scenario, counters, and random-number state |
+| `best_checkpoint.pt` | Best checkpoint according to this run's monitoring scenarios |
+| `training_metrics.csv` | Per-update training profit, losses, entropy, and numerical diagnostics |
+| `validation_history.json` | Monitoring scores before, during, and after training |
+| `final_evaluation.json` | Final monitoring episodes; this is not the independent benchmark test |
+| `summary.json` and `protocol.json` | Run summary, exact settings, source hashes, and replay verification |
 
-To evaluate a saved model on a separate set of scenarios, with no further training:
+The recorded study uses `checkpoint.pt` at update 500, not the most favorable monitoring checkpoint. The checkpoint format is separate from earlier PPO's format, so use the matching CLI.
+
+To evaluate a saved model on additional scenarios without training:
 
 ```bash
 python -m charging_env.rl.paper_train \
@@ -131,119 +179,20 @@ python -m charging_env.rl.paper_train \
   --eval-episodes 128 --eval-seed-base 193000001 --eval-policy stochastic
 ```
 
-This prints an evaluation JSON containing `mean_discounted_profit`, episode details, and invalid-action counts. The checkpoint supplies its `b=3` scenario; `--scenario` cannot replace it during evaluation. These example scenarios differ from the recorded primary test, so their mean need not be identical.
+This prints JSON containing mean discounted profit, individual episode results, and invalid-action counts. The saved checkpoint supplies its scenario. These scenarios differ from the recorded test, so their mean need not match the reported result. `stochastic` samples from the actor; `deterministic` takes its most likely actions. Choose the evaluation mode before comparing results, rather than choosing whichever looks better on the test set.
 
-## 7. Compare performance independently
+For a full three-seed comparison with separate rule selection and test scenarios, follow [TRAINING.md](TRAINING.md). Its study runner also freezes the earlier PPO and approximate-DP controls. Running the single-model command above does not automatically produce that comparison.
 
-The main comparison keeps six methods: new joint PPO, earlier PPO, fitted-value dispatch, service-first, constant inventory value, and time-dependent inventory value. The earlier methods' saved checkpoints are frozen controls. The three heuristic families are tuned again on 128 separate validation scenarios.
+## Results and code references
 
-New PPO models use training seeds 7, 19, and 37, each with 500 updates, 16 complete episodes per update, and 12 physical periods per episode. That is 8,000 episodes or 96,000 periods per model, matching the earlier PPO's rollout-period budget. Fitted value uses known-model state queries instead of episode-based training; equal information or equal computation is not implied.
+On the shared base test, this implementation earns **123.19 dollars per episode**, compared with **117.42** for earlier PPO and **137.76** for approximate DP. All three new PPO seeds improve over their earlier-PPO counterparts on the base test, but the inventory rule and approximate DP remain stronger. The principal observed gap is that PPO still recharges very little. See [COMPARISON.md](COMPARISON.md) for the paired intervals, operating evidence, stress tests, and limitations.
 
-The primary evaluation uses each model's **final 500-update checkpoint**, without picking a favorable snapshot or a favorable sampling mode on the test data. Stochastic policy evaluation uses fixed recorded action seeds. Performance checks during training use separate validation scenarios and do not change that final-checkpoint rule.
+The [saved protocol](../outputs/paper_ppo_study/protocol.json) records exact settings. The [independent audit](../outputs/paper_ppo_study/analysis.json) contains recomputed comparisons and source checks, and the [executed-source snapshot](../outputs/paper_ppo_study/provenance/executed_training_source/) preserves the code used for those results.
 
-The final test contains 512 independent base scenarios and 256 scenarios in each stress case. High demand increases arrival means by 50%; low inventory starts each vehicle at 35 kWh. All model weights, learned value tables, and rule parameters remain frozen. Different cases use different scenario seeds, while controllers within a case share the same scenarios.
-
-A paired comparison subtracts two controllers' profits on each shared scenario. Its 95% bootstrap interval resamples those paired differences 5,000 times. These intervals describe scenario uncertainty for the saved policies. They do not include arbitrary retraining uncertainty; three training seeds provide only limited evidence about that variation.
-
-### Frozen training settings
-
-| Setting | Main experiment |
+| Code or test | What to read there |
 |---|---|
-| Updates / episodes per update | 500 / 16 |
-| Epochs / minibatch size | 6 / 192 physical periods |
-| Main state encoder | Two layers of width 64, SiLU and LayerNorm; post-choice request processing uses its own two-layer encoder |
-| Actor / critic learning rates | 0.0003 / 0.001 |
-| PPO clip range | 0.8-1.2 |
-| Physical-period discount / GAE parameter | 0.99 / 0.95 |
-| Pricing / dispatch entropy coefficient | 0 / 0.01 |
-| Advantage normalization / value clipping | Both disabled |
-| Gradient norm limit | 0.5 separately for each of four networks |
-| KL early stopping | Disabled; all six epochs run |
-| Validation monitoring | 64 fixed scenarios every 25 updates |
-| Final checkpoint selection | Final update 500, stochastic execution |
-
-The paper specifies the structure and objectives but not these numerical settings. They are one fixed implementation of the method, rather than an exhaustive search for its best possible hyperparameters.
-
-### Reproduce the complete experiment
-
-Use a fresh study directory; it keeps fixed checkpoint paths and frozen protocols for reliable comparison. Individual training commands automatically add numbered destinations, while a dedicated study deliberately refuses an existing study path.
-
-```bash
-python experiments/run_paper_ppo_study.py --phase init \
-  --study-dir outputs/paper_ppo_repeat \
-  --control-root outputs/fitted_value_study
-python experiments/run_paper_ppo_study.py --phase select \
-  --study-dir outputs/paper_ppo_repeat
-for seed in 7 19 37; do
-  python experiments/run_paper_ppo_study.py --phase train --seed "$seed" \
-    --study-dir outputs/paper_ppo_repeat
-done
-python experiments/run_paper_ppo_study.py --phase evaluate \
-  --study-dir outputs/paper_ppo_repeat
-python experiments/summarize_paper_ppo_study.py \
-  --study-dir outputs/paper_ppo_repeat
-python experiments/plot_paper_ppo_study.py \
-  --study-dir outputs/paper_ppo_repeat
-```
-
-Plotting additionally needs Matplotlib (`python -m pip install matplotlib`). The six old control checkpoints must exist under the supplied `--control-root`; the init phase copies them and records their hashes before training. It also saves an unchanged copy of the algorithm PDF and executed source files. Rule parameters are selected using validation only, before the first final-test episode.
-
-## 8. Recorded results
-
-The experiment completed on **2026-10-21**. The new joint PPO is **better than the earlier PPO on the base test**, with consistent gains across seeds 7, 19, and 37. It still earns less than the inventory rules and fitted-value dispatch.
-
-Each table entry is mean discounted business profit per episode, in dollars. Learned-method rows average three separately executed models; they are not ensembles. Controllers within a column face the same scenario seeds.
-
-| Method | Base: 512 scenarios | High demand: 256 | Low inventory: 256 |
-|---|---:|---:|---:|
-| New joint PPO | 123.19 | 131.93 | 106.90 |
-| Earlier PPO/MAPPO | 117.42 | 127.09 | 105.70 |
-| Fitted-value dispatch | **137.76** | 140.56 | **126.67** |
-| Service first | 123.25 | **144.48** | 113.56 |
-| Constant inventory value | 129.02 | 129.77 | 115.90 |
-| Time-dependent inventory value | 133.41 | 133.63 | 121.75 |
-
-### Consistency of the PPO improvement
-
-The base-test gain over earlier PPO is **5.77 dollars, or 4.91%**, with a paired 95% bootstrap interval **[4.95, 6.55]**. Each individual training seed also has a positive gain interval:
-
-| Seed | New PPO | Earlier PPO | Gain | Paired 95% gain interval |
-|---|---:|---:|---:|---|
-| 7 | 124.817 | 115.549 | +9.269 | [8.048, 10.564] |
-| 19 | 121.396 | 116.440 | +4.956 | [3.687, 6.193] |
-| 37 | 123.357 | 120.284 | +3.072 | [1.707, 4.431] |
-
-The predeclared base criterion for improvement over earlier PPO passes. The criterion for beating the strongest validation-selected heuristic fails: new PPO minus the time-dependent rule is **-10.22**, with interval **[-11.35, -9.12]**. Its gap to fitted value is **-14.57**, with interval **[-15.64, -13.54]**. New PPO and simple service-first are effectively tied on this test: difference **-0.06**, interval **[-1.07, 0.94]**.
-
-This experiment compares complete implementations. Observation sets, action quantities, architecture, and numerical settings also differ. It does not isolate joint clipping as the cause of the measured improvement or establish that every implementation of the new algorithm will beat every earlier-PPO configuration.
-
-### Changes in operating behavior
-
-Compared with earlier PPO, the new controller delivers **69.57 versus 63.27 mobile kWh** per base episode. Travel energy falls from **11.63 to 7.76 kWh**, and ending fleet stock falls from **31.07 to 28.67 kWh**. It serves slightly more energy while spending less on movement.
-
-The reward ledger accounts for the gain: lower travel cost adds 2.60 dollars, mobile revenue adds 2.42, lower unmet-demand cost adds 1.14, and lower procurement cost adds 0.31. Reduced fixed-station revenue subtracts 0.66 and reduced export revenue subtracts 0.05. Together the unrounded terms give the measured **5.77-dollar** improvement. These are observed operating changes, not a causal ablation of the algorithm's individual components.
-
-The remaining inventory-management gap is substantial. New PPO buys only **0.17 grid kWh** for recharge per episode, compared with **81.17** for the time-dependent rule and **108.78** for fitted value. Those stronger controllers deliver **140.34** and **159.06 mobile kWh**, respectively. The PPO improvement mainly uses initial inventory more effectively; it has still not learned the profitable recharge-and-serve behavior seen in the stronger methods.
-
-### Stress tests and training stability
-
-Under higher demand, new PPO improves on earlier PPO by **4.83**, with interval **[3.50, 6.21]**. Service-first is nevertheless strongest at **144.48**, above new PPO's **131.93**.
-
-Under low initial inventory, new PPO's average gain over earlier PPO is **1.20**, with interval **[0.11, 2.25]**. This gain is not consistent across training seeds: seed 19 declines by **0.86**, with interval **[-2.51, 0.76]**. The base-case consistency result therefore must not be extended to every stress condition.
-
-All three training runs completed 500 updates with finite metrics and no early-stopped epochs. Monitoring profit rose from roughly -46 to 123-125. Over updates 375-500, the respective monitored ranges were **121.65-125.07**, **119.50-122.54**, and **124.09-125.04**. The curves settle toward a plateau in this run. That is evidence of numerical stability, not proof of global convergence or the best possible policy. No test result triggered more tuning or replacement of the primary final checkpoint.
-
-![New joint PPO, earlier learners and rules, paired PPO improvements, stress cases, and validation curves](../outputs/paper_ppo_study/paper_ppo_comparison.png)
-
-Panel A shows the six base means and individual learned-model means. Panel B compares each new PPO seed with its earlier-PPO counterpart, followed by their mean comparison. Panel C shows both stress conditions. Panel D uses separate monitoring scenarios, not the final test set.
-
-### Execution budget and evidence
-
-The three new models collected **24,000 training episodes**, or **288,000 physical periods**. Each model performed 3,000 minibatch updates, stepping its four independent optimizers each time. Each took about **five minutes** on the CPU, measured while all three seeds ran concurrently; their elapsed times should not be added and described as overall wall time.
-
-Monitoring executed **4,224 policy episodes**, and checkpoint-reload verification executed another **192**. Rule selection used **10,496 validation policy episodes**. Final testing used **12,288 policy episodes** over 1,024 distinct scenarios, with **zero invalid actions**. Two current-source execution checks used another 96 training periods and 40 evaluation episodes; earlier preflight checks used the same separate budget. Numerical unit checks are outside these experiment budgets. The optional A1 variant was execution-tested, but was not a main performance-comparison method.
-
-All **211 automated tests** passed. The independent audit recomputed paired means and intervals, actual-model risk statistics, reward accounting, and budgets from the saved records, and verified checkpoints, source files, and the unchanged source PDF.
-
-The [protocol](../outputs/paper_ppo_study/protocol.json), [selected rules](../outputs/paper_ppo_study/rule_selection/selection.json), [test summary](../outputs/paper_ppo_study/benchmarks/summary.json), [independent audit](../outputs/paper_ppo_study/analysis.json), [211-test log](../outputs/paper_ppo_study/logs/unit_tests.log), and [executed-source snapshot](../outputs/paper_ppo_study/provenance/executed_training_source/) provide the exact settings and evidence. New models are saved under [training/seed_7](../outputs/paper_ppo_study/training/seed_7/), [training/seed_19](../outputs/paper_ppo_study/training/seed_19/), and [training/seed_37](../outputs/paper_ppo_study/training/seed_37/). The three earlier PPO controls remain under [legacy/](../outputs/paper_ppo_study/legacy/), and fitted-value controls under [fitted/](../outputs/paper_ppo_study/fitted/).
-
+| [paper_ppo.py](../src/charging_env/rl/paper_ppo.py) | Information boundary, action adapter, four networks, GAE, joint loss, training, checkpoints |
+| [paper_train.py](../src/charging_env/rl/paper_train.py) | Train, resume, and evaluation CLI |
+| [run_paper_ppo_study.py](../experiments/run_paper_ppo_study.py) | Frozen comparison protocol and data splits |
+| [test_paper_ppo.py](../tests/test_paper_ppo.py) | Equation checks, masks, information isolation, network updates, and reproducibility |
+| [test_paper_study.py](../tests/test_paper_study.py) | Split separation, frozen-source checks, control validation, and result viewer |

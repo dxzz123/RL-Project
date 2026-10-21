@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "mobile-charging-env"
 version = "0.3.0"
-description = "Two-stage mobile charging simulator with SA-PPO and MAPPO training"
+description = "Two-stage mobile charging simulator with approximate dynamic programming and PPO controllers"
 requires-python = ">=3.10"
 dependencies = ["numpy>=1.26,<3", "gymnasium>=1.0,<2"]
 

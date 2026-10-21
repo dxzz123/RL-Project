@@ -1,5 +1,7 @@
 # Why the first training curve fell, and what longer training changed
 
+> Historical experiment. Its numbers belong to the scenarios and methods recorded here. Use [the current comparison](../COMPARISON.md) for approximate DP, both PPO versions, and the three main rules on shared tests. See [the archive index](README.md) for context.
+
 This report answers an early debugging question: **why did the policy appear worse after ten training updates?** A policy is the learned rule for choosing prices and dispatch actions. The original check used too little training. It also evaluated actions chosen in a different way from the sampled actions used during PPO learning. Longer training produced profitable policies whose measured returns settled down. That stability did not establish that the policy earned as much as a strong dispatch rule.
 
 This is a **historical experiment from 2026-10-17**, using the original customer model with charging-utility intercept **b=0**. This intercept is the common benefit customers assign to charging before costs are considered. A later independent [benchmark study](POLICY_BENCHMARKS.md) compared RL with other decision rules and measured mean stochastic RL profit of 16.49 against 22.75 for the inventory rule. For the later b=3 experiments, read [the SiLU study](SILU_B3_STUDY.md) and [the targeted training study](B3_TRAINING_IMPROVEMENTS.md). Their larger profit values come from a different customer model and do not by themselves show that the controller improved over this experiment.
@@ -14,7 +16,7 @@ $$
 G=\sum_{t=1}^{T}\gamma^{t-1}r_t,\qquad T=12,\quad\gamma=0.99.
 $$
 
-Here, $r_t$ is profit in period $t$. Code stores the first period as index 0: `period = t - 1`. With `profit[period]` storing that period's profit, the equivalent calculation is `sum(gamma**period * profit[period] for period in range(T))`. Units are model dollars per episode, rather than annual returns or forecasts of real operating profit. The [notation guide](NOTATION.md) explains the manuscript-to-code indexing and stage conventions.
+Here, $r_t$ is profit in period $t$. Code stores the first period as index 0: `period = t - 1`. With `profit[period]` storing that period's profit, the equivalent calculation is `sum(gamma**period * profit[period] for period in range(T))`. Units are model dollars per episode, rather than annual returns or forecasts of real operating profit. The [notation guide](../NOTATION.md) explains the manuscript-to-code indexing and stage conventions.
 
 Two evaluation modes matter throughout this report:
 
@@ -38,13 +40,13 @@ We reevaluated the policy before learning and after update 10 on a separate shar
 | Deterministic: argmax + Beta mean | 0.773 | −3.000 | −3.773 [−5.285, −2.322] |
 | Stochastic: sample from the policy | −37.009 | −30.589 | +6.420 [+5.425, +7.418] |
 
-The sampled policy improved, while its deterministic counterpart worsened. Under deterministic execution, the discounted unmet-demand penalty rose from **4.530 to 13.299** even though travel cost fell from **7.887 to 1.348**. Saving travel cost did not help when pricing attracted requests that dispatch failed to serve. The [full accounting breakdown](../outputs/convergence_study/control_test_analysis.json) records these components.
+The sampled policy improved, while its deterministic counterpart worsened. Under deterministic execution, the discounted unmet-demand penalty rose from **4.530 to 13.299** even though travel cost fell from **7.887 to 1.348**. Saving travel cost did not help when pricing attracted requests that dispatch failed to serve. The [full accounting breakdown](../../outputs/convergence_study/control_test_analysis.json) records these components.
 
 Another check gave the old and updated policies the same states from another 128 scenarios, then compared their action probabilities. The **total variation distance** measures how much probability shifted between actions. Its mean was only about **0.060 for pricing and 0.084 for dispatch**. Nevertheless, the most likely actions changed about **84.1% and 63.7%** of the time. **Entropy** measures how spread out the action probabilities are: high entropy means many actions remain plausible, while low entropy means choices are concentrated on a few actions. Policy entropy was still about **99.5% and 99.0%** of the corresponding uniform distribution's entropy. The initial deterministic policy's apparent advantage was therefore sensitive to small probability differences.
 
 The critics also predicted returns poorly. A **critic** predicts future return and gives the actor, the action-choosing network, a reference for deciding whether an action worked out better or worse than expected. We checked those predictions on another 128 stochastic episodes. The comparison target was the complete remaining discounted profit actually observed in each episode, called a **Monte Carlo target**. The old checkpoint's mean target was about **−16.38**, while both critics predicted means near **−4.1**. Their explained variances were about **0.006/0.010**, and RMSE was about **17.7**. **Explained variance** near zero means the predictions explain little of the variation in the targets. **RMSE**, or root mean squared error, measures prediction error in the same units as return and gives larger errors more weight.
 
-The very short run and value clipping of 0.2 model dollars may have limited how well the critics could learn. **Value clipping** limits changes in the value estimate used by the learning loss. We did not change each setting separately and repeat training, so the study does not establish which one caused the poor fit. See [the old-policy diagnostics](../outputs/diagnostics_old/summary.json) and [critic-fit records](../outputs/diagnostics_old/critic_fit.json).
+The very short run and value clipping of 0.2 model dollars may have limited how well the critics could learn. **Value clipping** limits changes in the value estimate used by the learning loss. We did not change each setting separately and repeat training, so the study does not establish which one caused the poor fit. See [the old-policy diagnostics](../../outputs/diagnostics_old/summary.json) and [critic-fit records](../../outputs/diagnostics_old/critic_fit.json).
 
 ## What was checked and changed?
 
@@ -62,7 +64,7 @@ This review found no basic error in reward signs, repeated inter-period discount
 
 The outer discount weight tells the actor how much each period should contribute to its learning score. GAE separately discounts future rewards when estimating return from a state. The old checkpoint default keeps the earlier approximation that gave each period equal weight in the actor score. Over 12 periods, the new outer weights range from 1 to about 0.895, so this change alone is too small to explain the large original decline.
 
-This experiment kept the environment, business-profit formula, network architecture, and demand distribution fixed. At the time of this experiment, **64 tests passed**, including ten new checks for stochastic-evaluation isolation, old checkpoint loading, separate learning rates, discount weights, evaluation statistics, initial-policy selection, and zero target variance. CPU execution was verified; CUDA was not run. The current project's later test count is reported in [VALIDATION.md](VALIDATION.md).
+This experiment kept the environment, business-profit formula, network architecture, and demand distribution fixed. At the time of this experiment, **64 tests passed**, including ten new checks for stochastic-evaluation isolation, old checkpoint loading, separate learning rates, discount weights, evaluation statistics, initial-policy selection, and zero target variance. CPU execution was verified; CUDA was not run. The current project's later test count is reported in [VALIDATION.md](../VALIDATION.md).
 
 ## How was the longer-training comparison designed?
 
@@ -89,7 +91,7 @@ Training uses even environment seeds. A seed is the number used to reproduce a s
 
 The adjusted policies were tested after all three runs finished. The original control was already **frozen**: its saved network weights and settings remained fixed. It had been evaluated on the same test scenarios, with no further tuning based on those results. The test split is **256 scenarios**, `500001 + 2*i` for `i=0..255`, with action seed `70321`. We report the initial models, models with matching training-data budgets, final update-500 models, and validation-selected models for all three seeds. We do not use test profit to select a favorite seed or checkpoint.
 
-A **paired comparison** runs both policies on the same environment scenarios, then subtracts their returns within each scenario. We form the confidence interval by **bootstrapping**: repeatedly resampling these scenario differences, with replacement, 5,000 times. The interval describes uncertainty from the choice of test scenarios for these already-trained models. It does not describe all the outcomes we might get by training again. Variation across the three training seeds is therefore reported separately. Original code, controls, configurations, and hashes are saved in [baseline_experiment](../outputs/baseline_experiment/) and [convergence_study](../outputs/convergence_study/). A hash is a file fingerprint used to detect changes. Training-period counts exclude validation and testing.
+A **paired comparison** runs both policies on the same environment scenarios, then subtracts their returns within each scenario. We form the confidence interval by **bootstrapping**: repeatedly resampling these scenario differences, with replacement, 5,000 times. The interval describes uncertainty from the choice of test scenarios for these already-trained models. It does not describe all the outcomes we might get by training again. Variation across the three training seeds is therefore reported separately. Original code, controls, configurations, and hashes are saved in [baseline_experiment](../../outputs/baseline_experiment) and [convergence_study](../../outputs/convergence_study). A hash is a file fingerprint used to detect changes. Training-period counts exclude validation and testing.
 
 ## Did longer training help?
 
@@ -119,7 +121,7 @@ A validation-selected checkpoint is the winner on validation, not necessarily on
 
 ## Was training stable, and what did the policy actually do?
 
-![Training and validation curves](assets/training_convergence.png)
+![Training and validation curves](../assets/training_convergence.png)
 
 The six scheduled validation points at updates 375, 400, 425, 450, 475, and 500 remained within the following ranges:
 
@@ -152,9 +154,9 @@ Interpret the economics with the model assumptions in view: the fleet starts wit
 
 ## Saved evidence and reproduction
 
-The [complete test statistics](../outputs/convergence_study/candidate_test_aggregate.json), [late-training statistics](../outputs/convergence_study/training_stability.json), [PNG curves](../outputs/convergence_study/convergence.png), and [vector PDF](../outputs/convergence_study/convergence.pdf) preserve the results. The [seed-7 validation-selected checkpoint](../outputs/convergence_study/seed_7/best_checkpoint.pt) and [final checkpoint](../outputs/convergence_study/seed_7/checkpoint.pt) are examples chosen in advance; seeds 19 and 37 also retain weights and logs. The [original-settings final control](../outputs/baseline_experiment/final.pt) is retained too.
+The [complete test statistics](../../outputs/convergence_study/candidate_test_aggregate.json), [late-training statistics](../../outputs/convergence_study/training_stability.json), [PNG curves](../../outputs/convergence_study/convergence.png), and [vector PDF](../../outputs/convergence_study/convergence.pdf) preserve the results. The [seed-7 validation-selected checkpoint](../../outputs/convergence_study/seed_7/best_checkpoint.pt) and [final checkpoint](../../outputs/convergence_study/seed_7/checkpoint.pt) are examples chosen in advance; seeds 19 and 37 also retain weights and logs. The [original-settings final control](../../outputs/baseline_experiment/final.pt) is retained too.
 
-[TRAINING.md](TRAINING.md) explains the training interface. VS Code provides **Train SA-PPO–MAPPO (long run with validation)**. Run the commands below from the project root, choosing new output directories:
+[Earlier PPO reference](../LEGACY_PPO.md) explains the training interface. VS Code provides **Train SA-PPO–MAPPO (long run with validation)**. Run the commands below from the project root, choosing new output directories:
 
 ```bash
 source .venv/bin/activate

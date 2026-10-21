@@ -8,7 +8,9 @@ Use this guide to run the simulator, change its settings, or understand what it 
 
 `ChargingEnv` provides the same simulator through **Gymnasium**, a standard Python interface used by reinforcement-learning tools. Its `step` method handles one decision stage at a time. A learner using it must still handle the pricing/dispatch stages, lists of allowed actions called **masks**, once-per-period discounting, and changing numbers of customer requests.
 
-Both interfaces use the same physical model. This project's SA-PPO/MAPPO trainer calls `ChargingSimulator` directly, rather than going through `ChargingEnv`. [TRAINING.md](TRAINING.md) describes the training loop.
+Both interfaces use the same physical model. The earlier PPO, manuscript PPO, and fitted-value controller all call `ChargingSimulator` directly. [TRAINING.md](TRAINING.md) shows their separate commands.
+
+This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The manuscript PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [COMPARISON.md](COMPARISON.md) for the comparison.
 
 ## 2. Run one period with the direct API
 
@@ -162,19 +164,19 @@ An **array** is a list or table of numbers. Its **shape** describes how many val
 
 A `request_details` row is `[origin, energy_kwh, choice, accessibility...]`. Values use `float64`, a number format that can store decimal values with high precision. The `choice` code is `-1` before choice, `0` for mobile, `1..F` for station slots `0..F-1`, and `F+1` for leaving. Each customer keeps the same row during the current period. With no customers, the table has zero rows and shape `[0, 3+F]`.
 
-The number of customer rows can change each period. Gymnasium represents this as a variable-length sequence, `Sequence(Box(...), stack=True)`. The environment neither fills the list with dummy customers (**padding**) nor drops customers to shorten it (**truncation**). The learner converts each request into numeric features and combines them into a fixed-length summary, called **pooling**. It includes list position because request allocation depends on order. A PPO library expecting a fixed-length input needs extra input-processing code to use this request list.
+The number of customer rows can change each period. Gymnasium represents this as a variable-length sequence, `Sequence(Box(...), stack=True)`. The environment neither fills the list with dummy customers (**padding**) nor drops customers to shorten it (**truncation**). The PPO dispatch encoders convert each request into numeric features and combine them into a fixed-length summary, called **pooling**. It includes list position because request allocation depends on order. A PPO library expecting a fixed-length input needs extra input-processing code to use this request list.
 
 ### What a vehicle observes
 
 Call `local_observation(m)` after pricing to get the input for vehicle `m`. It contains that vehicle's location, battery, allowed-action mask, and `agent_id`, plus the other vehicles' locations and batteries and shared customer, demand, price, and waiting information. Arrays describing the current vehicle have one vehicle row; arrays describing peers contain the other vehicles.
 
-This is the paper's vehicle observation with information about other vehicles, $\zeta_{m,t}$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [TRAINING.md](TRAINING.md) explains actors, critics, and shared vehicle policies.
+The earlier PPO uses this per-vehicle API for its observation with peer information, $\zeta_{m,t}$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [LEGACY_PPO.md](LEGACY_PPO.md) explains these actors, critics, and optional role features. The manuscript PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
 
 ## 7. Submit valid actions
 
-Mode codes are `WAIT=0`, `SERVE=1`, `REPOSITION=2`, `RECHARGE=3`, and `DISCHARGE=4`. A target is a city node ID, even for recharge/export. In the default city, targeting the second FCS means node `3`, not station slot `1`.
+Simulator mode codes are `WAIT=0`, `SERVE=1`, `REPOSITION=2`, `RECHARGE=3`, and `DISCHARGE=4`. These codes belong to the physical API. The manuscript PPO has its own four-operation representation, which its adapter converts to these five modes. A target is a city node ID, even for recharge/export. In the default city, targeting the second FCS means node `3`, not station slot `1`.
 
-For the direct API, use `DispatchAction(mode, target_zone, energy_kwh=0.0)`. The energy request is used for RECHARGE and DISCHARGE. Travel, battery bounds, efficiency, power, and shared station budgets determine the final allocated amount.
+For the direct API, use `DispatchAction(mode, target_zone, energy_kwh=0.0)`. The energy request is used for RECHARGE and DISCHARGE. The default `0.0` requests **zero energy exchange**, even when the mode is RECHARGE or DISCHARGE; supply a positive amount to exchange energy. Travel, battery bounds, efficiency, power, and shared station budgets determine the final allocated amount. SERVE derives its delivery from the selected requests and does not use this field.
 
 The mask checks each vehicle's allowed actions before vehicles compete for customer requests and station capacity. Choosing an allowed action does not guarantee that resources remain for that vehicle. An action with the correct input format but an impossible operation/destination becomes WAIT and is recorded in `invalid_actions`. Incorrectly formatted lists, invalid mode codes, or negative energy amounts instead cause an **exception**, meaning Python stops that call and reports an input error.
 
