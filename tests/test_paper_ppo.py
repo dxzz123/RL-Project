@@ -1,4 +1,4 @@
-"""Independent checks of the manuscript's two-stage joint PPO equations.
+"""Independent checks of the two-stage Joint PPO equations.
 
 These small numerical and physical counterexamples check implementation
 correctness; they make no claim about long-run policy convergence.
@@ -67,7 +67,7 @@ def assert_finite(test, value):
         test.assertTrue(np.isfinite(value).all(), repr(value))
 
 
-@unittest.skipIf(torch is None, 'Install the train extra for manuscript PPO')
+@unittest.skipIf(torch is None, 'Install the train extra for Joint PPO')
 class PaperGAETests(unittest.TestCase):
     def setUp(self):
         from charging_env.rl.paper_ppo import interleaved_gae
@@ -126,7 +126,7 @@ class PaperGAETests(unittest.TestCase):
             self.gae([], [], [], [], [], [], .9, .95)
 
 
-@unittest.skipIf(torch is None, 'Install the train extra for manuscript PPO')
+@unittest.skipIf(torch is None, 'Install the train extra for Joint PPO')
 class PaperJointObjectiveTests(unittest.TestCase):
     def setUp(self):
         from charging_env.rl.paper_ppo import joint_ppo_loss
@@ -174,7 +174,7 @@ class PaperJointObjectiveTests(unittest.TestCase):
                 self.loss(new, old, adv, .2)
 
 
-@unittest.skipIf(torch is None, 'Install the train extra for manuscript PPO')
+@unittest.skipIf(torch is None, 'Install the train extra for Joint PPO')
 class PaperCriticTargetTests(unittest.TestCase):
     def test_paper_and_optional_pricing_advantage_dispatch_targets_are_explicitly_distinct(self):
         from charging_env.rl.paper_ppo import critic_targets, interleaved_gae
@@ -190,7 +190,7 @@ class PaperCriticTargetTests(unittest.TestCase):
             critic_targets(gae, [3., 5.], [6., 7.], 'auto')
 
 
-@unittest.skipIf(torch is None, 'Install the train extra for manuscript PPO')
+@unittest.skipIf(torch is None, 'Install the train extra for Joint PPO')
 class PaperInformationAndActionsTests(unittest.TestCase):
     def setUp(self):
         from charging_env.rl import paper_ppo
@@ -300,7 +300,7 @@ class PaperInformationAndActionsTests(unittest.TestCase):
                 self.paper.paper_dispatch_commands(obs, actions, self.scenario)
 
 
-@unittest.skipIf(torch is None, 'Install the train extra for manuscript PPO')
+@unittest.skipIf(torch is None, 'Install the train extra for Joint PPO')
 class PaperNetworkAndTrainerTests(unittest.TestCase):
     def setUp(self):
         from charging_env.rl import paper_ppo

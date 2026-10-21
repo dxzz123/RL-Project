@@ -112,7 +112,7 @@ class PaperStudyTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'Nonfinite tensor'):
             study._all_tensors_finite({'optimizers': {'actor': {'state': [{'moment': torch.tensor(float('nan'))}]}}}, 'checkpoint')
         with patch('torch.load', return_value={'algorithm': 'legacy', 'format_version': 1}):
-            with self.assertRaisesRegex(ValueError, 'new manuscript'):
+            with self.assertRaisesRegex(ValueError, 'Joint PPO'):
                 study.paper_metadata(Path('unused.pt'), study.Scenario(), 7, {})
 
     def test_existing_training_directory_is_not_overwritten(self):
@@ -142,7 +142,7 @@ class PaperStudyTests(unittest.TestCase):
             captured = io.StringIO()
             with patch.object(summary, 'summarize', side_effect=AssertionError('Viewer must not audit')), redirect_stdout(captured):
                 self.assertEqual(summary.main(['--study-dir', str(output), '--show']), 0)
-            self.assertIn('Paper joint PPO', captured.getvalue())
+            self.assertIn('Joint PPO', captured.getvalue())
             self.assertIn('paired 95% interval', captured.getvalue())
             self.assertEqual((output / 'analysis.json').read_bytes(), before)
 

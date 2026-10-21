@@ -1,6 +1,6 @@
 # Historical fitted-value study — 2026-10-20
 
-This report preserves the first five-method comparison of approximate DP with earlier PPO and three rules. The current six-method comparison also includes manuscript joint PPO and uses different test scenarios; read [COMPARISON.md](../COMPARISON.md) for that result. [FITTED_VALUE.md](../FITTED_VALUE.md) explains the method itself.
+This report preserves the first five-method comparison of approximate DP with earlier PPO and three rules. The current six-method comparison also includes Joint PPO and uses different test scenarios; read [COMPARISON.md](../COMPARISON.md) for that result. [FITTED_VALUE.md](../FITTED_VALUE.md) explains the method itself.
 
 ## What was compared
 
@@ -79,5 +79,3 @@ The original study remains in `outputs/fitted_value_study/`:
 - [Test summary](../../outputs/fitted_value_study/benchmarks/summary.json)
 - [Comparison figure](../../outputs/fitted_value_study/fitted_value_comparison.png)
 - [Executed training source](../../outputs/fitted_value_study/provenance/executed_training_source/)
-
-The external note supplied an algorithm description and its own performance claims. The measurements above were generated in this project; they are not a reproduction of an executable ZIP from that note.

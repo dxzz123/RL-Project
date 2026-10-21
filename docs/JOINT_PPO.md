@@ -1,10 +1,10 @@
-# Manuscript joint PPO: learning prices and fleet dispatch
+# Joint PPO: learning prices and fleet dispatch
 
-This is the PPO implementation of the four-page [MDP_RL (2) manuscript](MDP_RL_2.pdf). It learns **both mobile prices and vehicle dispatch**. A pricing decision changes which customers request service; the later dispatch decision determines how the fleet serves them. The method trains these two decisions together while keeping a separate value estimate for each stage.
+Joint PPO follows the two-stage [algorithm specification](MDP_RL_2.pdf) and learns **both mobile prices and vehicle dispatch**. A pricing decision changes which customers request service; the later dispatch decision determines how the fleet serves them. The method trains these two decisions together while keeping a separate value estimate for each stage.
 
-The project also keeps [earlier SA-PPO/MAPPO](LEGACY_PPO.md) and [approximate DP](FITTED_VALUE.md). The two PPO implementations differ in their information, action representation, advantage calculation, and dispatch loss. They are not simply different names for the same trainer. [COMPARISON.md](COMPARISON.md) explains these differences side by side and reports their performance on the same independent test scenarios.
+The project also keeps [earlier SA-PPO/MAPPO](LEGACY_PPO.md) and [approximate DP](FITTED_VALUE.md). The two PPO implementations differ in their information, action representation, advantage calculation, and dispatch loss. [COMPARISON.md](COMPARISON.md) explains these differences side by side and reports their performance on the same independent test scenarios.
 
-Use [TRAINING.md](TRAINING.md) for the common setup and comparison workflow. This guide explains the manuscript implementation, its assumptions, and how to run a single model.
+Use [TRAINING.md](TRAINING.md) for the common setup and comparison workflow. This guide explains Joint PPO, its assumptions, and how to run a single model.
 
 ## Follow one physical period
 
@@ -34,7 +34,7 @@ The dispatch actor uses one global encoder with a separate output for each vehic
 
 The critics are needed for training; dispatch decisions are taken from the actor rather than by searching a critic's predictions. This distinguishes the method from approximate DP, which evaluates action candidates using a continuation table at every decision.
 
-The encoders scale physical quantities, include time, and process all observed requests without truncating the request list. The networks use SiLU activations and LayerNorm in the recorded experiment. These architecture choices and their numerical settings are implementation choices; the PDF does not specify them.
+The encoders scale physical quantities, include time, and process all observed requests without truncating the request list. The networks use SiLU activations and LayerNorm in the recorded experiment. The architecture and numerical settings are implementation choices beyond the [algorithm specification](MDP_RL_2.pdf).
 
 ## How a later outcome teaches an earlier decision
 
@@ -52,7 +52,7 @@ $$
 
 The first asks whether the post-choice situation is better than expected before pricing. The second asks whether dispatch profit and the next fleet state are better than expected after choice. The physical-period discount $\gamma$ appears only when moving to the next period; pricing and dispatch within one period are not discounted relative to one another.
 
-Generalized advantage estimation (GAE) combines these errors backward through the episode. The manuscript uses
+Generalized advantage estimation (GAE) combines these errors backward through the episode. Joint PPO uses
 
 $$
 \widehat A_{2,t}=\delta_t^{(2)}+\gamma\lambda\widehat A_{1,t+1},
@@ -70,13 +70,13 @@ y_{1,t}=V_1^{\mathrm{old}}(S_t)+\widehat A_{1,t},
 y_{2,t}=V_2^{\mathrm{old}}(\widetilde S_t)+\widehat A_{2,t}.
 $$
 
-These are Equations (9) and (11) in the supplied PDF. In particular, **Equation (11) already uses the dispatch advantage $\widehat A_2$**; the implementation follows it directly. With $\lambda=1$, the targets reduce to ordinary discounted returns.
+These targets follow Equations (9) and (11) of the [algorithm specification](MDP_RL_2.pdf). With $\lambda=1$, they reduce to ordinary discounted returns.
 
-An optional CLI setting, `--dispatch-critic-target pricing_advantage`, substitutes $\widehat A_1+V_2^{\mathrm{old}}$ for the dispatch target. It is retained as an experimental alternative, records its choice in the checkpoint, and is not the manuscript formula or the algorithm used in the main comparison.
+An optional CLI setting, `--dispatch-critic-target pricing_advantage`, substitutes $\widehat A_1+V_2^{\mathrm{old}}$ for the dispatch target. This experimental alternative is recorded in the checkpoint and was not used in the main comparison.
 
 ## Why the dispatch loss uses one fleet probability ratio
 
-PPO compares the probability of a recorded action under the updated actor with its probability under the actor that collected it. For dispatch, the manuscript uses the probability of the **whole fleet action**:
+PPO compares the probability of a recorded action under the updated actor with its probability under the actor that collected it. For dispatch, Joint PPO uses the probability of the **whole fleet action**:
 
 $$
 r_t^{(2)}=
@@ -100,9 +100,9 @@ Pricing similarly uses the probability of the complete node-price vector. Unavai
 
 ## Action meanings and physical limits
 
-The PDF gives four operations and a destination. The adapter maps them to the existing simulator as follows:
+Dispatch selects one of four operations and a destination. The adapter maps these choices to simulator commands as follows:
 
-| Manuscript operation | Meaning in this implementation |
+| Operation | Meaning in this implementation |
 |---|---|
 | Service | Travel if needed, then serve whole requests at the chosen node |
 | Idle at the current node | Wait without moving |
@@ -110,7 +110,7 @@ The PDF gives four operations and a destination. The adapter maps them to the ex
 | Charge | Request the maximum individually feasible grid energy at an FCS |
 | Discharge | Request the maximum individually feasible grid export at an FCS |
 
-The PDF does not specify a separate energy-quantity action. The maximum-exchange convention above is therefore an explicit integration choice. It accounts for travel, remaining time, power, battery capacity, reserve, and efficiency. When vehicles share a station, the simulator may allocate less than their requested amount under the existing joint capacity rule.
+The action space has no separate energy-quantity action. This implementation requests the maximum individually feasible exchange. It accounts for travel, remaining time, power, battery capacity, reserve, and efficiency. When vehicles share a station, the simulator may allocate less than their requested amount under the existing joint capacity rule.
 
 Candidate destinations are current mobile-request nodes and FCS nodes. Each vehicle's current node is always retained for idle, including when there are no requests. Physically invalid operation/destination combinations are masked before sampling by setting their logits to negative infinity. This prevents individually invalid commands; shared-resource conflicts are handled by the simulator's allocation rules.
 
@@ -124,7 +124,7 @@ These actions differ from the earlier PPO's learned continuous exchange fraction
 4. Run several minibatch epochs to update the two actors and two critics. The old probabilities and targets stay fixed throughout these epochs.
 5. Discard the collected buffer and collect fresh episodes for the next update.
 
-Although the PDF calls the storage a replay buffer, this implementation uses fresh **on-policy** data: it does not repeatedly mix in episodes from older policies. It uses the original rewards, with no inventory reward shaping or imitation learning.
+Each update uses fresh **on-policy** data collected by the current actors. It uses the original rewards, with no inventory reward shaping or imitation learning.
 
 The completed comparison used the following settings:
 
@@ -144,7 +144,7 @@ The completed comparison used the following settings:
 | Monitoring | 64 separate scenarios every 25 updates |
 | Primary tested checkpoint | Final update 500, stochastic execution |
 
-KL divergence measures how much action probabilities change. Here it is recorded for diagnosis but does not stop an update. Actor losses use uniform averages over collected periods and raw advantages; the earlier trainer's additional outer time-discount weights are not used. Critics use mean-squared error. These numerical choices are one implementation of the PDF, not a claim that its best possible hyperparameters have been found.
+KL divergence measures how much action probabilities change. Here it is recorded for diagnosis but does not stop an update. Actor losses use uniform averages over collected periods and raw advantages; the earlier trainer's additional outer time-discount weights are not used. Critics use mean-squared error. These are the settings tested in the recorded comparison; further hyperparameter studies may produce different results.
 
 ## Run a single model
 
@@ -185,7 +185,7 @@ For a full three-seed comparison with separate rule selection and test scenarios
 
 ## Results and code references
 
-On the shared base test, this implementation earns **123.19 dollars per episode**, compared with **117.42** for earlier PPO and **137.76** for approximate DP. All three new PPO seeds improve over their earlier-PPO counterparts on the base test, but the inventory rule and approximate DP remain stronger. The principal observed gap is that PPO still recharges very little. See [COMPARISON.md](COMPARISON.md) for the paired intervals, operating evidence, stress tests, and limitations.
+On the shared base test, this implementation earns **123.19 dollars per episode**, compared with **117.42** for earlier PPO and **137.76** for approximate DP. All three Joint PPO seeds improve over their earlier-PPO counterparts on the base test, but the inventory rule and approximate DP remain stronger. The principal observed gap is that PPO still recharges very little. See [COMPARISON.md](COMPARISON.md) for the paired intervals, operating evidence, stress tests, and limitations.
 
 The [saved protocol](../outputs/paper_ppo_study/protocol.json) records exact settings. The [independent audit](../outputs/paper_ppo_study/analysis.json) contains recomputed comparisons and source checks, and the [executed-source snapshot](../outputs/paper_ppo_study/provenance/executed_training_source/) preserves the code used for those results.
 

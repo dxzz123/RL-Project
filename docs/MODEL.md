@@ -4,7 +4,7 @@ This project models an operator that owns fixed charging stations and mobile cha
 
 This guide explains the common simulation used by every controller: how customers arrive and choose, how vehicles deliver energy, and how profit is counted. The numerical values describe a small example city; they have not been calibrated to real customer or fleet data. [TRAINING.md](TRAINING.md) explains how to run the controllers, and [COMPARISON.md](COMPARISON.md) explains how approximate dynamic programming and the two PPO implementations make decisions.
 
-The environment returns a rich observation for inspection. Each controller decides which parts it uses. In particular, the manuscript PPO hides current requests from its pricing networks; the earlier PPO can use them. Section 7 makes this distinction explicit.
+The environment returns a rich observation for inspection. Each controller decides which parts it uses. In particular, the joint PPO hides current requests from its pricing networks; the earlier PPO can use them. Section 7 makes this distinction explicit.
 
 ## 1. The city, energy units, and order of decisions
 
@@ -217,7 +217,7 @@ The information used by a controller and the way it estimates future profit are 
 | Controller | Pricing input and decision | Dispatch and future-value estimate |
 |---|---|---|
 | [Earlier SA-PPO–MAPPO](LEGACY_PPO.md) | Uses the rich pre-choice observation, including current requests; learns prices | Uses per-vehicle observations and separate neural pricing/dispatch critics |
-| [Manuscript joint PPO](PAPER_PPO.md) | Hides current request details, counts, total requested energy, and waiting estimates from both pricing networks; learns prices from time, fleet, arrival means, and current prices | Uses the global post-choice observation and separate neural critics; clips the fleet action ratio jointly |
+| [Joint PPO](JOINT_PPO.md) | Hides current request details, counts, total requested energy, and waiting estimates from both pricing networks; learns prices from time, fleet, arrival means, and current prices | Uses the global post-choice observation and separate neural critics; clips the fleet action ratio jointly |
 | [Fitted-value approximate DP](FITTED_VALUE.md) | Uses a fixed mobile price in the completed study | Uses post-choice requests to compare candidate fleet actions, then adds a learned table value for the next fleet state |
 
-Both PPO methods discount only between periods. Their generalized advantage estimation (GAE), which constructs learning signals from critic prediction errors, differs: the earlier PPO uses trace coefficient 1 between pricing and dispatch, whereas the manuscript PPO uses `gae_lambda` at that transition as well as between periods. This is a difference in training targets; it does not change physical time or the simulator's reward. Approximate DP instead learns its value table by working backward from the end of the horizon. See [COMPARISON.md](COMPARISON.md) for the consequences and the measured comparison.
+Both PPO methods discount only between periods. Their generalized advantage estimation (GAE), which constructs learning signals from critic prediction errors, differs: the earlier PPO uses trace coefficient 1 between pricing and dispatch, whereas the joint PPO uses `gae_lambda` at that transition as well as between periods. This is a difference in training targets; it does not change physical time or the simulator's reward. Approximate DP instead learns its value table by working backward from the end of the horizon. See [COMPARISON.md](COMPARISON.md) for the consequences and the measured comparison.

@@ -127,9 +127,7 @@ def reward_difference(candidate, baseline):
 def audit_sources(study, root_protocol, evaluation_protocol):
     if evaluation_protocol['root_protocol_sha256'] != digest(study / 'protocol.json'):
         raise ValueError('Root protocol hash differs from the frozen evaluation protocol')
-    for name, value in evaluation_protocol['source_sha256'].items():
-        if digest(ROOT / name) != value:
-            raise ValueError('Frozen source differs: ' + name)
+    from source_provenance import audit_frozen_sources, merge_source_hashes, source_path
     selection = study / 'rule_selection'
     if (digest(selection / 'selection.json') != evaluation_protocol['selection_sha256']
             or digest(selection / 'protocol.json') != evaluation_protocol['selection_protocol_sha256']):
@@ -143,36 +141,28 @@ def audit_sources(study, root_protocol, evaluation_protocol):
         protocol = read(path)
         if protocol['training_config'] != root_protocol['fitted_configuration_by_seed'][str(seed)]:
             raise ValueError('Training configuration differs from its root protocol')
-        for name, value in protocol['source_sha256'].items():
-            if digest(ROOT / name) != value:
-                raise ValueError('Current source differs from the executed training protocol: ' + name)
         training_protocols[str(seed)] = protocol
-    status = {'current_training_sources_verified': True,
-              'all_three_root_configurations_verified': True,
-              'snapshot_available': False, 'snapshot_verified': False,
-              'scope': 'Current source files match every frozen training protocol; no additional executed-source snapshot is available for this repeat study.'}
-    snapshot = study / 'provenance/executed_training_source'
-    if not (snapshot / 'manifest.json').is_file():
-        return status
-    manifest = read(snapshot / 'manifest.json')
-    if (manifest['root_protocol_sha256'] != digest(study / 'protocol.json')
-            or digest(snapshot / 'root_protocol.json') != digest(study / 'protocol.json')):
-        raise ValueError('Executed-source snapshot refers to a different root protocol')
-    for name, entry in manifest['sources'].items():
-        value = digest(snapshot / entry['snapshot_relative_path'])
-        if value != entry['snapshot_sha256'] or value != entry['frozen_protocol_sha256']:
-            raise ValueError('Executed training-source snapshot differs: ' + name)
-    for seed in SEEDS:
-        protocol_path = study / 'fitted' / f'seed_{seed}' / 'protocol.json'
-        entry = manifest['training_protocols'][str(seed)]
-        if digest(protocol_path) != entry['sha256'] or digest(snapshot / entry['snapshot_relative_path']) != entry['sha256']:
-            raise ValueError('Executed training-protocol snapshot differs for seed ' + str(seed))
-        protocol = training_protocols[str(seed)]
-        for name, value in protocol['source_sha256'].items():
-            if manifest['sources'][name]['frozen_protocol_sha256'] != value:
-                raise ValueError('Training-source provenance differs from executed snapshot')
-    status.update(snapshot_available=True, snapshot_verified=True,
-                  scope='Current source files match every frozen training protocol; the additional executed-source snapshot, its root protocol and all three training protocols also match their recorded hashes.')
+    training_sources = merge_source_hashes(*(item['source_sha256'] for item in training_protocols.values()))
+    all_sources = merge_source_hashes(evaluation_protocol['source_sha256'], training_sources)
+    # The earlier study saved only its six training files. The later Joint PPO
+    # comparison includes a complete snapshot of the same evaluation runner.
+    # Use it only when its own full manifest verifies and the required hashes match.
+    status = audit_frozen_sources(ROOT, study, all_sources, training_sources,
+                                  supplementary_study=study.parent / 'paper_ppo_study')
+    status.update(current_training_sources_verified=not any(
+                      name in training_sources for name in status['current_source_differences']),
+                  all_three_root_configurations_verified=True)
+    if status['snapshot_available']:
+        snapshot = study / 'provenance/executed_training_source'
+        manifest = read(snapshot / 'manifest.json')
+        if set(manifest['training_protocols']) != {str(seed) for seed in SEEDS}:
+            raise ValueError('Executed-source snapshot has missing or extra training protocols')
+        for seed in SEEDS:
+            protocol_path = study / 'fitted' / f'seed_{seed}' / 'protocol.json'
+            entry = manifest['training_protocols'][str(seed)]
+            if (digest(protocol_path) != entry['sha256']
+                    or digest(source_path(snapshot, entry['snapshot_relative_path'])) != entry['sha256']):
+                raise ValueError('Executed training-protocol snapshot differs for seed ' + str(seed))
     return status
 
 
@@ -324,8 +314,9 @@ def summarize(study):
         'cases': cases, 'success_criteria_results': criteria, 'budgets': budgets,
         'unit_tests': test_record,
         'audit_source_sha256': digest(Path(__file__)),
+        'source_audit_helper_sha256': digest(ROOT / 'experiments/source_provenance.py'),
         'source_provenance': source_provenance,
-        'independent_audit': 'All primary and saved rule comparisons recomputed directly from individual episode profits with an independent bootstrap calculation; tables, actual-model risk averages, reward ledgers, scenario pairing, counts, criteria, current training sources and checkpoints verified. An additional executed-source snapshot is strictly verified when present; source_provenance records whether it is available.',
+        'independent_audit': 'All primary and saved rule comparisons recomputed directly from individual episode profits with an independent bootstrap calculation; tables, actual-model risk averages, reward ledgers, scenario pairing, counts, criteria, frozen training sources and checkpoints verified. Current source differences and verified snapshot locations are recorded in source_provenance.',
         'uncertainty_scope': 'Conditional scene/action sampling intervals for fixed policies. Three training seeds provide limited evidence about future retraining. No test-driven controller selection or refitting.',
         'input_sha256': hashes}
     if audit_sources(study, root_protocol, protocol) != source_provenance:

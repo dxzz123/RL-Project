@@ -14,7 +14,7 @@ The reports below used different customer models, test scenarios, rule grids, an
 | [Earlier fitted-value study](FITTED_VALUE_STUDY.md) | `b=3` | Approximate DP versus earlier PPO and three rules; creates the controls reused in the latest study |
 | [Historical validation record](VALIDATION_HISTORY.md) | Multiple | The checks and evidence recorded at successive development stages |
 
-The [fitted-value guide](../FITTED_VALUE.md) explains the approximate-DP implementation and where to find its earlier five-method comparison. The latest six-method study reevaluates those fitted-value models and the targeted earlier-PPO models on fresh common scenarios, then adds manuscript PPO.
+The [fitted-value guide](../FITTED_VALUE.md) explains the approximate-DP implementation and where to find its earlier five-method comparison. The latest six-method study reevaluates those fitted-value models and the targeted earlier-PPO models on fresh common scenarios, then adds Joint PPO.
 
 ## Which saved models are reused?
 
@@ -29,9 +29,9 @@ Earlier fitted-value study (fitted_value_study)
   - trains the three approximate-DP models
              |
              v
-Current manuscript-PPO study (paper_ppo_study)
+Joint PPO comparison study (paper_ppo_study)
   - copies those six fixed controls
-  - trains three manuscript-PPO models
+  - trains three Joint PPO models
   - retunes three rules and tests every method on shared scenarios
 ```
 
@@ -39,8 +39,8 @@ The last study does not retrain approximate DP or earlier PPO. Its scorecard mea
 
 Old executable scripts remain in `experiments/` because they share helper functions and some recorded protocols verify their exact locations and hashes. See [the experiment index](../../experiments/README.md). Old results remain in `outputs/` with their checkpoint and provenance records.
 
-## Manuscript sources
+## Model and algorithm specifications
 
-[MDP_RL.pdf](../MDP_RL.pdf) is the physical-model manuscript, copied from the earlier attachment. [MDP_RL_2.pdf](../MDP_RL_2.pdf) is the later four-page PPO specification. [proposal.pdf](../proposal.pdf) is an older proposal kept as source history. The sources have distinct roles; [NOTATION.md](../NOTATION.md) maps their notation to the implemented model and calls out implementation choices.
+[MDP_RL.pdf](../MDP_RL.pdf) specifies the physical model. [MDP_RL_2.pdf](../MDP_RL_2.pdf) specifies Joint PPO. [proposal.pdf](../proposal.pdf) is the earlier project proposal. The sources have distinct roles; [NOTATION.md](../NOTATION.md) maps their notation to the implemented model and calls out implementation choices.
 
-The original historical report bodies and evidence links are retained. Moving them into this archive changes navigation, not the experiments or their numerical records.
+Each report retains the settings, results, and evidence for its experiment.

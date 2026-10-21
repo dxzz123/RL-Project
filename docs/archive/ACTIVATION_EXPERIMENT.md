@@ -4,7 +4,7 @@
 
 A dispatch policy is the learned rule for choosing vehicle actions. It should make different decisions when vehicle energy, locations, or customer requests change. The original trained policy appeared to respond very little to those changes. This experiment asked whether a small neural-network change could help: replace the dispatch actor's **last hidden Tanh activation with SiLU**.
 
-The supplied note recommended SiLU, rather than ReLU. This page records a **pilot**, a small preliminary experiment with a fixed training budget, completed on **2026-10-17** under the original customer model, $b=0$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../NOTATION.md) for symbols.
+This **pilot experiment** used a fixed training budget and was completed on **2026-10-17** under the baseline customer model, $b=0$. It explains what changed, what the comparison found, and what the result does not establish. Read [Earlier PPO reference](../LEGACY_PPO.md) for the full architecture, [MODEL.md](../MODEL.md) for the environment, and [NOTATION.md](../NOTATION.md) for symbols.
 
 ## 1. Why test a different activation?
 

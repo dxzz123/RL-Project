@@ -14,7 +14,7 @@
       "justMyCode": true
     },
     {
-      "name": "Train manuscript joint PPO (b=3, small run)",
+      "name": "Train joint PPO (b=3, small run)",
       "type": "debugpy",
       "request": "launch",
       "module": "charging_env.rl.paper_train",
@@ -30,7 +30,7 @@
         "--dispatch-critic-target",
         "dispatch",
         "--output-dir",
-        "outputs/paper_joint_ppo"
+        "outputs/joint_ppo"
       ],
       "console": "integratedTerminal",
       "cwd": "${workspaceFolder}",

@@ -422,7 +422,7 @@ class ChargingSimulator:
         }
 
     def local_observation(self, m):
-        """Shared-policy dispatch input including peer fleet state (paper zeta_mt)."""
+        """Shared-policy dispatch input including peer fleet state (zeta_mt)."""
         self._require(1)
         if isinstance(m, (bool, np.bool_)) or not isinstance(m, (int, np.integer)) or not 0 <= m < self.config.n_mcv:
             raise ValueError("Invalid MCV id")

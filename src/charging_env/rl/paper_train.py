@@ -1,4 +1,4 @@
-"""Train the paper-aligned joint PPO controller, preserving legacy PPO separately."""
+"""Train the Joint PPO controller."""
 import argparse
 from dataclasses import asdict, replace
 import json
@@ -61,7 +61,7 @@ def main(argv=None):
             (directory/'evaluation.json').write_text(json.dumps(result, indent=2, allow_nan=False)+'\n')
     else:
         directory = _new_run_directory(args.output_dir or Path('outputs/paper_ppo'))
-        print('Paper PPO outputs: '+str(directory), flush=True)
+        print('Joint PPO outputs: '+str(directory), flush=True)
         result = trainer.train(directory)
     print(json.dumps(result, indent=2, allow_nan=False))
     return 0

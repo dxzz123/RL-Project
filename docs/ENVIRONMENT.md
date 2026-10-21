@@ -8,9 +8,9 @@ Use this guide to run the simulator, change its settings, or understand what it 
 
 `ChargingEnv` provides the same simulator through **Gymnasium**, a standard Python interface used by reinforcement-learning tools. Its `step` method handles one decision stage at a time. A learner using it must still handle the pricing/dispatch stages, lists of allowed actions called **masks**, once-per-period discounting, and changing numbers of customer requests.
 
-Both interfaces use the same physical model. The earlier PPO, manuscript PPO, and fitted-value controller all call `ChargingSimulator` directly. [TRAINING.md](TRAINING.md) shows their separate commands.
+Both interfaces use the same physical model. The earlier PPO, joint PPO, and fitted-value controller all call `ChargingSimulator` directly. [TRAINING.md](TRAINING.md) shows their separate commands.
 
-This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The manuscript PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [COMPARISON.md](COMPARISON.md) for the comparison.
+This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The joint PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [COMPARISON.md](COMPARISON.md) for the comparison.
 
 ## 2. Run one period with the direct API
 
@@ -51,7 +51,7 @@ Alternate one pricing call and one dispatch call. Calling pricing twice or dispa
 
 ## 3. Read the stage and period together
 
-The manuscript uses mathematical periods `t=1,...,T`, but Python starts counting periods from zero. At mathematical period `t`, the observation's `period[0]` is `t-1`. After the last dispatch it is `T`.
+The mathematical model uses periods `t=1,...,T`, but Python starts counting periods from zero. At mathematical period `t`, the observation's `period[0]` is `t-1`. After the last dispatch it is `T`.
 
 | Observation `stage` | Meaning | Valid next operation |
 |---|---|---|
@@ -59,7 +59,7 @@ The manuscript uses mathematical periods `t=1,...,T`, but Python starts counting
 | `1` | Post-choice dispatch state | Dispatch every vehicle |
 | `2` | Terminal state | Reset |
 
-The paper calls pricing “stage 1” and dispatch “stage 2.” API stage `2` therefore means something different from paper stage 2. [NOTATION.md](NOTATION.md) provides the complete translation.
+In the mathematical model, pricing is Stage 1 and dispatch is Stage 2. These correspond to API stages `0` and `1`; API stage `2` means termination. [NOTATION.md](NOTATION.md) provides the complete translation.
 
 A transition returns five values, `(obs, reward, terminated, truncated, info)`:
 
@@ -170,11 +170,11 @@ The number of customer rows can change each period. Gymnasium represents this as
 
 Call `local_observation(m)` after pricing to get the input for vehicle `m`. It contains that vehicle's location, battery, allowed-action mask, and `agent_id`, plus the other vehicles' locations and batteries and shared customer, demand, price, and waiting information. Arrays describing the current vehicle have one vehicle row; arrays describing peers contain the other vehicles.
 
-The earlier PPO uses this per-vehicle API for its observation with peer information, $\zeta_{m,t}$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [LEGACY_PPO.md](LEGACY_PPO.md) explains these actors, critics, and optional role features. The manuscript PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
+The earlier PPO uses this per-vehicle API for its observation with peer information, $\zeta_{m,t}$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [LEGACY_PPO.md](LEGACY_PPO.md) explains these actors, critics, and optional role features. The joint PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
 
 ## 7. Submit valid actions
 
-Simulator mode codes are `WAIT=0`, `SERVE=1`, `REPOSITION=2`, `RECHARGE=3`, and `DISCHARGE=4`. These codes belong to the physical API. The manuscript PPO has its own four-operation representation, which its adapter converts to these five modes. A target is a city node ID, even for recharge/export. In the default city, targeting the second FCS means node `3`, not station slot `1`.
+Simulator mode codes are `WAIT=0`, `SERVE=1`, `REPOSITION=2`, `RECHARGE=3`, and `DISCHARGE=4`. These codes belong to the physical API. The joint PPO has its own four-operation representation, which its adapter converts to these five modes. A target is a city node ID, even for recharge/export. In the default city, targeting the second FCS means node `3`, not station slot `1`.
 
 For the direct API, use `DispatchAction(mode, target_zone, energy_kwh=0.0)`. The energy request is used for RECHARGE and DISCHARGE. The default `0.0` requests **zero energy exchange**, even when the mode is RECHARGE or DISCHARGE; supply a positive amount to exchange energy. Travel, battery bounds, efficiency, power, and shared station budgets determine the final allocated amount. SERVE derives its delivery from the selected requests and does not use this field.
 

@@ -4,11 +4,11 @@ Training teaches the operator two connected decision rules: **what mobile price 
 
 The policies are implemented by **neural networks**: calculations with adjustable numbers called **parameters**, or weights. Training changes those numbers using experience collected from the simulator. Sampling different actions lets the policy **explore**, meaning try alternatives to discover useful behavior. Settings we choose before a run, such as the learning rate or number of episodes, are called **hyperparameters**. They control how learning proceeds.
 
-The basic loop is: run complete episodes, record the choices and profits, adjust the networks, then run new episodes. Periodically, the trainer also measures performance without changing the networks. The rest of this guide explains each part of that loop. Read [the model walkthrough](MODEL.md) for the physical system and customer behavior, and use [the notation guide](NOTATION.md) to match equations to the manuscript or Python names.
+The basic loop is: run complete episodes, record the choices and profits, adjust the networks, then run new episodes. Periodically, the trainer also measures performance without changing the networks. The rest of this guide explains each part of that loop. Read [the model walkthrough](MODEL.md) for the physical system and customer behavior, and use [the notation guide](NOTATION.md) to match mathematical symbols to their Python names.
 
 The framework is **Stage-Aware PPO–Multi-Agent PPO (SA-PPO–MAPPO)**. **PPO**, short for Proximal Policy Optimization, is a method for adjusting action probabilities cautiously using collected experience. **Stage-aware** means the implementation accounts for the different information and timing of pricing and dispatch. **Multi-agent** means several vehicles learn to act toward the same team objective. The implementation uses PPO's clipped learning rule, described in [the PPO paper](https://arxiv.org/abs/1707.06347), and shared vehicle policies with global value estimates, following [MAPPO](https://arxiv.org/abs/2103.01955). There is some choice freedom in the network and training settings; this guide records the choices made in this project.
 
-This guide covers the retained earlier implementation in `rl/trainer.py`, `rl/networks.py`, and `rl/returns.py`. For installation and a choice of training commands, start with [TRAINING.md](TRAINING.md). For the manuscript implementation, read [PAPER_PPO.md](PAPER_PPO.md). [COMPARISON.md](COMPARISON.md) explains their differences and compares both with approximate dynamic programming on shared test scenarios.
+This guide covers the retained earlier implementation in `rl/trainer.py`, `rl/networks.py`, and `rl/returns.py`. For installation and a choice of training commands, start with [TRAINING.md](TRAINING.md). For joint PPO, read [JOINT_PPO.md](JOINT_PPO.md). [COMPARISON.md](COMPARISON.md) explains their differences and compares both with approximate dynamic programming on shared test scenarios.
 
 Read Sections 1, 3, and 4 to understand the algorithm. Section 5 is a detailed option reference; Sections 6 and 8 explain saved results and continuation. Section 7 records older experiment settings, not the current comparison protocol.
 
@@ -20,7 +20,7 @@ At the beginning of a period, the operator sees the customers who have arrived, 
 
 That period's profit is the **reward**. The **return** is the sum of rewards from the current period through the end of the episode, with later profit given less weight when discounting is used. Vehicles share the operator's total reward. A vehicle that recharges may reduce the current period's profit but enable more profitable service later, which is why training considers return as well as immediate reward.
 
-The following table connects the manuscript's sequence to the **API**, the Python methods and input/output fields used to interact with the simulator. A **state** is the information available at a decision point, and an **actor** is the network that chooses the action. Mathematical periods are numbered $t=1,\ldots,T$; the observation's code field `period` is `t - 1`.
+The following table connects the decision sequence to the **API**, the Python methods and input/output fields used to interact with the simulator. A **state** is the information available at a decision point, and an **actor** is the network that chooses the action. Mathematical periods are numbered $t=1,\ldots,T$; the observation's code field `period` is `t - 1`.
 
 | Point in the period | Mathematical object | Code behavior |
 |---|---|---|
@@ -28,7 +28,7 @@ The following table connects the manuscript's sequence to the **API**, the Pytho
 | After prices and customer choice | Post-choice state $\widetilde{s}_t$, including the customers' actual choices $D_t$ | `stage == 1`; dispatch actors act |
 | After physical execution | Period profit $r_t$, then the next state | `dispatch(...)` returns the reward; next stage is `0`, or `2` at termination |
 
-Thus, the paper's **first and second decision stages** map to API stages **0 and 1**. API stage `2` means that the episode has ended; it is not a third decision stage. [ENVIRONMENT.md](ENVIRONMENT.md) gives the complete API fields, reset behavior, and action masks.
+The **first and second decision stages** map to API stages **0 and 1**. API stage `2` means that the episode has ended; it is not a third decision stage. [ENVIRONMENT.md](ENVIRONMENT.md) gives the complete API fields, reset behavior, and action masks.
 
 The simulator runs periods; the trainer organizes learning into the following units:
 
@@ -159,7 +159,7 @@ The trainer also monitors **KL divergence**, short for Kullback–Leibler diverg
 
 ### Discount time once per physical period
 
-The objective follows the manuscript's period numbering:
+With mathematical periods numbered from 1, the objective is:
 
 $$
 J(\theta_1,\theta_2)
@@ -189,7 +189,7 @@ $$
 
 $\lambda_{\mathrm{GAE}}$, set by `--gae-lambda`, controls how much later prediction errors influence an earlier advantage. A smaller value relies more on short-range estimates using the critics. A value nearer one gives later recorded outcomes more influence, which can also make the estimates noisier. This lambda is different from $\lambda_{i,t}$, the average customer-arrival count in the physical model.
 
-The **trace coefficient** is the factor carrying a later error back toward an earlier decision. It is one between pricing and dispatch in the same period, and uses $\lambda_{\mathrm{GAE}}$ between periods. This placement is an implementation choice in the earlier trainer. The later four-page manuscript explicitly uses the GAE trace coefficient at both stages; its separate implementation is described in [PAPER_PPO.md](PAPER_PPO.md). At $\lambda_{\mathrm{GAE}}=1$, both stage targets $A+V$ equal the discounted return calculated from that period through the end of the episode. If the optional inventory signal below is enabled, this is the return from the modified learning rewards. **Bootstrapping** means using a critic prediction for future return; there is no such prediction after the final period. Credit calculations also stop at each episode's end, so one episode cannot affect another's targets.
+The **trace coefficient** is the factor carrying a later error back toward an earlier decision. It is one between pricing and dispatch in the same period, and uses $\lambda_{\mathrm{GAE}}$ between periods. This placement is an implementation choice in the earlier trainer. Joint PPO uses the GAE trace coefficient at both stages; its implementation is described in [JOINT_PPO.md](JOINT_PPO.md). At $\lambda_{\mathrm{GAE}}=1$, both stage targets $A+V$ equal the discounted return calculated from that period through the end of the episode. If the optional inventory signal below is enabled, this is the return from the modified learning rewards. **Bootstrapping** means using a critic prediction for future return; there is no such prediction after the final period. Credit calculations also stop at each episode's end, so one episode cannot affect another's targets.
 
 ### Why the policy loss also uses a period weight
 

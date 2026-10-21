@@ -23,9 +23,9 @@ Start with [MODEL.md](MODEL.md) for the operating rules, [TRAINING.md](TRAINING.
 3. The controller sends one `DispatchAction` per vehicle. `dispatch()` resolves travel, whole-request service, energy exchange, shared station limits, and the period profit. It advances to the next period, or terminates after the horizon.
 4. Training code records the transitions to learn from them. Evaluation code records the business outcomes without updating the policy.
 
-The paper calls the decisions stage 1 and stage 2; Python uses `stage=0` and `stage=1`. Python `stage=2` means termination. Mathematical period `t=1` is Python `period=0`. These translations are documented in [NOTATION.md](NOTATION.md).
+The mathematical model labels pricing as stage 1 and dispatch as stage 2; Python uses `stage=0` and `stage=1`. Python `stage=2` means termination. Mathematical period `t=1` is Python `period=0`. These translations are documented in [NOTATION.md](NOTATION.md).
 
-**The raw simulator observation is not the input to every controller.** Earlier PPO can use the realized pre-choice requests. Manuscript PPO's `paper_pricing_observation()` gives its pricing actor and critic only the specified background and fleet information. Approximate DP uses a fixed price and sees current choices when searching dispatch. Keep that distinction when adding features or interpreting experiments.
+**The raw simulator observation is not the input to every controller.** Earlier PPO can use the realized pre-choice requests. Joint PPO's `paper_pricing_observation()` gives its pricing actor and critic only the specified background and fleet information. Approximate DP uses a fixed price and sees current choices when searching dispatch. Keep that distinction when adding features or interpreting experiments.
 
 ## The environment files
 
@@ -49,9 +49,9 @@ The trainers use the direct simulator API. The Gymnasium adapter is useful for i
 
 [fitted_train.py](../src/charging_env/rl/fitted_train.py) exposes its CLI. The implementation uses NumPy and supports exactly two ordered vehicles. The guide is [FITTED_VALUE.md](FITTED_VALUE.md); “fitted value” and “approximate DP” refer to this same controller.
 
-### Manuscript joint PPO
+### Joint PPO
 
-[paper_ppo.py](../src/charging_env/rl/paper_ppo.py) contains the complete manuscript implementation:
+[paper_ppo.py](../src/charging_env/rl/paper_ppo.py) contains the joint PPO implementation:
 
 | Part | Function or class |
 |---|---|
@@ -61,7 +61,7 @@ The trainers use the direct simulator API. The Gymnasium adapter is useful for i
 | One clipped probability ratio for the fleet | `joint_ppo_loss()` |
 | Collection, optimization, evaluation, saving | `PaperPPOTrainer` |
 
-[paper_train.py](../src/charging_env/rl/paper_train.py) handles new training, resume, and evaluation commands. [PAPER_PPO.md](PAPER_PPO.md) walks through the equations and network roles. Its `.pt` checkpoint is distinct from an earlier-PPO `.pt` checkpoint.
+[paper_train.py](../src/charging_env/rl/paper_train.py) handles new training, resume, and evaluation commands. [JOINT_PPO.md](JOINT_PPO.md) walks through the equations and network roles. Its `.pt` checkpoint is distinct from an earlier-PPO `.pt` checkpoint.
 
 ### Earlier PPO/MAPPO
 
@@ -73,7 +73,7 @@ The trainers use the direct simulator API. The Gymnasium adapter is useful for i
 | [train.py](../src/charging_env/rl/train.py) | Earlier PPO CLI |
 | [warmstart.py](../src/charging_env/rl/warmstart.py) | Optional imitation experiment; not used in the current saved controls |
 
-The separate implementation is retained so an existing checkpoint continues to mean the same thing. [LEGACY_PPO.md](LEGACY_PPO.md) is its detailed reference. [COMPARISON.md](COMPARISON.md) explains the substantive differences from manuscript PPO.
+The separate implementation is retained so an existing checkpoint continues to mean the same thing. [LEGACY_PPO.md](LEGACY_PPO.md) is its detailed reference. [COMPARISON.md](COMPARISON.md) explains the substantive differences from joint PPO.
 
 ## Benchmarks and common measurements
 
@@ -81,23 +81,23 @@ The separate implementation is retained so an existing checkpoint continues to m
 
 [benchmarks/compact.py](../src/charging_env/benchmarks/compact.py) defines the three current rule families and their 82 validation candidates: service first, constant inventory value, and time-dependent inventory value. Older rule classes remain available to reproduce historical studies but do not add rows to the main comparison.
 
-[benchmarks/evaluation.py](../src/charging_env/benchmarks/evaluation.py) runs frozen policies and calculates profit, service, action, and energy summaries. `paired_comparison()` compares profits on matching scenario seeds. [benchmarks/learned.py](../src/charging_env/benchmarks/learned.py) adapts earlier PPO to this common policy interface. The manuscript-PPO trainer and fitted-value policy expose the same `prices()` and `dispatch()` callbacks directly.
+[benchmarks/evaluation.py](../src/charging_env/benchmarks/evaluation.py) runs frozen policies and calculates profit, service, action, and energy summaries. `paired_comparison()` compares profits on matching scenario seeds. [benchmarks/learned.py](../src/charging_env/benchmarks/learned.py) adapts earlier PPO to this common policy interface. The joint-PPO trainer and fitted-value policy expose the same `prices()` and `dispatch()` callbacks directly.
 
 ## Experiments, outputs, and provenance
 
-The current orchestration is [run_paper_ppo_study.py](../experiments/run_paper_ppo_study.py). It fixes the protocol, copies older controls, selects the three rules on validation, trains manuscript PPO, and runs shared tests. The [experiment index](../experiments/README.md) distinguishes the current workflow from historical scripts.
+The current orchestration is [run_paper_ppo_study.py](../experiments/run_paper_ppo_study.py). It fixes the protocol, copies older controls, selects the three rules on validation, trains joint PPO, and runs shared tests. The [experiment index](../experiments/README.md) distinguishes the current workflow from historical scripts.
 
 In the latest completed study, `outputs/paper_ppo_study/` contains:
 
 | Location | Meaning |
 |---|---|
 | `protocol.json` | Settings, seed banks, model-selection rule, and frozen source fingerprints |
-| `training/seed_*/` | Three new manuscript-PPO runs |
+| `training/seed_*/` | Three new joint-PPO runs |
 | `legacy/seed_*/`, `fitted/seed_*/` | Copies of the fixed comparison models |
 | `rule_selection/` | Validation candidates and selected heuristic parameters |
 | `benchmarks/` | Individual test episodes and comparison summaries |
 | `analysis.json` | Audited numerical evidence used by the comparison guide |
-| `provenance/executed_training_source/` | The code and manuscript used for the recorded experiment |
+| `provenance/executed_training_source/` | The code and algorithm specification used for the recorded experiment |
 
 `outputs/` is ignored by Git. Keep its checkpoints, protocols, and source snapshots when a reported result must remain reproducible. Historical reports live in [docs/archive](archive/README.md); their script paths are retained because some scripts import others and recorded protocols refer to exact source paths. Removing an older experiment from the default reading path does not require discarding its evidence.
 

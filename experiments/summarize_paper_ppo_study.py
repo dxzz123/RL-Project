@@ -1,4 +1,4 @@
-"""Audit a completed six-method paper-PPO study and print its saved results.
+"""Audit a completed six-method Joint PPO study and print its saved results.
 
 Run with --show to print an existing analysis without changing any file. The
 default command independently audits and recalculates saved episode statistics.
@@ -19,7 +19,7 @@ SEEDS = (7, 19, 37)
 PAPER, LEGACY, FITTED = 'paper_ppo_mean', 'legacy_ppo_mean', 'fitted_value_mean'
 RULES = ('service_first', 'constant_inventory', 'time_inventory')
 METHODS = (PAPER, LEGACY, FITTED, *RULES)
-LABELS = {PAPER: 'Paper joint PPO', LEGACY: 'Previous PPO', FITTED: 'Fitted value',
+LABELS = {PAPER: 'Joint PPO', LEGACY: 'Earlier PPO', FITTED: 'Approximate DP',
           'service_first': 'Service first', 'constant_inventory': 'Constant inventory',
           'time_inventory': 'Time-dependent inventory'}
 
@@ -46,7 +46,7 @@ def digest(path):
 
 def paper_reward_difference(candidate, baseline):
     result = reward_difference(candidate, baseline)
-    result['interpretation'] = 'Positive entries increase the new paper-PPO profit. Cost reductions therefore appear positive; revenue reductions appear negative.'
+    result['interpretation'] = 'Positive entries increase the new Joint PPO profit. Cost reductions therefore appear positive; revenue reductions appear negative.'
     return result
 
 
@@ -72,10 +72,8 @@ def audit_operating_measures(result):
 def audit_sources(study, root_protocol, evaluation_protocol):
     if evaluation_protocol['root_protocol_sha256'] != digest(study / 'protocol.json'):
         raise ValueError('Root protocol changed after final evaluation was frozen')
-    for hashes in (root_protocol['training_source_sha256'], evaluation_protocol['source_sha256']):
-        for name, value in hashes.items():
-            if digest(ROOT / name) != value:
-                raise ValueError('Frozen implementation changed: ' + name)
+    from source_provenance import audit_frozen_sources, merge_source_hashes
+    source_maps = [root_protocol['training_source_sha256'], evaluation_protocol['source_sha256']]
     for key, value in evaluation_protocol['checkpoint_sha256'].items():
         if digest(study / evaluation_protocol['checkpoint_paths'][key]) != value:
             raise ValueError('A frozen checkpoint changed: ' + key)
@@ -86,37 +84,19 @@ def audit_sources(study, root_protocol, evaluation_protocol):
         directory = study / 'training' / f'seed_{seed}'
         settings = read(directory / 'training_config.json')
         if settings != root_protocol['configuration_by_seed'][str(seed)]:
-            raise ValueError('Recorded paper training settings differ from the root protocol')
+            raise ValueError('Recorded Joint PPO training settings differ from the root protocol')
         if digest(directory / 'summary.json') != evaluation_protocol['checkpoint_metadata'][f'paper_{seed}']['training_summary_sha256']:
-            raise ValueError('New paper training summary changed after evaluation was frozen')
+            raise ValueError('Joint PPO training summary changed after evaluation was frozen')
         if digest(directory / 'protocol.json') != evaluation_protocol['checkpoint_metadata'][f'paper_{seed}']['training_protocol_sha256']:
-            raise ValueError('New paper training protocol changed after evaluation was frozen')
+            raise ValueError('Joint PPO training protocol changed after evaluation was frozen')
         training_protocol = read(directory / 'protocol.json')
         if training_protocol['training_config'] != settings:
-            raise ValueError('New paper training protocol and saved settings differ')
-        for name, value in training_protocol['source_sha256'].items():
-            if digest(ROOT / name) != value:
-                raise ValueError('Current source differs from the new paper training protocol: ' + name)
-    status = {'current_frozen_sources_verified': True,
-              'all_three_training_configurations_verified': True,
-              'snapshot_available': False, 'snapshot_verified': False}
-    snapshot = study / 'provenance/executed_training_source'
-    if not (snapshot / 'manifest.json').is_file():
-        status['scope'] = 'All current frozen source hashes and training configurations match. No additional saved source snapshot is available.'
-        return status
-    manifest = read(snapshot / 'manifest.json')
-    if (manifest['root_protocol_sha256'] != digest(study / 'protocol.json')
-            or digest(snapshot / 'root_protocol.json') != digest(study / 'protocol.json')):
-        raise ValueError('Saved executed-source snapshot refers to a different root protocol')
-    if set(manifest['sources']) != set(root_protocol['training_source_sha256']):
-        raise ValueError('Saved executed-source snapshot omits frozen implementation files')
-    for name, entry in manifest['sources'].items():
-        value = digest(snapshot / entry['snapshot_relative_path'])
-        if (value != entry['snapshot_sha256'] or value != entry['frozen_protocol_sha256']
-                or value != root_protocol['training_source_sha256'][name]):
-            raise ValueError('Executed-source snapshot differs from the frozen implementation: ' + name)
-    status.update(snapshot_available=True, snapshot_verified=True,
-                  scope='Every frozen source file and the root protocol also match the saved executed-source snapshot.')
+            raise ValueError('Joint PPO training protocol and saved settings differ')
+        source_maps.append(training_protocol['source_sha256'])
+    status = audit_frozen_sources(ROOT, study, merge_source_hashes(*source_maps),
+                                  root_protocol['training_source_sha256'])
+    status.update(current_frozen_sources_verified=status['current_sources_verified'],
+                  all_three_training_configurations_verified=True)
     return status
 
 
@@ -129,7 +109,7 @@ def monitor_record(directory, configuration):
     expected_optimizer_steps = configuration['epochs'] * int(np.ceil(
         configuration['episodes_per_update']*12/configuration['minibatch_size']))
     if any(int(row['optimizer_steps']) != expected_optimizer_steps or int(row['early_stopped']) != 0 for row in metrics):
-        raise ValueError('The manuscript experiment must complete every configured PPO epoch without KL early stopping')
+        raise ValueError('The Joint PPO experiment must complete every configured PPO epoch without KL early stopping')
     summary = read(directory / 'summary.json')
     validation = read(directory / 'validation_history.json')
     stochastic = [row for row in validation if row.get('deterministic') is False]
@@ -171,7 +151,7 @@ def summarize(study):
     root_protocol, protocol = read(study / 'protocol.json'), read(study / 'benchmarks/protocol.json')
     summary = read(study / 'benchmarks/summary.json')
     if summary['primary_policy'] != PAPER or summary['test_tuning_performed'] is not False:
-        raise ValueError('Expected the untouched paper-PPO primary comparison')
+        raise ValueError('Expected the untouched Joint PPO primary comparison')
     inputs = [study / 'protocol.json', *sorted((study / 'benchmarks').rglob('*.json')),
         *sorted((study / 'rule_selection').rglob('*.json')),
         *sorted((study / 'training').rglob('*.json')), *sorted((study / 'training').rglob('*.csv')),
@@ -340,6 +320,7 @@ def summarize(study):
         'success_criteria_results': criteria, 'budgets': budgets,
         'monitoring': monitor, 'training_summaries': training, 'unit_tests': test_record,
         'source_provenance': source_provenance, 'audit_source_sha256': digest(Path(__file__)),
+        'source_audit_helper_sha256': digest(ROOT / 'experiments/source_provenance.py'),
         'audit_helper_sha256': digest(ROOT / 'experiments/summarize_fitted_value_study.py'),
         'independent_audit': 'Saved individual profits, all primary paired bootstrap comparisons, actual individual-model risk averages, business-reward ledgers, tables, validation choices, counts, consistency criteria, frozen sources and checkpoints independently verified. Source snapshots are strictly verified when present.',
         'uncertainty_scope': 'Conditional scenario/action sampling intervals for fixed models, excluding uncertainty over arbitrary future retraining. Three training seeds give limited retraining evidence.',
@@ -361,9 +342,9 @@ def show_results(result):
         values = [result['cases'][case]['mean_discounted_profits'][name]
                   for case in ('base', 'high_demand', 'low_inventory')]
         print(f'{LABELS[name]:<28} {values[0]:>10.2f} {values[1]:>12.2f} {values[2]:>14.2f}')
-    print('\nBase-case paper joint PPO minus each frozen comparison:')
+    print('\nBase-case Joint PPO minus each frozen comparison:')
     for field, label in (('new_vs_validation_best_rule', 'Validation-selected rule'),
-                         ('new_vs_legacy', 'Previous PPO'), ('new_vs_fitted', 'Fitted value')):
+                         ('new_vs_legacy', 'Earlier PPO'), ('new_vs_fitted', 'Approximate DP')):
         row = result['cases']['base'][field]['mean']
         low, high = row['paired_bootstrap_confidence_interval_95']
         print(f'{label:<28} {row["mean_difference"]:+.2f}  paired 95% interval [{low:+.2f}, {high:+.2f}]')

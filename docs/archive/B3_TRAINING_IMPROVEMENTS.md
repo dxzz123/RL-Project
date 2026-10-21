@@ -70,7 +70,7 @@ The request encoders kept their network structure; the dispatch actor's final hi
 
 ### How can inventory shaping preserve the profit objective?
 
-A *potential* is a reference value assigned to a state for training. **Potential-based shaping** adjusts the reward used for learning by the change in this reference value. Here it is \$0.30 per stored fleet kWh. Using manuscript indexing, let $s_t$ be the pre-choice state in physical period $t$ and $e_{m,t}$ the stored energy of vehicle $m$. The training transformation is applied once per physical period:
+A *potential* is a reference value assigned to a state for training. **Potential-based shaping** adjusts the reward used for learning by the change in this reference value. Here it is \$0.30 per stored fleet kWh. Using one-based physical-period indexing, let $s_t$ be the pre-choice state in physical period $t$ and $e_{m,t}$ the stored energy of vehicle $m$. The training transformation is applied once per physical period:
 
 $$
 \Phi(s_t)=0.30\sum_{m\in\mathcal M}e_{m,t},\qquad
@@ -89,7 +89,7 @@ For a fixed starting scenario, the subtracted initial potential does not depend 
 
 With $\lambda_{\mathrm{GAE}}$=1, complete-episode shaped returns are the original returns minus the current state's potential. This can change how the critic learns and how early training progresses. It does not guarantee that trying actions will uncover a profitable recharge-then-service sequence. It should not be interpreted as an additional economic charging subsidy.
 
-The new options are off by default, preserving previous behavior. Old checkpoints, which are saved copies of trained models, keep their existing network structure and customer model. Resuming a run rejects changes to saved network options, inventory potential, or training-seed base. Here $\lambda_{\mathrm{GAE}}$ is the GAE trace parameter; the manuscript's $\lambda_{i,t}$ continues to mean Poisson arrival intensity only.
+The new options are off by default, preserving previous behavior. Old checkpoints, which are saved copies of trained models, keep their existing network structure and customer model. Resuming a run rejects changes to saved network options, inventory potential, or training-seed base. Here $\lambda_{\mathrm{GAE}}$ is the GAE trace parameter; the model's $\lambda_{i,t}$ continues to mean Poisson arrival intensity only.
 
 ## How was the final training method chosen?
 

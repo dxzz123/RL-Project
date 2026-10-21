@@ -1,4 +1,4 @@
-"""Analytic regressions for the attached request-level, two-stage model."""
+"""Analytic regressions for the request-level, two-stage model."""
 from copy import deepcopy
 from dataclasses import replace
 import json

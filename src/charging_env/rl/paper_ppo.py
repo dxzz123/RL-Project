@@ -1,8 +1,8 @@
-"""Joint two-stage PPO matching the interleaved equations in MDP_RL (2).
+"""Joint PPO with interleaved pricing and dispatch decisions.
 
-This is an isolated controller. The older local MAPPO and fitted-value methods
-are unchanged. Network sizes, nonlinearities, physical quantity conventions,
-and optimizer safeguards are implementation choices recorded in each run.
+The dispatch objective clips one fleet-level probability ratio. Pricing and
+dispatch use separate actors and critics, with GAE spanning both stages. Each
+run records its network architecture, physical conventions, and optimizer settings.
 """
 from contextlib import contextmanager
 from copy import deepcopy
@@ -63,7 +63,7 @@ def interleaved_gae(pricing_rewards, dispatch_rewards, price_values, dispatch_va
 
 
 def critic_targets(gae, old_price_values, old_dispatch_values, dispatch_critic_target='dispatch'):
-    """Use the paper's A2 target, or an optional pricing-advantage A1 ablation."""
+    """Use dispatch advantage A2, or an optional pricing-advantage A1 ablation."""
     if dispatch_critic_target not in ('dispatch', 'pricing_advantage'):
         raise ValueError('dispatch_critic_target must be dispatch or pricing_advantage')
     ap = np.asarray(gae['pricing_advantages'], dtype=float)
@@ -122,7 +122,7 @@ def paper_pricing_observation(obs, scenario):
     by both the pricing actor and pricing critic in this controller.
     """
     if int(obs['stage']) != 0:
-        raise ValueError('Paper pricing requires the before-choice stage')
+        raise ValueError('Joint PPO pricing requires the before-choice stage')
     keys = ('period', 'locations', 'energy_kwh', 'arrival_rates', 'fcs_retail_prices',
             'fcs_discharge_prices', 'grid_buy_price')
     result = {name: np.asarray(obs[name]).copy() for name in keys}
@@ -148,7 +148,7 @@ def pricing_features(obs, scenario):
     result = np.concatenate(parts).astype(np.float32)
     expected = 1+c.n_mcv*(c.n_zones+1)+c.n_zones+2*c.n_fcs+1
     if result.shape != (expected,) or not np.isfinite(result).all():
-        raise ValueError('Malformed or nonfinite paper pricing observation')
+        raise ValueError('Malformed or nonfinite Joint PPO pricing observation')
     return result
 
 
@@ -158,11 +158,11 @@ def paper_dispatch_mask(obs, scenario):
     IDLE at the current location means WAIT. IDLE at another admissible node
     means travel without service, using the existing REPOSITION transition.
     The current location is always an idle fallback, even if no demand or FCS
-    is present there. These physical interpretations are not specified by the
-    abstract paper and are recorded as implementation conventions.
+    is present there. These physical action mappings are
+    recorded in each run alongside the training settings.
     """
     if int(obs['stage']) != 1:
-        raise ValueError('Paper dispatch requires the post-choice stage')
+        raise ValueError('Joint PPO dispatch requires the post-choice stage')
     c = scenario
     original = np.asarray(obs['action_mask'], dtype=bool)
     if original.shape != (c.n_mcv, len(Mode), c.n_zones):
@@ -189,7 +189,7 @@ def paper_dispatch_commands(obs, flat_actions, scenario):
     if (actions.shape != (scenario.n_mcv,) or actions.dtype.kind not in 'iu'
             or (actions < 0).any() or (actions >= 4*scenario.n_zones).any()
             or not mask[np.arange(scenario.n_mcv), actions].all()):
-        raise ValueError('Paper policy must emit one feasible discrete action per vehicle')
+        raise ValueError('Joint PPO policy must emit one feasible discrete action per vehicle')
     commands = []
     for m, action in enumerate(actions):
         operation, node = divmod(int(action), scenario.n_zones)
@@ -571,7 +571,7 @@ class PaperPPOTrainer:
                     obs, reward, done, truncated, info = sim.dispatch(
                         paper_dispatch_commands(post, actions, self.scenario))
                     if truncated or info['invalid_actions']:
-                        raise RuntimeError('Paper action mask emitted an invalid physical command')
+                        raise RuntimeError('Joint PPO action mask emitted an invalid physical command')
                     next_vp = 0. if done else float(self.pricing_critic([obs])[0])
                     for key, value in (
                         ('pre_obs', pre), ('post_obs', post), ('pricing_actions', levels),
@@ -593,7 +593,7 @@ class PaperPPOTrainer:
     def update(self, rollout):
         c, n = self.config, len(rollout)
         if not n or not rollout.dones[-1]:
-            raise ValueError('Paper PPO update requires complete nonempty episodes')
+            raise ValueError('Joint PPO update requires complete nonempty episodes')
         gae = interleaved_gae(rollout.pricing_rewards, rollout.rewards, rollout.price_values,
             rollout.dispatch_values, rollout.next_price_values, rollout.dones,
             self.scenario.discount_per_period, c.gae_lambda)
@@ -634,7 +634,7 @@ class PaperPPOTrainer:
                 d_loss = d_stats['loss']-c.dispatch_entropy_coef*d_stats['entropy']
                 loss = p_loss+d_loss+vp_loss+vd_loss
                 if not torch.isfinite(loss):
-                    raise FloatingPointError('Nonfinite paper PPO loss; no optimizer step applied')
+                    raise FloatingPointError('Nonfinite Joint PPO loss; no optimizer step applied')
                 for optimizer in self.optimizers.values():
                     optimizer.zero_grad(set_to_none=True)
                 loss.backward()
@@ -656,7 +656,7 @@ class PaperPPOTrainer:
             if stopped:
                 break
         if not records:
-            raise RuntimeError('No paper PPO optimizer updates; rollout is stale or KL threshold too small')
+            raise RuntimeError('No Joint PPO optimizer updates; rollout is stale or KL threshold too small')
         self.update_count += 1
         result = {key: float(np.mean([row[key] for row in records])) for key in records[0]}
         result.update(update=self.update_count, episodes=self.episode_count,
@@ -721,10 +721,10 @@ class PaperPPOTrainer:
                     'update_count', 'episode_count', 'environment_periods', 'numpy_rng', 'torch_rng', 'cuda_rng'}
         if (not isinstance(payload, dict) or set(payload) != required
                 or payload['format_version'] != cls.CHECKPOINT_VERSION or payload['algorithm'] != ALGORITHM):
-            raise ValueError('Unsupported paper PPO checkpoint format or algorithm')
+            raise ValueError('Unsupported Joint PPO checkpoint format or algorithm')
         def check_finite(value):
             if torch.is_tensor(value) and not torch.isfinite(value).all():
-                raise ValueError('Paper PPO checkpoint contains a nonfinite tensor')
+                raise ValueError('Joint PPO checkpoint contains a nonfinite tensor')
             if isinstance(value, dict):
                 for item in value.values(): check_finite(item)
             elif isinstance(value, (list, tuple)):
@@ -734,7 +734,7 @@ class PaperPPOTrainer:
         config = PaperPPOConfig(**dict(payload['training_config'], device=device)).validate()
         trainer = cls(scenario, config)
         if set(payload['models']) != set(trainer._modules()) or set(payload['optimizers']) != set(trainer.optimizers):
-            raise ValueError('Paper PPO checkpoint must contain four independent models and optimizers')
+            raise ValueError('Joint PPO checkpoint must contain four independent models and optimizers')
         for name, model in trainer._modules().items():
             model.load_state_dict(payload['models'][name], strict=True)
             trainer.optimizers[name].load_state_dict(payload['optimizers'][name])
@@ -761,7 +761,7 @@ class PaperPPOTrainer:
         directory = Path(output_dir)
         directory.mkdir(parents=True, exist_ok=True)
         if any(directory.iterdir()):
-            raise FileExistsError('Paper PPO output contains a previous run; choose an empty directory')
+            raise FileExistsError('Joint PPO output contains a previous run; choose an empty directory')
         c = self.config
         hashes = self._source_hashes()
         protocol = dict(algorithm=ALGORITHM, scenario=asdict(self.scenario), training_config=asdict(c),
@@ -807,10 +807,10 @@ class PaperPPOTrainer:
                         self.save_checkpoint(directory/'best_checkpoint.pt')
                     _write_json(directory/'evaluations.json', evaluations)
                     _write_json(directory/'validation_history.json', validation_history)
-                    print(f"Paper PPO update {self.update_count}: validation profit "
+                    print(f"Joint PPO update {self.update_count}: validation profit "
                           f"{evaluation['mean_discounted_profit']:.4f}, joint KL {row['dispatch_approx_kl']:.6f}", flush=True)
                 elif run_update == 0 or (run_update+1) % 10 == 0:
-                    print(f"Paper PPO update {self.update_count}: training profit "
+                    print(f"Joint PPO update {self.update_count}: training profit "
                           f"{row['mean_training_discounted_profit']:.4f}", flush=True)
         final = self.evaluate(seeds, c.eval_policy == 'deterministic')
         _write_json(directory/'final_evaluation.json', final)
@@ -821,7 +821,7 @@ class PaperPPOTrainer:
             best = final['mean_discounted_profit']
             self.save_checkpoint(directory/'best_checkpoint.pt')
         if self._source_hashes() != hashes:
-            raise RuntimeError('Paper PPO source changed during training; final checkpoint was not saved')
+            raise RuntimeError('Joint PPO source changed during training; final checkpoint was not saved')
         checkpoint = directory/'checkpoint.pt'
         self.save_checkpoint(checkpoint)
         loaded = self.load_checkpoint(checkpoint, device=c.device)
@@ -829,7 +829,7 @@ class PaperPPOTrainer:
         replay_matches = all(x['discounted_profit'] == y['discounted_profit'] and x['profit'] == y['profit']
                              for x, y in zip(final['episodes'], replay['episodes']))
         if not replay_matches:
-            raise RuntimeError('Paper PPO checkpoint replay differs from the saved evaluation')
+            raise RuntimeError('Joint PPO checkpoint replay differs from the saved evaluation')
         summary = dict(algorithm=ALGORITHM, seed=c.seed, update_count=self.update_count,
             episode_count=self.episode_count, environment_periods=self.environment_periods,
             updates=self.update_count, episodes=self.episode_count,

@@ -1,4 +1,4 @@
-"""Plot saved manuscript-PPO comparisons and monitoring records without training."""
+"""Plot saved Joint PPO comparisons and monitoring records without training."""
 import argparse
 import hashlib
 import json
@@ -8,7 +8,7 @@ import numpy as np
 
 ROOT = Path(__file__).resolve().parents[1]
 LABELS = {
-    'paper_ppo_mean': 'New joint PPO',
+    'paper_ppo_mean': 'Joint PPO',
     'legacy_ppo_mean': 'Earlier PPO / MAPPO',
     'fitted_value_mean': 'Fitted-value dispatch',
     'service_first': 'Service first',
@@ -54,15 +54,15 @@ def make_plot(study):
                          'ytick.color': '#536579'})
     fig, axes = plt.subplots(2, 2, figsize=(16, 12.6))
     fig.subplots_adjust(left=.18, right=.97, top=.83, bottom=.25, hspace=.55, wspace=.46)
-    fig.text(.08, .96, 'Manuscript joint PPO versus earlier learners and three rules', fontsize=19, weight='bold')
-    fig.text(.08, .925, 'b = 3 | New PPO: A2 dispatch critic target, joint fleet ratio, interleaved GAE | Training seeds 7, 19, 37', fontsize=11)
+    fig.text(.08, .96, 'Joint PPO versus earlier learners and three rules', fontsize=19, weight='bold')
+    fig.text(.08, .925, 'b = 3 | Joint PPO: A2 dispatch critic target, joint fleet ratio, interleaved GAE | Training seeds 7, 19, 37', fontsize=11)
     fig.text(.08, .895, 'Final 500-update stochastic policies; all settings frozen before 512 independent base and two 256-scenario stress tests', fontsize=10.5, color='#5f7185')
 
     ax = axes[0, 0]
     base = cases['base']
     values = [base['mean_discounted_profits'][name] for name in methods]
     ax.barh(np.arange(6), values, color=[COLORS[name] for name in methods], height=.58)
-    short_labels = ['New joint PPO', 'Earlier PPO / MAPPO', 'Fitted-value dispatch',
+    short_labels = ['Joint PPO', 'Earlier PPO / MAPPO', 'Fitted-value dispatch',
                     'Service first', 'Constant inventory\nvalue', 'Time-dependent\ninventory value']
     ax.set_yticks(np.arange(6), short_labels)
     ax.invert_yaxis()

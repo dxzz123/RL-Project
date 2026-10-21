@@ -2,11 +2,11 @@
 
 The **outside option** means a customer chooses neither mobile charging nor a fixed charging station (FCS). That customer leaves the operator's market for the current period. The model does not specify what they do instead.
 
-This page explains a later experiment that changes how attractive charging is compared with leaving. **Utility** is a preference score: a higher score makes an option more likely to be chosen. The earlier model attachment (`MDP_RL (1).pdf`) and the original scenario use charging utility $-\eta\times\text{cost}$, equivalent to the special case $b=0$ below. On 2026-10-17, the project added a common charging-benefit parameter $b$. This is an added assumption for experiments; its value was not estimated from customer data or supplied by the manuscript.
+The common charging-benefit parameter $b$ controls how attractive charging is compared with leaving. **Utility** is a preference score: a higher score makes an option more likely to be chosen. The default scenario uses charging utility $-\eta\times\text{cost}$, corresponding to $b=0$. Positive values add a benefit to all charging services. The supplied values of $b$ are experimental assumptions; they have not been estimated from customer data.
 
 Read [MODEL.md](MODEL.md) for the full period sequence and [NOTATION.md](NOTATION.md) for the mathematical symbols and Python names.
 
-## 1. What the new parameter changes
+## 1. What the charging benefit changes
 
 Suppose one customer can use one charging provider. If charging costs money and leaving has a preference score of zero, the original model gives charging a negative preference score. A positive $b$ adds a benefit to receiving charging service. It can therefore make the customer more willing to charge, even when the price and physical service stay the same.
 
@@ -18,7 +18,7 @@ The common benefit applies to **both mobile and FCS charging**. It does not ente
 
 Consider request $r\in\mathcal R_{i,t}$, which arrives at node $i$ in period $t$ and needs $q_r$ kWh. A node is a location or service zone. The stations that this customer can access form $\mathcal J_{r,t}\subseteq\mathcal J$. Mobile charging is available only if at least one mobile charging vehicle (MCV) meets the physical requirements to offer service at node $i$.
 
-The **perceived cost** combines the charging bill with the customer's travel and waiting inconvenience, expressed in money. Using the manuscript's symbols:
+The **perceived cost** combines the charging bill with the customer's travel and waiting inconvenience, expressed in money. For mobile service and FCS service, respectively:
 
 $$
 c^M_{r,t}=p^M_{i,t}q_r+h^M_{i,t},
@@ -28,7 +28,7 @@ $$
 
 Here $p^M_{i,t}$ is the mobile price, $p^{F,C}_{j,t}$ is station $j$'s customer charging price, and the $h$ terms express inconvenience in dollars. Mobile inconvenience uses the estimated time until a vehicle arrives, $\widehat w_{i,t}$. FCS inconvenience includes travel and the estimated station wait $w^F_{j,t}$. These payment, waiting, and travel costs are unchanged in this experiment.
 
-Let $\mathcal A_{r,t}$ contain the **available charging providers**: mobile option $M$, when available, and accessible FCS nodes $j$. The outside option $O$ is added separately and is always available. Write $c^k_{r,t}$ for the perceived cost of charging option $k\in\mathcal A_{r,t}$. The new preference scores are
+Let $\mathcal A_{r,t}$ contain the **available charging providers**: mobile option $M$, when available, and accessible FCS nodes $j$. The outside option $O$ is added separately and is always available. Write $c^k_{r,t}$ for the perceived cost of charging option $k\in\mathcal A_{r,t}$. The preference scores are
 
 $$
 u^k_{r,t}=b-\eta c^k_{r,t}
@@ -55,7 +55,7 @@ The denominator's `1` is $\exp(u^O_{r,t})=\exp(0)$. Unavailable charging provide
 
 ### More customers may charge, but the same customer's provider ranking stays the same
 
-For the same customer, costs, and available options, increasing $b$ makes leaving less likely whenever at least one charging provider is available. If we consider only outcomes in which that customer chooses **some** charging service, the common $\exp(b)$ cancels from the formula. The relative chances of choosing the providers still follow $\exp(-\eta c^k_{r,t})$.
+For the same customer, costs, and available options, increasing $b$ makes leaving less likely whenever at least one charging provider is available. Among outcomes in which that customer chooses **some** charging service, the common $\exp(b)$ cancels from the formula. The relative chances of choosing the providers still follow $\exp(-\eta c^k_{r,t})$.
 
 This statement applies to one customer under fixed conditions. Across all customers who choose charging, the mobile/FCS shares can still change: increasing $b$ can attract customers with different costs and accessible stations. In a full simulation, those extra customers can also change battery inventory, service availability, and later prices. More customers choosing charging does not guarantee more completed service or greater profit when capacity is limited.
 
@@ -90,14 +90,14 @@ These are averages of request-level choice probabilities from 32 reference episo
 
 ## 5. Use the intended market in a new run
 
-Pass the scenario explicitly. Creating or editing a JSON file does not make a script use it automatically. For example, this small run trains the manuscript PPO in the b=3 market:
+Pass the scenario explicitly. Creating or editing a JSON file does not make a script use it automatically. For example, this small run trains the joint PPO in the b=3 market:
 
 ```bash
 source .venv/bin/activate
 python -m charging_env.rl.paper_train \
   --scenario configs/utility_b3.json \
   --updates 10 --episodes-per-update 4 --seed 7 \
-  --output-dir outputs/paper_joint_ppo
+  --output-dir outputs/joint_ppo
 ```
 
 The standalone training commands automatically select a numbered sibling directory if the requested directory contains an earlier run. You can reuse the same command. A complete controlled study uses stricter output rules so its selected models and test evidence stay together; [TRAINING.md](TRAINING.md) explains both workflows.
@@ -108,4 +108,4 @@ For other methods, follow the commands in [FITTED_VALUE.md](FITTED_VALUE.md) and
 
 Increasing $b$ changes customer participation. Higher profit in b=3 than in b=0 would therefore combine a market change with any improvement in the controller. To compare controllers, train them for the same scenario, choose rule settings using separate validation episodes, then evaluate all methods on the same fresh test scenarios.
 
-The current comparison uses b=3 throughout and includes approximate DP, manuscript PPO, earlier PPO, and three useful rules. [COMPARISON.md](COMPARISON.md) explains what each method knows, what it optimizes, and how it performed. The earlier [SiLU + b=3 study](archive/SILU_B3_STUDY.md) and [targeted PPO improvements](archive/B3_TRAINING_IMPROVEMENTS.md) remain available as research history. Their separate test sets should not be mixed into the current comparison.
+The current comparison uses b=3 throughout and includes approximate DP, joint PPO, earlier PPO, and three useful rules. [COMPARISON.md](COMPARISON.md) explains what each method knows, what it optimizes, and how it performed. The earlier [SiLU + b=3 study](archive/SILU_B3_STUDY.md) and [targeted PPO improvements](archive/B3_TRAINING_IMPROVEMENTS.md) remain available as research history. Their separate test sets should not be mixed into the current comparison.

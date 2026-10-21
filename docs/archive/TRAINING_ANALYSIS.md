@@ -16,7 +16,7 @@ $$
 G=\sum_{t=1}^{T}\gamma^{t-1}r_t,\qquad T=12,\quad\gamma=0.99.
 $$
 
-Here, $r_t$ is profit in period $t$. Code stores the first period as index 0: `period = t - 1`. With `profit[period]` storing that period's profit, the equivalent calculation is `sum(gamma**period * profit[period] for period in range(T))`. Units are model dollars per episode, rather than annual returns or forecasts of real operating profit. The [notation guide](../NOTATION.md) explains the manuscript-to-code indexing and stage conventions.
+Here, $r_t$ is profit in period $t$. Code stores the first period as index 0: `period = t - 1`. With `profit[period]` storing that period's profit, the equivalent calculation is `sum(gamma**period * profit[period] for period in range(T))`. Units are model dollars per episode, rather than annual returns or forecasts of real operating profit. The [notation guide](../NOTATION.md) explains the model-to-code indexing and stage conventions.
 
 Two evaluation modes matter throughout this report:
 
@@ -85,7 +85,7 @@ The comparison used one long run with the original settings and three runs with 
 | Matched training-data budget | 48,000 periods | Update 250: 48,000 periods |
 | Final training-data budget | 48,000 periods | 96,000 periods per seed |
 
-Both groups kept hidden width 64, gamma 0.99, **GAE trace parameter $\lambda_{\mathrm{GAE}}$=0.95**, PPO probability-ratio clip 0.2, maximum gradient norm 0.5, and target Kullback–Leibler (KL) divergence 0.03. Hidden width is the number of features in each hidden network layer. The probability-ratio clip limits the actor's incentive to change action probabilities too much in one update; the gradient-norm limit bounds the size of the parameter-adjustment signal. **KL divergence** measures how much the action probabilities changed; the target is an early-stop threshold for PPO passes. The GAE parameter controls how return estimates combine observed rewards with critic predictions; it is distinct from the manuscript's arrival intensity $\lambda_{i,t}$. Larger batches were intended to make estimates less noisy. The higher critic learning rate and disabled value clip were intended to improve predictions. Because these settings changed together, the experiment cannot establish the effect of any single change. Equal training-data budgets also do not mean equal amounts of network-update calculation.
+Both groups kept hidden width 64, gamma 0.99, **GAE trace parameter $\lambda_{\mathrm{GAE}}$=0.95**, PPO probability-ratio clip 0.2, maximum gradient norm 0.5, and target Kullback–Leibler (KL) divergence 0.03. Hidden width is the number of features in each hidden network layer. The probability-ratio clip limits the actor's incentive to change action probabilities too much in one update; the gradient-norm limit bounds the size of the parameter-adjustment signal. **KL divergence** measures how much the action probabilities changed; the target is an early-stop threshold for PPO passes. The GAE parameter controls how return estimates combine observed rewards with critic predictions; it is distinct from the model's arrival intensity $\lambda_{i,t}$. Larger batches were intended to make estimates less noisy. The higher critic learning rate and disabled value clip were intended to improve predictions. Because these settings changed together, the experiment cannot establish the effect of any single change. Equal training-data budgets also do not mean equal amounts of network-update calculation.
 
 Training uses even environment seeds. A seed is the number used to reproduce a sequence of random draws. Validation uses 32 fixed scenarios, `100001 + 2*i` for `i=0..31`. Adjusted runs are evaluated in both modes every 25 updates and choose checkpoints by stochastic validation return. The original control is evaluated every 50 updates and chooses by deterministic validation return; its **final** model was specified in advance as the main control. Its stochastic curve uses a different sequence of sampled actions, so control and candidate curve points are not matched episode by episode.
 
@@ -168,7 +168,7 @@ python experiments/run_convergence.py --seed 37 --output-root outputs/convergenc
 # Compare with the saved original control on the prespecified test scenarios.
 cp outputs/convergence_study/control_test.json outputs/convergence_repeat/control_test.json
 python experiments/evaluate_convergence.py --study-dir outputs/convergence_repeat
-# Separately evaluate the delivered validation-selected stochastic policy.
+# Separately evaluate the saved validation-selected stochastic policy.
 python -m charging_env.rl.train \
   --evaluate-only outputs/convergence_study/seed_7/best_checkpoint.pt \
   --eval-policy stochastic --eval-episodes 256 \

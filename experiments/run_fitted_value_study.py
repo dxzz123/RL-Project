@@ -165,10 +165,10 @@ def initialize(study, scenario_path, ppo_root):
         'test_policy_episodes': 9*(512+256+256),
         'primary_methods': [FITTED, PPO, *FAMILIES],
         'selection': 'Select one maximum-profit setting within each rule family using only the 128 validation scenes. Freeze all choices and six checkpoints before any test scene. No test tuning or model-seed selection.',
-        'benchmark_grid_scope': 'The attachment gives family counts but not every search point. This explicit local grid is frozen before tests: all seven service prices x thresholds(0.2,0.4,0.6); constant prices(0.4,0.5,0.6,0.8,1.0) x shadows(0.05 through0.45 by0.05); fixed0.60 time schedules early(0.1,0.2,0.3,0.4) x late(0,0.05,0.10,0.15), switching halfway through the horizon; terminal shadow zero.',
+        'benchmark_grid_scope': 'The benchmark grid is frozen before tests: all seven service prices x thresholds(0.2,0.4,0.6); constant prices(0.4,0.5,0.6,0.8,1.0) x shadows(0.05 through0.45 by0.05); fixed0.60 time schedules early(0.1,0.2,0.3,0.4) x late(0,0.05,0.10,0.15), switching halfway through the horizon; terminal shadow zero.',
         'success_criteria': SUCCESS_CRITERIA,
         'information_and_budget_scope': 'Fitted value and coordinated rules use known exact one-period physics and the same finite half/full exchange action grid. Fitted value additionally uses arbitrary synthetic state resets and sampled transition queries. Frozen PPO uses trajectory-based learning. These are not equal-information or equal-compute training budgets.',
-        'attachment_scope': 'The attachment is an algorithm description and external performance claim, not executable code or reproduced evidence. All local results will be generated independently.',
+        'evidence_scope': 'The algorithm specification defines the method. Performance claims in this study are based on independently generated local results.',
     }
     write_json(study / 'protocol.json', protocol)
     print('Initialized: ' + str(study), flush=True)

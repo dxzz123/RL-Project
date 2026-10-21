@@ -1,4 +1,4 @@
-"""Train and compare the manuscript's joint interleaved PPO implementation.
+"""Train and compare the Joint PPO controller.
 
 Phases: init freezes the protocol and copies six existing controls; select tunes
 three heuristic families using validation only; train fits one predeclared new
@@ -39,9 +39,9 @@ FITTED = 'fitted_value_mean'
 METHODS = (PAPER, LEGACY, FITTED, *FAMILIES)
 DEFAULT_CONTROL_ROOT = Path('/Users/jiemingkong/Downloads/charging_env 2/outputs/fitted_value_study')
 SUCCESS_CRITERIA = {
-    'consistent_heuristic_advantage': 'Each new final paper-PPO training seed and their mean have a positive paired 95% interval lower endpoint against the strongest heuristic chosen only on validation.',
-    'consistent_legacy_ppo_improvement': 'Each new final paper-PPO model has a positive paired 95% interval lower endpoint against the same-seed frozen legacy PPO model; the three-model mean interval also has a positive lower endpoint.',
-    'consistent_fitted_value_advantage': 'Each new final paper-PPO model has a positive paired 95% interval lower endpoint against the same-seed frozen fitted-value model; the three-model mean interval also has a positive lower endpoint.',
+    'consistent_heuristic_advantage': 'Each new final Joint PPO training seed and their mean have a positive paired 95% interval lower endpoint against the strongest heuristic chosen only on validation.',
+    'consistent_legacy_ppo_improvement': 'Each new final Joint PPO model has a positive paired 95% interval lower endpoint against the same-seed frozen legacy PPO model; the three-model mean interval also has a positive lower endpoint.',
+    'consistent_fitted_value_advantage': 'Each new final Joint PPO model has a positive paired 95% interval lower endpoint against the same-seed frozen fitted-value model; the three-model mean interval also has a positive lower endpoint.',
     'scope': 'Predeclared base-case criteria conditional on these fixed models. Stress cases remain descriptive and do not select another controller. Three training seeds provide limited retraining evidence.',
 }
 
@@ -92,7 +92,7 @@ def verify_sources(hashes):
     changed = [name for name, value in hashes.items()
                if not (ROOT / name).is_file() or digest(ROOT / name) != value]
     if changed:
-        raise ValueError('Frozen paper-study sources changed: ' + ', '.join(changed))
+        raise ValueError('Frozen Joint PPO study sources changed: ' + ', '.join(changed))
 
 
 def snapshot_training_sources(study, protocol):
@@ -113,7 +113,7 @@ def snapshot_training_sources(study, protocol):
     shutil.copy2(study / 'protocol.json', output / 'root_protocol.json')
     manifest = {'schema': 'charging_env.paper_ppo.executed_source.v1',
         'root_protocol_sha256': digest(study / 'protocol.json'), 'sources': entries,
-        'scope': 'All frozen training and evaluation implementation files and the manuscript PDF, copied at initialization before any new model trains; current sources are rechecked before and after each training run.'}
+        'scope': 'All frozen training and evaluation implementation files and the algorithm specification PDF, copied at initialization before any new model trains; current sources are rechecked before and after each training run.'}
     write_json(output / 'manifest.json', manifest)
     for name in ('root_protocol.json', 'manifest.json'):
         (output / name).chmod(0o444)
@@ -147,7 +147,7 @@ def initialize(study, scenario_path, control_root):
         raise FileExistsError('Use a new study directory; recorded experiments are preserved')
     scenario = Scenario.from_json(scenario_path)
     if scenario != replace(Scenario(), charging_utility_intercept=3.).validate():
-        raise ValueError('The paper study requires the unchanged default physical b=3 scenario')
+        raise ValueError('The Joint PPO study requires the unchanged default physical b=3 scenario')
     validate_splits()
     configurations = configuration_by_seed()
     metadata, sources = {}, {}
@@ -174,8 +174,8 @@ def initialize(study, scenario_path, control_root):
             raise RuntimeError('Frozen control copy changed its checkpoint bytes')
         hashes[key], paths[key] = digest(target), str(target.relative_to(study))
     write_json(study / 'configuration/utility_b3.json', asdict(scenario))
-    protocol = {'study': 'Manuscript joint interleaved PPO comparison, 2026-10-21',
-        'manuscript_pdf': 'docs/MDP_RL_2.pdf',
+    protocol = {'study': 'Joint PPO comparison, 2026-10-21',
+        'algorithm_specification_pdf': 'docs/MDP_RL_2.pdf',
         'scenario': asdict(scenario), 'training_seeds': list(TRAINING_SEEDS),
         'configuration_by_seed': configurations, 'training_source_sha256': source_hashes(),
         'control_checkpoint_sha256': hashes, 'control_checkpoint_paths': paths,
@@ -186,16 +186,16 @@ def initialize(study, scenario_path, control_root):
         'training_physical_periods_per_new_model': 96000,
         'new_training_episodes_total': 24000, 'new_training_physical_periods_total': 288000,
         'validation_policy_episodes': 10496, 'test_policy_episodes': 12288,
-        'primary': 'All three new final 500-update stochastic paper-PPO models, averaged only for reporting; no ensemble or test-based checkpoint/seed selection.',
+        'primary': 'All three new final 500-update stochastic Joint PPO models, averaged only for reporting; no ensemble or test-based checkpoint/seed selection.',
         'algorithm_scope': 'Interleaved pricing/dispatch GAE, one joint dispatch likelihood ratio over the fleet, separate stage critics and actor objectives, dispatch entropy only, raw advantages and critic MSE. Four optimizer/gradient-clipping groups. Current simulator pricing reward is zero.',
-        'equation11_interpretation': 'Follow manuscript Equation 11: the dispatch critic target is the dispatch advantage plus the old dispatch value. The optional pricing_advantage setting is a separate experimental deviation that substitutes pricing advantage; it is not the manuscript equation and is not used in this primary experiment.',
+        'equation11_interpretation': 'The dispatch critic target is the dispatch advantage plus the old dispatch value (Equation 11). The optional pricing_advantage setting is a separate experimental deviation that substitutes pricing advantage; it differs from Equation 11 and is not used in this primary experiment.',
         'heuristic_selection': 'Select one maximum discounted-profit setting independently within each of three heuristic families (82 candidates in total) on rule validation only; choose the strongest family using the same validation scores before final testing.',
         'model_selection': 'Monitor 64 separate scenarios every 25 updates; retain the final 500-update checkpoint as primary regardless of monitored best score. Never choose a checkpoint, execution mode or seed on final tests.',
         'information_and_budget_scope': 'New and legacy PPO use sampled episode rollouts. Fitted-value controls use arbitrary synthetic fleet-state resets and a known one-period model. Coordinated heuristic controls also use the known one-period model. These are not equal-information or equal-compute budgets.',
         'success_criteria': SUCCESS_CRITERIA, 'test_tuning_performed': False}
     write_json(study / 'protocol.json', protocol)
     snapshot_training_sources(study, protocol)
-    print('Initialized frozen paper study: ' + str(study), flush=True)
+    print('Initialized frozen Joint PPO study: ' + str(study), flush=True)
 
 
 def load_study(study):
@@ -267,7 +267,7 @@ def train_seed(study, scenario, protocol, root_hash, seed):
 def _all_tensors_finite(value, label):
     import torch
     if torch.is_tensor(value) and not torch.isfinite(value).all():
-        raise ValueError('Nonfinite tensor in new paper checkpoint: ' + label)
+        raise ValueError('Nonfinite tensor in Joint PPO checkpoint: ' + label)
     if isinstance(value, dict):
         for key, child in value.items():
             _all_tensors_finite(child, label + '/' + str(key))
@@ -281,15 +281,15 @@ def paper_metadata(path, scenario, seed, expected_configuration):
     from charging_env.rl.paper_ppo import PaperPPOConfig, PaperPPOTrainer
     payload = torch.load(path, map_location='cpu', weights_only=True)
     if payload.get('algorithm') != 'paper_joint_ppo_v1' or payload.get('format_version') != 1:
-        raise ValueError('Expected the new manuscript joint-PPO checkpoint format')
+        raise ValueError('Expected the new Joint PPO checkpoint format')
     if scenario_from_data(payload['scenario']) != scenario:
-        raise ValueError('New paper checkpoint scenario differs from the exact b=3 base scenario')
+        raise ValueError('Joint PPO checkpoint scenario differs from the exact b=3 base scenario')
     config = PaperPPOConfig(**payload['training_config']).validate()
     if asdict(config) != expected_configuration or config != config_for(seed):
-        raise ValueError('New paper checkpoint training configuration differs from the frozen root protocol')
+        raise ValueError('Joint PPO checkpoint training configuration differs from the frozen root protocol')
     counters = {key: int(payload[key]) for key in ('update_count', 'episode_count', 'environment_periods')}
     if counters != {'update_count': 500, 'episode_count': 8000, 'environment_periods': 96000}:
-        raise ValueError('Primary paper checkpoints must complete 500 updates, 8000 episodes, and 96000 periods')
+        raise ValueError('Primary Joint PPO checkpoints must complete 500 updates, 8000 episodes, and 96000 periods')
     _all_tensors_finite(payload, 'checkpoint')
     training_seeds = {2*(config.training_seed_base + seed + i) for i in range(8000)}
     if training_seeds & held_out() or config.eval_seed_base != MONITOR_SEEDS[0] or config.eval_episodes != len(MONITOR_SEEDS):
@@ -302,7 +302,7 @@ def paper_metadata(path, scenario, seed, expected_configuration):
             or summary.get('checkpoint_reload_matches') is not True
             or summary.get('invalid_evaluation_actions') != 0
             or summary.get('checkpoint_sha256') != digest(path)):
-        raise ValueError('New paper training is incomplete or failed its finite/replay/action checks')
+        raise ValueError('Joint PPO training is incomplete or failed its finite/replay/action checks')
     training_protocol_path = path.parent / 'protocol.json'
     training_protocol = json.loads(training_protocol_path.read_text())
     if (summary.get('protocol_sha256') != digest(training_protocol_path)
@@ -311,17 +311,17 @@ def paper_metadata(path, scenario, seed, expected_configuration):
             or training_protocol.get('dispatch_critic_target') != 'dispatch'
             or training_protocol.get('raw_rewards') is not True
             or training_protocol.get('reward_shaping') is not False):
-        raise ValueError('New paper training protocol differs from the frozen method or scenario')
+        raise ValueError('Joint PPO training protocol differs from the frozen method or scenario')
     verify_sources(training_protocol['source_sha256'])
     with (path.parent / 'training_metrics.csv').open(newline='') as stream:
         metrics = list(csv.DictReader(stream))
     if len(metrics) != 500 or not all(np.isfinite(float(value)) for row in metrics for value in row.values()):
-        raise ValueError('New paper training metrics are missing or nonfinite')
+        raise ValueError('Joint PPO training metrics are missing or nonfinite')
     devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
     with torch.random.fork_rng(devices=devices):
         restored = PaperPPOTrainer.load_checkpoint(path, device='cpu')
         if restored.scenario != scenario or restored.config != config:
-            raise ValueError('New paper checkpoint strict reload changed the scenario or configuration')
+            raise ValueError('Joint PPO checkpoint strict reload changed the scenario or configuration')
     return {'training_seed': seed, 'training_config': asdict(config), **counters,
             'training_summary_sha256': digest(summary_path), 'training_summary': summary,
             'training_protocol_sha256': digest(training_protocol_path)}
@@ -478,9 +478,9 @@ def evaluate_models(study, scenario, root_protocol, root_hash):
             raise RuntimeError('Frozen validation selection changed during testing')
     for seed in TRAINING_SEEDS:
         if digest(paths[f'paper_{seed}'].parent / 'summary.json') != protocol['checkpoint_metadata'][f'paper_{seed}']['training_summary_sha256']:
-            raise RuntimeError('New paper training summary changed during testing')
+            raise RuntimeError('Joint PPO training summary changed during testing')
         if digest(paths[f'paper_{seed}'].parent / 'protocol.json') != protocol['checkpoint_metadata'][f'paper_{seed}']['training_protocol_sha256']:
-            raise RuntimeError('New paper training protocol changed during testing')
+            raise RuntimeError('Joint PPO training protocol changed during testing')
     verify_sources(protocol['source_sha256'])
     if digest(study / 'protocol.json') != root_hash or digest(output / 'protocol.json') != protocol_hash:
         raise RuntimeError('A frozen study protocol changed during testing')

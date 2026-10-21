@@ -23,10 +23,10 @@ You do not need to retrain to inspect the completed experiment:
 
 ```bash
 python3 experiments/summarize_paper_ppo_study.py --show
-open outputs/paper_ppo_study/paper_ppo_comparison.png
+open docs/assets/algorithm_comparison.png
 ```
 
-`--show` reads `outputs/paper_ppo_study/analysis.json` and prints the six-method scorecard. It does not run policies or rewrite results. The figure shows base profits, the manuscript-PPO improvement over earlier PPO, stress cases, and monitoring curves. `open` is the macOS command; elsewhere, open the image in your file browser.
+`--show` reads `outputs/paper_ppo_study/analysis.json` and prints the six-method scorecard. It does not run policies or rewrite results. The figure shows base profits, the joint-PPO improvement over earlier PPO, stress cases, and monitoring curves. `open` is the macOS command; elsewhere, open the image in your file browser.
 
 The [comparison guide](COMPARISON.md) explains each row, why approximate DP is not a PPO variant, and what the uncertainty intervals mean. In this local project the completed study is present. A Git checkout alone does not contain ignored `outputs/`; copy the study artifacts or follow the reproduction workflow below.
 
@@ -35,7 +35,7 @@ The [comparison guide](COMPARISON.md) explains each row, why approximate DP is n
 | Your purpose | Command module | Detailed guide |
 |---|---|---|
 | Learn a continuation-value table and search fleet actions using the known model | `charging_env.rl.fitted_train` | [Approximate DP / fitted value](FITTED_VALUE.md) |
-| Train the algorithm specified in the later four-page manuscript | `charging_env.rl.paper_train` | [Manuscript joint PPO](PAPER_PPO.md) |
+| Train pricing and fleet dispatch with joint PPO | `charging_env.rl.paper_train` | [Joint PPO](JOINT_PPO.md) |
 | Study or continue the earlier SA-PPO/MAPPO implementation | `charging_env.rl.train` | [Earlier PPO/MAPPO](LEGACY_PPO.md) |
 
 A **policy** is the controller's decision rule. A **checkpoint** saves a learned policy and the scenario/settings needed to load it. The two PPO trainers save `.pt` files, but their checkpoints are different formats and must be loaded with the matching trainer. Approximate DP saves `.npz` arrays and metadata.
@@ -51,16 +51,16 @@ python -m charging_env.rl.fitted_train \
 
 This method learns dispatch continuation values for exactly two vehicles. It uses a fixed mobile price of 0.60 dollars/kWh under this scenario, then searches joint dispatch actions with that value. `--grid-step` sets battery-grid spacing in kWh; `--samples` sets the number of demand/price draws used at each time/state query. Smaller grid spacing or more samples increases training work. There is no PPO update count: fitting works backward once through the finite horizon. See [FITTED_VALUE.md](FITTED_VALUE.md) for the equations and saved-policy example.
 
-### Manuscript PPO: check a short training run
+### Joint PPO: check a short training run
 
 ```bash
 python -m charging_env.rl.paper_train \
   --scenario configs/utility_b3.json \
   --updates 10 --episodes-per-update 4 --seed 7 \
-  --output-dir outputs/paper_joint_ppo
+  --output-dir outputs/joint_ppo
 ```
 
-An **episode** runs all 12 physical periods. An **update** collects fresh episodes and then adjusts the networks. This command collects 40 training episodes, or 480 physical periods, plus evaluation episodes. It checks that training and saving work; it is too small to establish reliable performance. This trainer defaults to the manuscript's dispatch-critic target, using dispatch advantage A₂. The separate A₁ option is an experimental deviation, not the manuscript equation.
+An **episode** runs all 12 physical periods. An **update** collects fresh episodes and then adjusts the networks. This command collects 40 training episodes, or 480 physical periods, plus evaluation episodes. It checks that training and saving work; it is too small to establish reliable performance. The dispatch critic uses dispatch advantage A₂ by default. The separate A₁ option is retained for controlled experiments.
 
 For a longer standalone run:
 
@@ -69,7 +69,7 @@ python -m charging_env.rl.paper_train \
   --scenario configs/utility_b3.json \
   --updates 500 --episodes-per-update 16 --seed 7 \
   --eval-episodes 64 --eval-interval 25 \
-  --output-dir outputs/paper_joint_ppo_500
+  --output-dir outputs/joint_ppo_500
 ```
 
 This collects 8,000 training episodes and 96,000 physical periods. It uses the current trainer defaults for other settings. The dedicated study below additionally fixes separate seed banks, control checkpoints, and the complete comparison protocol. A standalone command is not a reproduction of that full study.
@@ -87,9 +87,9 @@ This selects `b=3` and the SiLU final dispatch activation. It does not reproduce
 
 ## Find the files from a run
 
-Each standalone training CLI prints the directory it actually uses. If the requested directory exists, it chooses a numbered sibling such as `outputs/paper_joint_ppo_2`. Repeating the same command therefore preserves earlier checkpoints without requiring you to invent a name. Direct Python training calls and the dedicated study runners have stricter unused-directory checks.
+Each standalone training CLI prints the directory it actually uses. If the requested directory exists, it chooses a numbered sibling such as `outputs/joint_ppo_2`. Repeating the same command therefore preserves earlier checkpoints without requiring you to invent a name. Direct Python training calls and the dedicated study runners have stricter unused-directory checks.
 
-| What you need | Approximate DP | Manuscript PPO | Earlier PPO |
+| What you need | Approximate DP | Joint PPO | Earlier PPO |
 |---|---|---|---|
 | Learned controller | `checkpoint.npz` | `checkpoint.pt` | `checkpoint.pt` |
 | Run overview | `summary.json` | `summary.json` | `summary.json` |
@@ -104,17 +104,17 @@ A learning loss is an optimization diagnostic, not profit. Even a lower critic e
 
 ## Continue or evaluate a PPO model
 
-Use the same module that created the checkpoint. For manuscript PPO:
+Use the same module that created the checkpoint. For joint PPO:
 
 ```bash
 python -m charging_env.rl.paper_train \
-  --resume outputs/paper_joint_ppo/checkpoint.pt --updates 10 \
-  --output-dir outputs/paper_joint_ppo_continued
+  --resume outputs/joint_ppo/checkpoint.pt --updates 10 \
+  --output-dir outputs/joint_ppo_continued
 ```
 
 `--updates 10` adds ten updates to the saved counters. Resume restores the scenario, parameters, optimizer state, and random-generator state. Use the actual printed directory if the original run received a suffix. Do not supply a replacement scenario when resuming.
 
-To evaluate one of the completed manuscript-PPO models without changing it:
+To evaluate one of the completed joint-PPO models without changing it:
 
 ```bash
 python -m charging_env.rl.paper_train \
@@ -127,7 +127,7 @@ This prints a fresh evaluation; it does not reproduce the recorded scorecard. Re
 
 ## Reproduce the six-method study
 
-The current comparison trains three manuscript-PPO models and evaluates them alongside three frozen approximate-DP models, three frozen earlier-PPO models, and three tuned heuristic families. The learned-method mean rows average the three model results; they do not combine the models into an ensemble.
+The current comparison trains three joint-PPO models and evaluates them alongside three frozen approximate-DP models, three frozen earlier-PPO models, and three tuned heuristic families. The learned-method mean rows average the three model results; they do not combine the models into an ensemble.
 
 The commands below require the existing control files in `outputs/fitted_value_study/fitted/seed_{7,19,37}/` and `outputs/fitted_value_study/ppo/seed_{7,19,37}/`. These are present in this local project. If starting without those artifacts, the [fitted-value guide](FITTED_VALUE.md) and [archive index](archive/README.md) explain the earlier studies that produced them. This workflow deliberately reuses fixed controls, rather than silently retraining different ones.
 

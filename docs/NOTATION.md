@@ -1,8 +1,8 @@
 # Notation and the link to Python
 
-This guide explains how to read the equations and find the same quantities in the code. The physical-model notation comes from the earlier attachment, *Dynamic Pricing and Dispatching for Mobile Charging Services: An MDP-Based Two-stage RL Framework* (`MDP_RL (1).pdf`), with the clarifications in Section 5. The later four-page algorithm attachment is saved as [MDP_RL_2.pdf](MDP_RL_2.pdf); [PAPER_PPO.md](PAPER_PPO.md) explains its training equations. These are two different source documents. Physical assumptions added in the simulator are identified below rather than attributed to either manuscript.
+This guide defines the mathematical notation used in the model and maps each quantity to its Python representation. [JOINT_PPO.md](JOINT_PPO.md) explains the joint PPO training equations, also recorded in the [algorithm specification](MDP_RL_2.pdf). Section 5 collects the modeling conventions that apply throughout the project.
 
-Start with [MODEL.md](MODEL.md) for the system's story and [ENVIRONMENT.md](ENVIRONMENT.md) for the Python interface. Use this page as a reference when a symbol or array index is unclear. In the tables, **Symbol** is the notation used in equations, **Meaning** explains it, **Unit or type** says what kind of quantity it is, and the Python column shows where to find it in code. A set is a collection of objects; an index identifies one object in that collection.
+Start with [MODEL.md](MODEL.md) for the physical model and [ENVIRONMENT.md](ENVIRONMENT.md) for the Python interface. Use this page as a reference when a symbol or array index is unclear. In the tables, **Symbol** is the notation used in equations, **Meaning** explains it, **Unit or type** says what kind of quantity it is, and the Python column shows where to find it in code. A set is a collection of objects; an index identifies one object in that collection.
 
 ## 1. Four distinctions that prevent most confusion
 
@@ -65,18 +65,18 @@ N_{i,t}=|\mathcal R_{i,t}|,\qquad
 \bar d_{i,t}=\sum_{r\in\mathcal R_{i,t}}q_r.
 $$
 
-Thus $\lambda_{i,t}=4$ means four requests **on average**, rather than exactly four requests. The actual count may be 2 or 7, for example. The raw simulator observation contains both the configured average and the current actual requests. The earlier PPO can use both for pricing. The manuscript PPO intentionally hides actual requests and request-dependent waiting estimates from its pricing actor and critic; it uses actual requests only after customer choice for dispatch. The simulator does not cap the random count using `max_requests_per_zone`; that setting is retained only for compatibility with older configurations.
+Thus $\lambda_{i,t}=4$ means four requests **on average**, rather than exactly four requests. The actual count may be 2 or 7, for example. The raw simulator observation contains both the configured average and the current actual requests. The earlier PPO can use both for pricing. The joint PPO intentionally hides actual requests and request-dependent waiting estimates from its pricing actor and critic; it uses actual requests only after customer choice for dispatch. The simulator does not cap the random count using `max_requests_per_zone`; that setting is retained only for compatibility with older configurations.
 
-For a request originating at node $i$, the manuscript's perceived costs are
+For a request originating at node $i$, the perceived costs are
 
 $$
 c^M_{r,t}=p^M_{i,t}q_r+h^M_{i,t},\qquad
 c^j_{r,t}=p^{F,C}_{j,t}q_r+h^F_{r,j,t}.
 $$
 
-The superscript $j$ in $c^j_{r,t}$ identifies a particular FCS; it is the manuscript's notation for station cost. The code converts waiting hours and travel kilometres into money before adding them to the charging bill. Customers compare these total costs, not unit prices alone.
+The superscript $j$ in $c^j_{r,t}$ identifies a particular FCS. The code converts waiting hours and travel kilometres into money before adding them to the charging bill. Customers compare these total costs, not unit prices alone.
 
-Let $\mathcal A_{r,t}$ contain the **available operator services**: accessible FCSs and mobile service if mobile service is available at the request's origin. The outside option $O$ is always available. **Utility** is a preference score used to calculate choice probabilities. The manuscript takes leaving as the reference option and sets its utility to zero; this choice of reference is called normalization. Then
+Let $\mathcal A_{r,t}$ contain the **available operator services**: accessible FCSs and mobile service if mobile service is available at the request's origin. The outside option $O$ is always available. **Utility** is a preference score used to calculate choice probabilities. Leaving is the reference option with utility zero; this choice of reference is called normalization. Then
 
 $$
 \rho^k_{r,t}=\frac{\exp(-\eta c^k_{r,t})}
@@ -92,7 +92,7 @@ $$
 \sum_{k\in\mathcal A_{r,t}\cup\{O\}}z^k_{r,t}=1.
 $$
 
-The later **common charging-benefit** experiment replaces every available service utility $-\eta c^k_{r,t}$ with $b-\eta c^k_{r,t}$ and leaves outside utility at zero. Here $b$ is dimensionless, meaning it has no physical unit, and maps to `charging_utility_intercept`. **Intercept** means the amount added to a score before subtracting the cost effect. The default $b=0$ reproduces the manuscript's equation; $b=3$ is an explicit extension. See [OUTSIDE_OPTION.md](OUTSIDE_OPTION.md) for an example of how it changes participation.
+The **common charging-benefit** parameter replaces every available service utility $-\eta c^k_{r,t}$ with $b-\eta c^k_{r,t}$ and leaves outside utility at zero. Here $b$ is dimensionless, meaning it has no physical unit, and maps to `charging_utility_intercept`. **Intercept** means the amount added to a score before subtracting the cost effect. The default $b=0$ gives the equation above; the main comparison uses $b=3$. Both are modeling assumptions, not estimates from customer data. See [OUTSIDE_OPTION.md](OUTSIDE_OPTION.md) for an example of how it changes participation.
 
 Python encodes choices as follows:
 
@@ -129,7 +129,7 @@ s_t\ \xrightarrow{\ \mathbf p^M_t\ }\
 \ \xrightarrow{\ \mathbf a^D_t\ }\ (r_t,s_{t+1}).
 $$
 
-The manuscript calls these **Stage 1** and **Stage 2**. Python uses integer `stage=0` for pricing, `stage=1` for dispatch, and `stage=2` only for the terminal observation. A period is not the same as one call to `step(...)`.
+The mathematical model calls these **Stage 1** and **Stage 2**. Python uses integer `stage=0` for pricing, `stage=1` for dispatch, and `stage=2` only for the terminal observation. A period is not the same as one call to `step(...)`.
 
 The objective and stage values are
 
@@ -139,29 +139,29 @@ V^P(s_t)=\mathbb E[V^D(\widetilde s_t)\mid s_t],\qquad
 V^D(\widetilde s_t)=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
 $$
 
-The **value** is the expected remaining return under the policies: the average sum of future profits, accounting for discounting. A critic network learns to predict it. The **horizon** is the episode's final operating period; nothing is earned after it, so the remaining value is zero. **Discounting** gives later profit less weight. There is no discount between pricing and dispatch within the same period. In Python the identical objective is `sum(gamma ** period * reward)` over `period=0,...,horizon-1`. The manuscript PPO writes these stage values as $V_1$ and $V_2$. Training details are in [PAPER_PPO.md](PAPER_PPO.md) and [LEGACY_PPO.md](LEGACY_PPO.md); optional reward shaping belongs to the earlier PPO implementation. Reported economic profits continue to use $r_t$.
+The **value** is the expected remaining return under the policies: the average sum of future profits, accounting for discounting. A critic network learns to predict it. The **horizon** is the episode's final operating period; nothing is earned after it, so the remaining value is zero. **Discounting** gives later profit less weight. There is no discount between pricing and dispatch within the same period. In Python the identical objective is `sum(gamma ** period * reward)` over `period=0,...,horizon-1`. Joint PPO denotes these stage values by $V_1$ and $V_2$. Training details are in [JOINT_PPO.md](JOINT_PPO.md) and [LEGACY_PPO.md](LEGACY_PPO.md); optional reward shaping belongs to the earlier PPO implementation. Reported economic profits continue to use $r_t$.
 
-### Translating the newer PPO algorithm
+### Joint PPO notation
 
-| Later manuscript | Meaning in this project |
+| Symbol or operation | Meaning in this project |
 |---|---|
 | Stage 1 / Stage 2 | Pricing / dispatch; Python uses `stage=0` / `stage=1` |
 | $R_t^p$ / $R_t^d$ | Pricing reward / dispatch reward; the simulator uses $0$ / $r_t$ |
-| $S_t$ / $\widetilde S_t$ | Newer manuscript notation for the pricing / dispatch information, also written $s_t$ / $\widetilde s_t$ above |
+| $S_t$ / $\widetilde S_t$ | Pricing / dispatch information, also written $s_t$ / $\widetilde s_t$ above |
 | $V_1$ / $V_2$ | Pricing critic / dispatch critic, also written $V^P$ / $V^D$ above |
 | $\hat A_{1,t}$ / $\hat A_{2,t}$ | Pricing / dispatch advantage estimates used to update the two actors |
 | $\lambda$ in GAE | `gae_lambda`, written $\lambda_{\mathrm{GAE}}$ here to distinguish it from Poisson arrival means |
-| Product of vehicle probability ratios | One joint fleet ratio, clipped once in the manuscript PPO dispatch loss |
+| Product of vehicle probability ratios | One joint fleet ratio, clipped once in the joint PPO dispatch loss |
 
-Equation (11) in the later attachment uses the dispatch advantage $\hat A_{2,t}$ for the dispatch critic target. That is the default implementation. The optional `pricing_advantage` target substitutes $\hat A_{1,t}$ as an experiment; it is not the manuscript equation.
+The dispatch critic target is $\hat A_{2,t}+V_{2,\mathrm{old}}$, combining the dispatch advantage with the value predicted during rollout collection. The optional `pricing_advantage` setting substitutes $\hat A_{1,t}$ as an experimental target. The standard joint PPO configuration uses the dispatch advantage.
 
-The newer PPO's four operations are **service, idle/move, charge, and discharge**. The simulator uses five mode codes because it separates idle-at-current-node (`WAIT`) from idle-at-another-node (`REPOSITION`). The adapter in `paper_ppo.py` performs this translation. The physical simulator has not acquired a second set of dynamics.
+Joint PPO's four operations are **service, idle/move, charge, and discharge**. The simulator uses five mode codes because it separates idle-at-current-node (`WAIT`) from idle-at-another-node (`REPOSITION`). The adapter in `paper_ppo.py` performs this translation. All controllers use the same physical simulator after this translation.
 
 Approximate DP uses a different object: a table of expected future profit indexed by period, fleet locations, and a battery-energy grid. Its notation, interpolation, and Bellman update are explained in [FITTED_VALUE.md](FITTED_VALUE.md). It has no PPO advantage or policy-ratio loss.
 
-### Additional symbols for the implemented energy accounting
+### Energy accounting
 
-The manuscript describes the profit categories but does not fully specify how to account for each energy flow or allocate limited capacity. The following symbols describe the physical details added in the simulator; these equations are not attributed to the manuscript.
+The simulator tracks energy at the grid connection, inside the vehicle battery, and at the customer. The following symbols distinguish these quantities and the efficiencies that connect them.
 
 | Symbol | Meaning | Unit |
 |---|---|---|
@@ -186,29 +186,29 @@ $$
 
 An efficiency always has a subscript here, such as $\eta_C$. The unsubscripted $\eta$ is customer cost sensitivity. The lower battery bound $e_{\min}$ maps to `reserve_kwh`, and $\nu$ maps to `terminal_value_per_stored_kwh`. Serving requests only in full and assigning a value to battery energy left at the episode's end are also implementation assumptions. Their effects are explained in [MODEL.md](MODEL.md).
 
-## 5. Clarifications of the earlier model attachment
+## 5. Modeling conventions
 
-The section/page references below refer only to `MDP_RL (1).pdf`, not the newer PPO algorithm attachment. They record how the original simulation interprets that model. Neither source PDF has been changed.
+These conventions keep the equations, observations, and reported results consistent.
 
-1. **Use $\lambda_{i,t}$ for the average arrival count.** Section 4.1 describes $\boldsymbol\lambda_t$ as potential requests, whereas Section 5 defines it as the expected count used in a Poisson draw. These are different objects. This documentation uses $\mathcal R_{i,t}$ for actual requests. The raw simulator exposes their contents before pricing, an implementation choice used by the earlier PPO. The newer manuscript PPO restricts pricing to arrival means and other permitted state variables.
+1. **Arrival intensity is not realized demand.** $\lambda_{i,t}$ is the expected count used in the Poisson distribution; $\mathcal R_{i,t}$ is the set of requests actually drawn. The raw simulator exposes realized requests before pricing. Earlier PPO uses that information, while joint PPO restricts pricing to arrival means and its other permitted state variables.
 
-2. **Include outside choice in the indicator sum.** On page 2, $\mathcal A_{r,t}$ is defined to contain available charging services, and the probability denominator adds the outside option as a separate `1`. Therefore the subsequent sum over choice indicators must include $O$, as written above. Otherwise a customer who leaves would make that sum zero. Another valid convention would include $O$ in the set of options and change the probability formula to match. This guide keeps the original definition, in which that set contains charging services only.
+2. **The outside option belongs in the choice-indicator sum.** $\mathcal A_{r,t}$ contains available charging services only. The outside option $O$ is included separately in the probability denominator and in $\sum_{k\in\mathcal A_{r,t}\cup\{O\}}z^k_{r,t}=1$. This ensures that exactly one choice is recorded even when the customer leaves.
 
-3. **An FCS receives customers from multiple origin nodes.** The page 2 expression $\mathcal R^F_{j,t}\subseteq\mathcal R_{i,t}$ refers to an origin $i$ without specifying which one. A station's customers instead come from the full collection of requests:
+3. **An FCS can serve customers from several origin nodes.** Its selected customers are a subset of all requests:
 
    $$
    \mathcal R^F_{j,t}\subseteq\mathcal R_t,\qquad
    \mathcal R_t:=\bigcup_{i\in\mathcal I}\mathcal R_{i,t}.
    $$
 
-   A particular FCS request retains its own origin, which determines travel cost and accessibility. In contrast, $\mathcal R^M_{i,t}\subseteq\mathcal R_{i,t}$ is correct: mobile service occurs at the request's origin.
+   Each request retains its origin for travel cost and accessibility. Mobile service takes place at the request's origin, so $\mathcal R^M_{i,t}\subseteq\mathcal R_{i,t}$.
 
-4. **Keep the calendar in the state.** Section 3.1 says the current period is observed, but the displayed state in Section 4.1 omits it. The implementation explicitly observes the period. This matters because the number of periods left, the time-dependent demand multiplier, and electricity prices depend on time. Whether a pricing policy may observe actual requests is a separate information assumption. The raw simulator and earlier PPO expose them; the newer manuscript PPO does not.
+4. **Time is part of the state.** The current period determines the remaining horizon, the demand pattern, and electricity prices. All controllers observe it. Access to realized requests is a separate information assumption, as described in Section 3.
 
-5. **Separate outside participation from failed fulfillment.** Section 5.3 uses “unserved demand” beside outside-option share, which can confuse two different outcomes. `outside_option_share` counts customers who selected $O$. Unmet-demand costs apply to customers who selected mobile or FCS service but were not served. They are separate populations.
+5. **Outside participation and failed fulfillment are different outcomes.** `outside_option_share` counts customers who selected $O$. Unmet-demand costs apply to customers who selected mobile or FCS service but were not served. The model does not penalize outside requests as unmet service.
 
-6. **Identify the added charging benefit and physical details as extensions.** The attachment uses service utility $-\eta c$ and does not specify $b$, the rule for serving the first request that fits the remaining capacity, the detailed accounting for energy losses, the battery reserve, or a formula valuing energy left at the end. Their documentation must identify them as explicit implementation choices or later experiments. The default intercept and terminal value are both zero.
+6. **Service and energy rules are explicit modeling assumptions.** Requests are served only in full, with the simulator selecting requests in order when they fit remaining capacity. Battery reserve and conversion efficiencies constrain feasible energy transfers. The charging-benefit intercept $b$ and terminal stored-energy value $\nu$ are configurable; both default to zero. Their values have not been calibrated to customer or fleet data.
 
-7. **Use one mathematical convention while documenting the API translation.** The manuscript's $t=1,\ldots,T$, lower-case battery energy $e_{m,t}$, and station-node price subscripts are retained in equations. The tables explain how these symbols correspond to Python periods starting at zero and arrays indexed by station position. The equations keep the manuscript's notation. This clarification changes the documentation, not the simulator's indexing.
+7. **Mathematical and Python indices differ.** Equations use $t=1,\ldots,T$, stored energy $e_{m,t}$, and station-node price subscripts. Python periods start at zero and station arrays use station slots. The tables above provide the mapping; neither convention changes the underlying dynamics.
 
-The earlier model manuscript's numerical sections contain placeholders and an illustrative comparison table. Those entries are not results produced by this repository. Reproducible empirical results are recorded in the study documents and saved outputs linked from the README.
+Empirical results are reported in [COMPARISON.md](COMPARISON.md) and the saved study outputs linked there. Numerical examples in this guide illustrate definitions and are not performance measurements.

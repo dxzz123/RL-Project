@@ -13,7 +13,7 @@ This is the first b=3 study. It follows the historical b=0 [training analysis](T
 The two terms refer to different parts of the system:
 
 - **SiLU** is an activation function: it changes the values passed between layers inside a neural network. In this study it replaces only the **final hidden Tanh activation** in the dispatch actor, the network that chooses vehicle actions. Earlier Tanh layers, the pricing actor, and the rest of the network structure keep their established settings. Only this part of the network uses SiLU.
-- **b=3** changes the customer model. Each available mobile or fixed charging station (FCS) option receives a baseline boost of 3 in its customer-choice score, called its systematic utility; the outside option of leaving the system keeps a score of zero. In the notation guide's extension, a charging utility is $b-\eta c^k_{r,t}$. At a fixed cost, this makes charging more attractive relative to leaving the system. The attached manuscript's cost-only specification is the **b=0** reference; b is an explicitly labeled implementation extension.
+- **b=3** changes the customer model. Each available mobile or fixed charging station (FCS) option receives a baseline boost of 3 in its customer-choice score, called its systematic utility; the outside option of leaving the system keeps a score of zero. In the notation guide's extension, a charging utility is $b-\eta c^k_{r,t}$. At a fixed cost, this makes charging more attractive relative to leaving the system. The cost-only specification uses **b=0**; the charging-utility intercept is an extension described in [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md).
 
 These changes affect different things. A larger profit under b=3 than in an old b=0 table does not by itself show a better controller, because the customer model also makes charging more attractive. This study measures learning and benchmark performance **within b=3**. It does not include otherwise-matching experiments that change only SiLU versus Tanh, or only b=3 versus b=0. It therefore cannot establish that either change caused the improvement. See [OUTSIDE_OPTION.md](../OUTSIDE_OPTION.md) for the choice model and [NOTATION.md](../NOTATION.md) for symbols.
 
@@ -38,7 +38,7 @@ An **actor** is a network that chooses actions; a **critic** is a network that p
 | Discount | 0.99 |
 | Outer discounted policy-loss weighting | Enabled |
 
-The GAE trace parameter controls how the training target combines observed rewards with the critic's predictions; it is not the Poisson arrival intensity $\lambda_{i,t}$. One run used **8,000 training episodes and 96,000 physical periods**. The total exposure of the three delivered models was **288,000 periods**.
+The GAE trace parameter controls how the training target combines observed rewards with the critic's predictions; it is not the Poisson arrival intensity $\lambda_{i,t}$. One run used **8,000 training episodes and 96,000 physical periods**. The total exposure of the three evaluated models was **288,000 periods**.
 
 Seed 7 was an existing completed run that matched the required scenario, settings, and budget. It was retained based on metadata **before new test results were observed**; it was not selected because it performed well. Seeds 19 and 37 were trained afresh. Therefore, **192,000 training periods were newly collected**, and **96,000 were reused** in this study.
 
@@ -155,7 +155,7 @@ Saved evidence includes the [machine-readable analysis](../../outputs/silu_b3_st
 
 ## Reproduction
 
-Run from the project root in its existing virtual environment, using a new study directory. The commands below train all three seeds from scratch; the delivered study reused its already-completed seed 7 as described above.
+Run from the project root in its existing virtual environment, using a new study directory. The commands below train all three seeds from scratch; the recorded study reused its already-completed seed 7 as described above.
 
 ```bash
 source .venv/bin/activate

@@ -16,7 +16,7 @@ The distinction from PPO is direct. PPO learns an actor that outputs action prob
 
 ## What the value table represents
 
-Use the manuscript's physical periods $t=1,\ldots,T$. Python uses `period = t - 1`. Let
+Use physical periods $t=1,\ldots,T$. Python uses `period = t - 1`. Let
 
 $$
 x_t=(l_{1,t},l_{2,t},e_{1,t},e_{2,t}),
@@ -154,9 +154,9 @@ Loading `policy.scenario` preserves the training scenario. These example seeds d
 
 ## Results and implementation references
 
-In the latest shared base test, approximate DP earns **137.76 dollars per episode**, above manuscript joint PPO's **123.19** and earlier PPO's **117.42**. It also leads under low initial inventory, while service-first is stronger under high demand. The current results, uncertainty intervals, and fairness qualifications are maintained in [COMPARISON.md](COMPARISON.md).
+In the latest shared base test, approximate DP earns **137.76 dollars per episode**, above Joint PPO's **123.19** and earlier PPO's **117.42**. It also leads under low initial inventory, while service-first is stronger under high demand. The current results, uncertainty intervals, and fairness qualifications are maintained in [COMPARISON.md](COMPARISON.md).
 
-The first fitted-value study completed on **2026-10-20** and used different test scenarios. Its [archived report](archive/FITTED_VALUE_STUDY.md) preserves the historical results, evidence, and reproduction commands. Use those instructions if you need to build the approximate-DP and earlier-PPO control directory for the current six-method study. Do not mix the two studies' test means. The implementation was integrated from the supplied algorithm note; the note's reported results are not measurements from this project.
+The first fitted-value study completed on **2026-10-20** and used different test scenarios. Its [archived report](archive/FITTED_VALUE_STUDY.md) preserves the historical results, evidence, and reproduction commands. Use those instructions if you need to build the approximate-DP and earlier-PPO control directory for the current six-method study. Do not mix the two studies' test means.
 
 | Code or test | What to read there |
 |---|---|
