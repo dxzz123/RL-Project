@@ -5,7 +5,7 @@ from pathlib import Path
 import sys
 import unittest
 
-sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'experiments'))
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'experiments'/'archive'))
 from run_b3_improved_training import config_for, verify_training_inputs, verify_pilot_summary
 from charging_env.config import Scenario
 

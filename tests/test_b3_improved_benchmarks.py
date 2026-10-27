@@ -19,8 +19,8 @@ except ImportError:
 class ImprovedB3BenchmarkGuardTests(unittest.TestCase):
     def setUp(self):
         project = Path(__file__).resolve().parents[1]
-        spec = importlib.util.spec_from_file_location('improved_bench', project / 'experiments/run_b3_improved_benchmarks.py')
-        with patch.object(sys, 'path', [str(project / 'experiments')] + sys.path):
+        spec = importlib.util.spec_from_file_location('improved_bench', project / 'experiments/archive/run_b3_improved_benchmarks.py')
+        with patch.object(sys, 'path', [str(project / 'experiments/archive')] + sys.path):
             self.module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.module)
         temporary = tempfile.TemporaryDirectory()

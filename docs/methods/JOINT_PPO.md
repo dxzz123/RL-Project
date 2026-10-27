@@ -2,9 +2,9 @@
 
 Joint PPO follows the two-stage [algorithm specification](../MDP_RL_2.pdf) and learns **both mobile prices and vehicle dispatch**. A pricing decision changes which customers request service; the later dispatch decision determines how the fleet serves them. The method trains these two decisions together while keeping a separate value estimate for each stage.
 
-The project also keeps [earlier SA-PPO/MAPPO](LEGACY_PPO.md) and [approximate DP](FITTED_VALUE.md). The two PPO implementations differ in their information, action representation, advantage calculation, and dispatch loss. [COMPARISON.md](../COMPARISON.md) explains these differences side by side and reports their performance on the same independent test scenarios.
+[METHODS.md](../METHODS.md#joint-ppo) has the short version and compares Joint PPO with the other controllers. [Study 07](../studies/07_joint_ppo.md#how-the-two-ppo-versions-differ) lists every difference from [earlier PPO](EARLIER_PPO.md).
 
-Use [TRAINING.md](../TRAINING.md) for the common setup and comparison workflow. This guide explains Joint PPO, its assumptions, and how to run a single model.
+Use [RUNNING.md](../RUNNING.md) for the common setup and comparison workflow. This guide explains Joint PPO, its assumptions, and how to run a single model.
 
 ## Follow one physical period
 
@@ -32,7 +32,7 @@ An **actor** selects actions. A **critic** predicts remaining return and supplie
 
 The dispatch actor uses one global encoder with a separate output for each vehicle. Given that global observation, its vehicle distributions factorize: the probability of a fleet action is the product of the probabilities of its component vehicle actions. The actor therefore considers fleet information without enumerating every joint action.
 
-The critics are needed for training; dispatch decisions are taken from the actor rather than by searching a critic's predictions. This distinguishes the method from approximate DP, which evaluates action candidates using a continuation table at every decision.
+The critics are needed for training; dispatch decisions are taken from the actor rather than by searching a critic's predictions. This distinguishes the method from Table ADP and rollout ADP, which score candidate actions by estimated future profit at every decision.
 
 The encoders scale physical quantities, include time, and process all observed requests without truncating the request list. The networks use SiLU activations and LayerNorm in the recorded experiment. The architecture and numerical settings are implementation choices beyond the [algorithm specification](../MDP_RL_2.pdf).
 
@@ -116,7 +116,7 @@ The action space has no separate energy-quantity action. This implementation req
 
 Candidate destinations are current mobile-request nodes and FCS nodes. Each vehicle's current node is always retained for idle, including when there are no requests. Physically invalid operation/destination combinations are masked before sampling by setting their logits to negative infinity. This prevents individually invalid commands; shared-resource conflicts are handled by the simulator's allocation rules.
 
-These actions differ from the earlier PPO's learned continuous exchange fraction and approximate DP's half/full exchange grid. Performance comparisons therefore concern the complete implemented controllers, rather than an isolated change to the PPO loss.
+These actions differ from the earlier PPO's learned continuous exchange fraction and Table ADP's half/full exchange grid. Performance comparisons therefore concern the complete implemented controllers, rather than an isolated change to the PPO loss.
 
 ## What happens in one training update
 
@@ -150,7 +150,7 @@ KL divergence measures how much action probabilities change. Here it is recorded
 
 ## Run a single model
 
-From the project root, use the existing virtual environment and the `[train]` dependencies described in [TRAINING.md](../TRAINING.md):
+From the project root, use the existing virtual environment and the `[train]` dependencies described in [RUNNING.md](../RUNNING.md):
 
 ```bash
 source .venv/bin/activate
@@ -185,13 +185,13 @@ python -m charging_env.rl.paper_train \
 
 This prints JSON containing mean discounted profit, individual episode results, and invalid-action counts. The saved checkpoint supplies its scenario. These scenarios differ from the recorded test, so their mean need not match the reported result. `stochastic` samples from the actor; `deterministic` takes its most likely actions. Choose the evaluation mode before comparing results, rather than choosing whichever looks better on the test set.
 
-For a full three-seed comparison with separate rule selection and test scenarios, follow [TRAINING.md](../TRAINING.md). Its study runner also freezes the earlier PPO and approximate-DP controls. Running the single-model command above does not automatically produce that comparison.
+For a full three-seed comparison with separate rule selection and test scenarios, follow [RUNNING.md](../RUNNING.md). Its study runner also freezes the earlier-PPO and Table ADP controls. Running the single-model command above does not automatically produce that comparison.
 
 ## Results and code references
 
-On the shared base test, this implementation earns **123.19 dollars per episode**, compared with **117.42** for earlier PPO and **137.76** for approximate DP. All three Joint PPO seeds improve over their earlier-PPO counterparts on the base test, but the inventory rule and approximate DP remain stronger. The principal observed gap is that PPO still recharges very little. See [COMPARISON.md](../COMPARISON.md) for the paired intervals, operating evidence, stress tests, and limitations.
+In [study 07](../studies/07_joint_ppo.md), Joint PPO earns **123.19** per day against 117.42 for earlier PPO, 133.41 for the inventory rule and 137.76 for Table ADP, and it almost never recharges. With the inventory-rule warm start ([study 08](../studies/08_recharge_warm_start.md)) it reaches 129.20, still 5.50 below the rule. In the 25-zone city ([study 09](../studies/09_25_zone_scale.md)) it trails the rules by more than 130 per day.
 
-These records are local files under `outputs/paper_ppo_study/`, which is not included in Git. The saved protocol (`protocol.json`) records exact settings. The independent audit (`analysis.json`) contains recomputed comparisons and source checks, and the executed-source snapshot (`provenance/executed_training_source/`) preserves the code used for those results. Use the saved study files or follow [the reproduction workflow](../TRAINING.md#reproduce-the-six-method-study) to inspect them.
+These records are local files under `outputs/paper_ppo_study/`, which is not included in Git. The saved protocol (`protocol.json`) records exact settings. The independent audit (`analysis.json`) contains recomputed comparisons and source checks, and the executed-source snapshot (`provenance/executed_training_source/`) preserves the code used for those results. Use the saved study files or follow [the reproduction workflow](../studies/07_joint_ppo.md#reproduce) to inspect them.
 
 | Code or test | What to read there |
 |---|---|
@@ -204,7 +204,7 @@ These records are local files under `outputs/paper_ppo_study/`, which is not inc
 
 ## Optional inventory initialization and training units
 
-The default equations and settings above remain available unchanged. The recharge investigation adds an optional initialization step, described with its results in [COMPARISON.md](../COMPARISON.md#why-ppo-learned-almost-never-to-recharge). [TRAINING.md](../TRAINING.md#joint-ppo-with-an-inventory-rule-warm-start) gives the complete command.
+The default equations and settings above remain available unchanged. The recharge investigation adds an optional initialization step, described with its results in [study 08](../studies/08_recharge_warm_start.md). [RUNNING.md](../RUNNING.md#joint-ppo) gives the complete command.
 
 With `--warmstart-episodes N`, the trainer first generates N episodes using the constrained inventory teacher. Actor cross-entropy fits its action labels; critic mean-squared error fits its complete sampled returns. These critics initially approximate the teacher's value, not the current actor's true value. The demonstration data are discarded before ordinary on-policy PPO updates. Lambda 1 in the tested configuration makes subsequent critic targets complete-episode returns from the current neural policy.
 

@@ -20,7 +20,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 def load_experiment(name):
-    specification = importlib.util.spec_from_file_location(name, ROOT/'experiments'/f'{name}.py')
+    specification = importlib.util.spec_from_file_location(name, ROOT/'experiments'/'archive'/f'{name}.py')
     module = importlib.util.module_from_spec(specification)
     specification.loader.exec_module(module)
     return module

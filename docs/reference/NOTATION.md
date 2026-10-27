@@ -147,7 +147,7 @@ V^D(\widetilde s_t)&=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
 \end{aligned}
 ```
 
-The **value** is the expected remaining return under the policies: the average sum of future profits, accounting for discounting. A critic network learns to predict it. The **horizon** is the episode's final operating period; nothing is earned after it, so the remaining value is zero. **Discounting** gives later profit less weight. There is no discount between pricing and dispatch within the same period. In Python the identical objective is `sum(gamma ** period * reward)` over `period=0,...,horizon-1`. Joint PPO denotes these stage values by $`V_1`$ and $`V_2`$. Training details are in [JOINT_PPO.md](../methods/JOINT_PPO.md) and [LEGACY_PPO.md](../methods/LEGACY_PPO.md); optional reward shaping belongs to the earlier PPO implementation. Reported economic profits continue to use $`r_t`$.
+The **value** is the expected remaining return under the policies: the average sum of future profits, accounting for discounting. A critic network learns to predict it. The **horizon** is the episode's final operating period; nothing is earned after it, so the remaining value is zero. **Discounting** gives later profit less weight. There is no discount between pricing and dispatch within the same period. In Python the identical objective is `sum(gamma ** period * reward)` over `period=0,...,horizon-1`. Joint PPO denotes these stage values by $`V_1`$ and $`V_2`$. Training details are in [JOINT_PPO.md](../methods/JOINT_PPO.md) and [EARLIER_PPO.md](../methods/EARLIER_PPO.md); optional reward shaping belongs to the earlier PPO implementation. Reported economic profits continue to use $`r_t`$.
 
 ### Joint PPO notation
 
@@ -165,7 +165,7 @@ The dispatch critic target is $`\hat A_{2,t}+V_{2,\mathrm{old}}`$, combining the
 
 Joint PPO's four operations are **service, idle/move, charge, and discharge**. The simulator uses five mode codes because it separates idle-at-current-node (`WAIT`) from idle-at-another-node (`REPOSITION`). The adapter in `paper_ppo.py` performs this translation. All controllers use the same physical simulator after this translation.
 
-Approximate DP uses a different object: a table of expected future profit indexed by period, fleet locations, and a battery-energy grid. Its notation, interpolation, and Bellman update are explained in [FITTED_VALUE.md](../methods/FITTED_VALUE.md). It has no PPO advantage or policy-ratio loss.
+Table ADP uses a different object: a table of expected future profit indexed by period, fleet locations, and a battery-energy grid. Its notation, interpolation, and Bellman update are explained in [TABLE_ADP.md](../methods/TABLE_ADP.md). It has no PPO advantage or policy-ratio loss.
 
 ### Energy accounting
 
@@ -219,4 +219,4 @@ These conventions keep the equations, observations, and reported results consist
 
 7. **Mathematical and Python indices differ.** Equations use $`t=1,\ldots,T`$, stored energy $`e_{m,t}`$, and station-node price subscripts. Python periods start at zero and station arrays use station slots. The tables above provide the mapping; neither convention changes the underlying dynamics.
 
-Empirical results are reported in [COMPARISON.md](../COMPARISON.md) and the saved study outputs linked there. Numerical examples in this guide illustrate definitions and are not performance measurements.
+Empirical results are reported in [RESULTS.md](../RESULTS.md) and the saved study outputs linked there. Numerical examples in this guide illustrate definitions and are not performance measurements.

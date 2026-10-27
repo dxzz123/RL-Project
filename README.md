@@ -1,53 +1,84 @@
 # Mobile charging: pricing and fleet dispatch
 
-This project studies how an operator can earn profit from fixed charging stations and mobile charging vehicles. The introductory example has four locations, two stations, and two mobile vehicles. A larger synthetic scenario has 25 service zones, five stations, and ten mobile vehicles. An episode covers twelve one-hour periods.
+An operator runs fixed charging stations and a fleet of mobile charging vehicles. Each hour it decides **what price to charge for mobile service** and **where to send each vehicle**. This project simulates that business and compares ways to make those two decisions: simple rules, approximate dynamic programming (ADP), and reinforcement learning (PPO).
 
-Each period follows the same sequence:
+Every simulated hour has the same four steps:
 
-1. Set a mobile charging price at each location.
-2. Customers choose mobile charging, an accessible station, or leave without charging.
-3. Dispatch the mobile vehicles to serve customers, recharge, export energy, move, or wait.
-4. Calculate energy use and business profit, then begin the next period.
+1. **Price.** Post a mobile charging price at each zone.
+2. **Customers choose.** Each arriving electric-vehicle driver picks mobile charging, a nearby station, or leaves.
+3. **Dispatch.** Each mobile vehicle serves customers, recharges or sells energy at a station, moves, or waits.
+4. **Profit.** Count revenue minus electricity, travel, operating and unmet-demand costs, then start the next hour.
 
-For example, fully serving a 10-kWh mobile request at 0.60 dollars/kWh earns 6 dollars in revenue. Profit also accounts for energy purchases, travel, operating costs, and unmet-service penalties. Recharging costs money now but can make later service possible; the controllers must balance those consequences.
+One episode is a 12-hour day. The score is total discounted profit for the day, in dollars.
 
-**Approximate dynamic programming (ADP)** compares actions using current profit and an estimate of future profit. The original version learns a two-vehicle value table; the newer rollout version simulates future operations at decision time and supports different fleet sizes. Rollout can use either a fixed price or a learned price policy that responds to time, demand forecasts and fleet state. **Proximal Policy Optimization (PPO)** learns policies for pricing and dispatch from simulated experience. Joint PPO and the earlier PPO implementation are both retained for comparison.
+## What we have found so far
 
-## Start here
+All results come from simulated days the controllers never saw during training or tuning. [RESULTS.md](docs/RESULTS.md) has the details and the uncertainty intervals.
 
-| Your question | Read |
+| Question | Answer so far |
 |---|---|
-| What does the charging system do? | [Model walkthrough](docs/MODEL.md) |
-| Which controller performs better, and why? | [Current comparison](docs/COMPARISON.md) |
-| How do I train a controller or compare results? | [Training workflow](docs/TRAINING.md) |
+| Best controller on the 25-zone, 10-vehicle city? | **Rollout ADP with learned prices**: 941.91 per day, against 924.80 for the inventory rule with its own learned prices and 914.50 for the fixed-price inventory rule. All three seeds beat both rules. |
+| Best on the 4-zone, 2-vehicle city? | Methods that exploit how small this case is. On the same test days, **Table ADP** earns 136.10 and the exhaustive inventory rule 131.41, against 127.78 for rollout ADP. Learned prices lift rollout ADP only slightly. |
+| Does learned pricing help? | A lot in the large city: +30.39 per day for rollout ADP, +10.30 for the inventory rule. Very little in the small city: +0.70 and +2.08. |
+| How does PPO do? | It learned to almost never recharge. Warm-starting it from the inventory rule fixed that (+5.33 per day in the small city). PPO still trails the strongest rule in both cities: by 5.50 per day in the small city and by more than 130 per day in the large one. |
 
-The newest [comparison](docs/COMPARISON.md#learned-pricing-on-independent-scenarios) tests learned prices with both rollout ADP and the inventory rule on fresh independent scenarios. On the 25-zone network, mean discounted profit is **941.91** for selected-pricing ADP, **924.80** for inventory with its own learned pricing, and **914.50** for fixed-price inventory. All three city ADP seeds improve; in the four-zone case, the original exhaustive inventory rule remains stronger. Earlier PPO and fixed-price ADP comparisons are preserved separately in the report.
+These are results inside one simulator with assumed demand. They show which implemented controller earns more under that model, not how a real operator would fare.
 
-For the new controller, start with [Rollout ADP](docs/methods/GENERAL_ADP.md). Its fixed-price version needs no offline training. The [learned-pricing workflow](docs/TRAINING.md#learn-prices-for-rollout-adp) fits a compact price policy first; dispatch continues to estimate future values while making decisions. The same price policy is used in actual operation and imagined future periods.
+## Quick start
 
-The tests also cover 9-zone/five-vehicle and 36-zone/twelve-vehicle configurations with different horizons and capacities. All data are simulated under a supplied model; neither larger dimensions nor known-model portability establish real-world robustness. Earlier PPO studies remain linked in the comparison report.
-
-## Run a walkthrough
-
-Use Python 3.10 or later. In the project folder, create an environment with `python3 -m venv .venv` if one does not already exist, then run:
+You need Python 3.10 or later. From this folder:
 
 ```bash
+python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e .
-python examples/manual_walkthrough.py
+python -m pip install -e '.[train]'        # use -e . if you don't need PPO
+
+python examples/manual_walkthrough.py      # one scripted day, printed step by step
 ```
 
-The walkthrough prints customer choices, battery levels, energy flows, and profit, and saves `outputs/manual_episode.csv`. It uses scripted actions to explain the simulator. PPO's additional dependencies and training commands are in the training workflow above.
+Run the current best controller for a few simulated days (no training needed):
 
-## Where things live
+```bash
+python -m charging_env.rl.rollout_adp --scenario configs/utility_b3.json \
+  --seed 7 --price-index 4 --episodes 4 --output-dir outputs/rollout_adp
+```
 
-| Folder | Purpose |
+[RUNNING.md](docs/RUNNING.md) has commands for every controller and for viewing saved results.
+
+## Read in this order
+
+| Step | Guide | You will learn |
+|---|---|---|
+| 1 | [MODEL.md](docs/MODEL.md) | How customers, vehicles, batteries and profit work |
+| 2 | [METHODS.md](docs/METHODS.md) | How each controller decides, side by side |
+| 3 | [RESULTS.md](docs/RESULTS.md) | What the experiments show, and what they don't |
+| 4 | [RUNNING.md](docs/RUNNING.md) | How to run, train, evaluate and reproduce |
+
+Everything else is optional depth: method deep dives in [docs/methods/](docs/methods/), lookups in [docs/reference/](docs/reference/), and one report per experiment in [docs/studies/](docs/studies/README.md).
+
+## Method names and where they live in code
+
+The code kept its original file names, so a few names differ from the docs:
+
+| Name in the docs | What it is | Code |
+|---|---|---|
+| Rollout ADP | Simulates a few futures for each candidate fleet plan at decision time; any fleet size | `rl/rollout_adp.py` |
+| Learned pricing | A 12-coefficient price rule fitted by direct search, usable with rollout ADP or the inventory rule | `rl/adaptive_pricing.py`, `rl/priced_rollout.py` |
+| Table ADP | Learns a value table offline; exactly two vehicles | `rl/fitted_value.py`, `rl/fitted_train.py` |
+| Joint PPO | Learns pricing and dispatch networks; optional inventory-rule warm start | `rl/paper_ppo.py`, `rl/paper_train.py`, `rl/paper_warmstart.py` |
+| Earlier PPO | The first SA-PPO–MAPPO implementation, kept as a control | `rl/trainer.py`, `rl/networks.py`, `rl/returns.py`, `rl/train.py` |
+| Service-first, inventory rule | Benchmark rules | `benchmarks/policies.py`, `benchmarks/scalable.py`, `benchmarks/compact.py` |
+
+All paths are under `src/charging_env/`.
+
+## Folder layout
+
+| Folder | Contents |
 |---|---|
-| `src/charging_env/` | Simulator, controllers, and benchmark rules |
-| `configs/` | City and customer-model settings |
-| `examples/` | Small runnable demonstrations |
-| `docs/` | Three main guides, followed by optional method and reference material |
-| `experiments/` | Scripts for reproducible training and performance studies |
-| `tests/` | Checks for physical accounting, learning, and saved results |
-
-The [documentation index](docs/README.md) points to a specific explanation when you need more detail. Previous studies are kept in `docs/archive/`; they are optional background. Generated results live in `outputs/`, which is not included in Git.
+| `src/charging_env/` | Simulator (`simulator.py`, `config.py`, `choice.py`), controllers (`rl/`), rules and evaluation (`benchmarks/`) |
+| `configs/` | Scenario files; see [configs/README.md](configs/README.md) |
+| `examples/` | Three small scripts that walk through the simulator |
+| `experiments/` | Scripts that run the full studies; older ones are in `experiments/archive/` |
+| `tests/` | 309 automated checks (`python -m unittest discover -s tests`) |
+| `docs/` | The guides above |
+| `outputs/` | Results written by runs. Not in Git, so a fresh clone won't have the saved studies |

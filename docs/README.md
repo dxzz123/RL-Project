@@ -1,35 +1,26 @@
-# Reading the project
+# Documentation
 
-The three main guides answer different questions. Start with the one that matches your task; there is no need to read every reference page first.
+Start with the four main guides, in order. Everything else is for when you need more depth.
 
-| Stop | What you will understand |
+| | Guide | Read it to learn |
+|---|---|---|
+| 1 | [MODEL.md](MODEL.md) | The charging system: customers, prices, vehicles, batteries, profit |
+| 2 | [METHODS.md](METHODS.md) | How each controller decides, and how they differ |
+| 3 | [RESULTS.md](RESULTS.md) | What the experiments show, with the current scorecard |
+| 4 | [RUNNING.md](RUNNING.md) | Commands to run, train, evaluate and reproduce |
+
+## Deeper material
+
+| Folder | Contents |
 |---|---|
-| **1. [Model](MODEL.md)** | One operating period: customer choice, vehicle actions, batteries, and profit |
-| **2. [Comparison](COMPARISON.md)** | How ADP and PPO differ, which methods currently earn more, and what the tests establish |
-| **3. [Training](TRAINING.md)** | Installation, short training runs, checkpoints, and the full comparison workflow |
+| [methods/](methods/) | One deep dive per controller: [ROLLOUT_ADP](methods/ROLLOUT_ADP.md) (with learned pricing), [TABLE_ADP](methods/TABLE_ADP.md), [JOINT_PPO](methods/JOINT_PPO.md), [EARLIER_PPO](methods/EARLIER_PPO.md) |
+| [reference/](reference/) | Lookups: [ENVIRONMENT](reference/ENVIRONMENT.md) (simulator API), [NOTATION](reference/NOTATION.md) (symbols ↔ Python names), [CODE_MAP](reference/CODE_MAP.md) (which file does what), [VALIDATION](reference/VALIDATION.md) (what the tests and audits check), [OUTSIDE_OPTION](reference/OUTSIDE_OPTION.md) (why customers leave) |
+| [studies/](studies/README.md) | One report per experiment, numbered 01–11 in date order |
 
-## Explore a method
+## Source documents
 
-These guides explain the algorithms after you understand the charging model.
+- [MDP_RL.pdf](MDP_RL.pdf): paper draft with the model and the original SA-PPO–MAPPO design.
+- [MDP_RL_2.pdf](MDP_RL_2.pdf): Joint PPO algorithm specification.
+- [proposal.pdf](proposal.pdf): the original project proposal.
 
-| Question | Guide |
-|---|---|
-| How does rollout ADP estimate future profit for different fleets and networks? | [Rollout ADP](methods/GENERAL_ADP.md) |
-| How can ADP learn prices as well as plan dispatch? | [Learned pricing](methods/GENERAL_ADP.md#learning-prices-as-well-as-planning-dispatch) |
-| How did the original two-vehicle ADP table work? | [Tabular ADP](methods/FITTED_VALUE.md) |
-| How does Joint PPO learn connected pricing and fleet decisions? | [Joint PPO](methods/JOINT_PPO.md) |
-| How does the earlier PPO implementation work? | [Earlier PPO/MAPPO](methods/LEGACY_PPO.md) |
-
-## Look up a detail
-
-| Question | Reference |
-|---|---|
-| How do I call the simulator or change a scenario? | [Environment API](reference/ENVIRONMENT.md) |
-| What does a symbol mean, and where is it in Python? | [Notation](reference/NOTATION.md) |
-| Which source file should I read or change? | [Code map](reference/ARCHITECTURE.md) |
-| What do the automated checks and saved audits verify? | [Validation](reference/VALIDATION.md) |
-| How does the charging benefit `b` affect customers leaving? | [Outside option](reference/OUTSIDE_OPTION.md) |
-
-The [experiment index](../experiments/README.md) identifies the scripts used by the training workflow. The mathematical specifications are [the charging model](MDP_RL.pdf) and [Joint PPO](MDP_RL_2.pdf).
-
-[Historical studies](archive/README.md) preserve previous experiments and the original proposal. Their results use different settings or test scenarios; use the current comparison above for the main scorecard.
+Keep `MDP_RL_2.pdf` at this path: the study 07 runner hashes `docs/MDP_RL_2.pdf` into its frozen protocol.

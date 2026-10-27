@@ -8,9 +8,9 @@ Use this guide to run the simulator, change its settings, or understand what it 
 
 `ChargingEnv` provides the same simulator through **Gymnasium**, a standard Python interface used by reinforcement-learning tools. Its `step` method handles one decision stage at a time. A learner using it must still handle the pricing/dispatch stages, lists of allowed actions called **masks**, once-per-period discounting, and changing numbers of customer requests.
 
-Both interfaces use the same physical model. The earlier PPO, joint PPO, and fitted-value controller all call `ChargingSimulator` directly. [TRAINING.md](../TRAINING.md) shows their separate commands.
+Both interfaces use the same physical model. Every controller in this project calls `ChargingSimulator` directly. [RUNNING.md](../RUNNING.md) shows their commands.
 
-This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The joint PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [COMPARISON.md](../COMPARISON.md) for the comparison.
+This page describes the **raw observation API**, which includes more information than every policy is permitted to use. The joint PPO hides current requests and waiting estimates from its pricing actor and critic; its dispatch networks use the post-choice information. The earlier PPO can use current requests for pricing, while the completed fitted-value study fixes the mobile price. See [RESULTS.md](../RESULTS.md) for the comparison.
 
 ## 2. Run one period with the direct API
 
@@ -170,7 +170,7 @@ The number of customer rows can change each period. Gymnasium represents this as
 
 Call `local_observation(m)` after pricing to get the input for vehicle `m`. It contains that vehicle's location, battery, allowed-action mask, and `agent_id`, plus the other vehicles' locations and batteries and shared customer, demand, price, and waiting information. Arrays describing the current vehicle have one vehicle row; arrays describing peers contain the other vehicles.
 
-The earlier PPO uses this per-vehicle API for its observation with peer information, $`\zeta_{m,t}`$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [LEGACY_PPO.md](../methods/LEGACY_PPO.md) explains these actors, critics, and optional role features. The joint PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
+The earlier PPO uses this per-vehicle API for its observation with peer information, $`\zeta_{m,t}`$. It does not reveal the actions other vehicles are about to take. Without the optional role feature, the input-processing code uses `agent_id` only to match availability information to the current vehicle and its peers. The optional feature also supplies explicit vehicle identity as a **one-hot vector**: a list with a 1 at this vehicle's position and zeros elsewhere. The dispatch **critic**, a network that predicts future team return during training, sees the full shared observation. [EARLIER_PPO.md](../methods/EARLIER_PPO.md) explains these actors, critics, and optional role features. The joint PPO instead supplies the global post-choice observation to its dispatch network, which emits a separate action distribution for each vehicle. Fitted-value dispatch compares joint fleet actions directly.
 
 ## 7. Submit valid actions
 

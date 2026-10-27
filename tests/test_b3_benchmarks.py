@@ -21,8 +21,8 @@ class B3BenchmarkGuardTests(unittest.TestCase):
     def setUp(self):
         import sys
         self.project = Path(__file__).resolve().parents[1]
-        spec = importlib.util.spec_from_file_location('run_b3_benchmarks',self.project/'experiments/run_b3_benchmarks.py')
-        with patch.object(sys,'path',[str(self.project/'experiments')]+sys.path):
+        spec = importlib.util.spec_from_file_location('run_b3_benchmarks',self.project/'experiments/archive/run_b3_benchmarks.py')
+        with patch.object(sys,'path',[str(self.project/'experiments/archive')]+sys.path):
             self.module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(self.module)
         self.temporary = tempfile.TemporaryDirectory()

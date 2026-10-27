@@ -2,7 +2,7 @@
 
 This project models an operator that owns fixed charging stations and mobile charging vehicles. In each period, the operator sets mobile prices, customers choose a charging option, and the mobile vehicles decide where to go. The simulator then calculates how much energy is delivered, how vehicle batteries change, and how much profit the operator earns.
 
-This guide explains the common simulation used by every controller: how customers arrive and choose, how vehicles deliver energy, and how profit is counted. The numerical values describe a small example city; they have not been calibrated to real customer or fleet data. [TRAINING.md](TRAINING.md) explains how to run the controllers, and [COMPARISON.md](COMPARISON.md) explains how approximate dynamic programming and the two PPO implementations make decisions.
+This guide explains the common simulation used by every controller: how customers arrive and choose, how vehicles deliver energy, and how profit is counted. The numbers below describe the small city (`configs/utility_b3.json`). The large city (`configs/synthetic_25_zones.json`) follows exactly the same rules with 25 zones, 10 vehicles and 5 stations. Neither is calibrated to real customer or fleet data. The controllers are explained in [METHODS.md](METHODS.md), and the commands are in [RUNNING.md](RUNNING.md).
 
 For a first reading, follow the order of events: arrivals, customer choice, vehicle dispatch, then energy and profit. The equations make each rule precise; the surrounding explanations describe what it means in operation.
 
@@ -10,7 +10,7 @@ For a first reading, follow the order of events: arrivals, customer choice, vehi
 
 A **node** represents a location or service zone in the city. A customer's electric vehicle is an **EV**, a mobile charging vehicle is an **MCV**, and a fixed charging station is an **FCS**. In the equations, $`i`$ identifies a node, $`m`$ a mobile vehicle, $`j`$ a node containing a station, and $`t=1,\ldots,T`$ an operating period. Python counts periods from `0` to `T-1` and stores station arrays by slot `f`; station slot `f` is at node `fcs_zones[f]`. These are the conventions in [NOTATION.md](reference/NOTATION.md).
 
-The default city has four nodes, two stations, two mobile vehicles, and 12 one-hour periods. Node coordinates are `(0,0)`, `(4,0)`, `(0,4)`, and `(4,4)` km. Stations are at nodes 0 and 3; mobile vehicles start at nodes 1 and 2, each with 55 kWh in its battery. Distance is Manhattan distance, which is the sum of horizontal and vertical distances, as on a rectangular street grid. This distance is used when checking station access and calculating travel time, energy, and cost.
+The small city has four nodes, two stations, two mobile vehicles, and 12 one-hour periods. Node coordinates are `(0,0)`, `(4,0)`, `(0,4)`, and `(4,4)` km. Stations are at nodes 0 and 3; mobile vehicles start at nodes 1 and 2, each with 55 kWh in its battery. Distance is Manhattan distance, which is the sum of horizontal and vertical distances, as on a rectangular street grid. This distance is used when checking station access and calculating travel time, energy, and cost.
 
 | Quantity | Unit |
 |---|---|
@@ -220,12 +220,13 @@ V^D(\widetilde s_t)&=\mathbb E[r_t+\gamma V^P(s_{t+1})\mid\widetilde s_t].
 
 Pricing and dispatch are two decisions within the same physical period. Future profit is therefore discounted only when moving to the next period, rather than at both decisions. The simulator reports this in `info["discount"]`: `1.0` after pricing, `discount_per_period` after a nonfinal dispatch, and `0.0` when the episode ends.
 
-The information used by a controller and the way it estimates future profit are separate algorithm choices:
+The information a controller uses and the way it estimates future profit are separate design choices:
 
 | Controller | Pricing input and decision | Dispatch and future-value estimate |
 |---|---|---|
-| [Earlier SA-PPO–MAPPO](methods/LEGACY_PPO.md) | Uses the rich pre-choice observation, including current requests; learns prices | Uses per-vehicle observations and separate neural pricing/dispatch critics |
-| [Joint PPO](methods/JOINT_PPO.md) | Hides current request details, counts, total requested energy, and waiting estimates from both pricing networks; learns prices from time, fleet, arrival means, and current prices | Uses the global post-choice observation and separate neural critics; clips the fleet action ratio jointly |
-| [Fitted-value approximate DP](methods/FITTED_VALUE.md) | Uses a fixed mobile price in the completed study | Uses post-choice requests to compare candidate fleet actions, then adds a learned table value for the next fleet state |
+| [Rollout ADP](methods/ROLLOUT_ADP.md) | Fixed price, or a learned price rule that sees time, fleet, arrival means and current prices but not current requests | Compares a few complete fleet plans by exact current profit plus simulated future profit under service-first |
+| [Table ADP](methods/TABLE_ADP.md) | Fixed price | Compares every joint action by current profit plus a learned table value for the next fleet state |
+| [Joint PPO](methods/JOINT_PPO.md) | Learned; hides current request details, counts, total requested energy and waiting estimates from both pricing networks | Global post-choice observation; clips the fleet action ratio jointly; separate neural critics |
+| [Earlier PPO](methods/EARLIER_PPO.md) | Learned from the full pre-choice observation, including current requests | Per-vehicle observations; separate neural pricing and dispatch critics |
 
-Both PPO methods discount only between periods. Their generalized advantage estimation (GAE), which constructs learning signals from critic prediction errors, differs: the earlier PPO uses trace coefficient 1 between pricing and dispatch, whereas the joint PPO uses `gae_lambda` at that transition as well as between periods. This is a difference in training targets; it does not change physical time or the simulator's reward. Approximate DP instead learns its value table by working backward from the end of the horizon. See [COMPARISON.md](COMPARISON.md) for the consequences and the measured comparison.
+Both PPO methods discount only between periods, never between pricing and dispatch within one period. Their generalized advantage estimation (GAE) differs: earlier PPO uses trace coefficient 1 between pricing and dispatch, while Joint PPO uses `gae_lambda` there as well. This changes the training targets, not physical time or the simulator's reward. [METHODS.md](METHODS.md) compares all controllers side by side.

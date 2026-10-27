@@ -105,12 +105,12 @@ python -m charging_env.rl.paper_train \
   --output-dir outputs/joint_ppo
 ```
 
-The standalone training commands automatically select a numbered sibling directory if the requested directory contains an earlier run. You can reuse the same command. A complete controlled study uses stricter output rules so its selected models and test evidence stay together; [TRAINING.md](../TRAINING.md) explains both workflows.
+The standalone training commands automatically select a numbered sibling directory if the requested directory contains an earlier run. You can reuse the same command. A complete controlled study uses stricter output rules so its selected models and test evidence stay together; [RUNNING.md](../RUNNING.md) explains both workflows.
 
-For other methods, follow the commands in [FITTED_VALUE.md](../methods/FITTED_VALUE.md) and [LEGACY_PPO.md](../methods/LEGACY_PPO.md), again passing `configs/utility_b3.json` when training a new model. Resuming a checkpoint restores its saved scenario instead of substituting a different customer model.
+For other methods, follow the commands in [RUNNING.md](../RUNNING.md), again passing `configs/utility_b3.json`. Resuming a checkpoint restores its saved scenario instead of substituting a different customer model.
 
 ## 6. Compare controllers within the same market
 
 Increasing $`b`$ changes customer participation. Higher profit in b=3 than in b=0 would therefore combine a market change with any improvement in the controller. To compare controllers, train them for the same scenario, choose rule settings using separate validation episodes, then evaluate all methods on the same fresh test scenarios.
 
-The current comparison uses b=3 throughout and includes approximate DP, joint PPO, earlier PPO, and three useful rules. [COMPARISON.md](../COMPARISON.md) explains what each method knows, what it optimizes, and how it performed. The earlier [SiLU + b=3 study](../archive/SILU_B3_STUDY.md) and [targeted PPO improvements](../archive/B3_TRAINING_IMPROVEMENTS.md) remain available as research history. Their separate test sets should not be mixed into the current comparison.
+Every study since [study 04](../studies/04_silu_b3.md) uses b=3. [RESULTS.md](../RESULTS.md) reports how the controllers compare. Studies 01–03 used b=0, so their profit levels are not comparable with later ones. The choice-probability experiment in section 4 is run by `experiments/archive/check_choice_intercept.py`.
