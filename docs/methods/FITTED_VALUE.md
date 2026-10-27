@@ -1,6 +1,6 @@
-# Approximate dynamic programming: fitted continuation values
+# Original two-vehicle ADP: fitted continuation values
 
-This controller learns **how valuable each fleet state is for the rest of the episode**. At each dispatch decision, it compares feasible actions using today's exact profit plus that learned future value. It is the method called **fitted value**, **fitted-value dispatch**, or **approximate DP** elsewhere in this project; those names refer to the same implementation.
+This controller learns **how valuable each fleet state is for the rest of the episode**. At each dispatch decision, it compares feasible actions using today's exact profit plus that learned future value. Earlier studies call this table-based implementation **fitted value**, **fitted-value dispatch**, or **approximate DP**. For different fleet sizes, start with the newer [rollout ADP](GENERAL_ADP.md), which estimates future profit through simulations at decision time.
 
 The controller uses a fixed mobile price of **0.60 dollars/kWh** in the main `b=3` scenario. It learns dispatch, not pricing. It currently supports exactly **two mobile charging vehicles (MCVs)**.
 

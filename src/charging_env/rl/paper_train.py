@@ -21,12 +21,15 @@ def main(argv=None):
                         help='Default outputs/paper_ppo; occupied training paths gain _2, _3, ...')
     for name in ('seed', 'updates', 'episodes_per_update', 'epochs', 'minibatch_size', 'hidden_size',
                  'eval_episodes', 'eval_interval', 'eval_seed_base', 'eval_action_seed',
-                 'training_seed_base', 'torch_threads'):
+                 'training_seed_base', 'torch_threads', 'warmstart_episodes', 'warmstart_epochs',
+                 'warmstart_seed_base', 'warmstart_minibatch_size', 'warmstart_coordinate_sweeps'):
         parser.add_argument('--'+name.replace('_', '-'), type=int, default=None)
     for name in ('actor_learning_rate', 'critic_learning_rate', 'clip_ratio', 'gae_lambda',
-                 'pricing_entropy_coef', 'dispatch_entropy_coef', 'max_grad_norm', 'target_kl'):
+                 'pricing_entropy_coef', 'dispatch_entropy_coef', 'max_grad_norm', 'target_kl',
+                 'reward_scale', 'warmstart_learning_rate'):
         parser.add_argument('--'+name.replace('_', '-'), type=float, default=None)
     parser.add_argument('--dispatch-critic-target', choices=('dispatch', 'pricing_advantage'), default=None)
+    parser.add_argument('--warmstart-dispatch-solver', choices=('exhaustive', 'coordinate'), default=None)
     parser.add_argument('--normalize-advantages', action=argparse.BooleanOptionalAction, default=None)
     parser.add_argument('--eval-policy', choices=('stochastic', 'deterministic'), default=None)
     parser.add_argument('--device', choices=('cpu', 'cuda'), default=None)
@@ -38,7 +41,10 @@ def main(argv=None):
             if args.scenario:
                 parser.error('The saved checkpoint supplies its scenario; --scenario cannot replace it')
             trainer = PaperPPOTrainer.load_checkpoint(args.resume or args.evaluate_only, device=args.device or 'cpu')
-            for name in ('seed', 'hidden_size', 'dispatch_critic_target', 'training_seed_base', 'normalize_advantages'):
+            for name in ('seed', 'hidden_size', 'dispatch_critic_target', 'training_seed_base', 'normalize_advantages',
+                         'reward_scale', 'warmstart_episodes', 'warmstart_epochs', 'warmstart_seed_base',
+                         'warmstart_learning_rate', 'warmstart_minibatch_size',
+                         'warmstart_dispatch_solver', 'warmstart_coordinate_sweeps'):
                 if name in changes and changes[name] != getattr(trainer.config, name):
                     parser.error('--'+name.replace('_', '-')+' cannot change for an existing checkpoint')
             trainer.config = replace(trainer.config, **changes).validate()

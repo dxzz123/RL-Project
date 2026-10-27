@@ -166,12 +166,14 @@ This small run checks execution; it does not establish good performance. Keep th
 |---|---|
 | `checkpoint.pt` | Final model, all optimizers, configuration, scenario, counters, and random-number state |
 | `best_checkpoint.pt` | Best checkpoint according to this run's monitoring scenarios |
+| `warmstart_checkpoint.pt` | Optional cloned policy before any PPO updates |
+| `warmstart_summary.json` | Optional demonstration seeds, budget, teacher settings, and fitting metrics |
 | `training_metrics.csv` | Per-update training profit, losses, entropy, and numerical diagnostics |
 | `validation_history.json` | Monitoring scores before, during, and after training |
 | `final_evaluation.json` | Final monitoring episodes; this is not the independent benchmark test |
 | `summary.json` and `protocol.json` | Run summary, exact settings, source hashes, and replay verification |
 
-The recorded study uses `checkpoint.pt` at update 500, not the most favorable monitoring checkpoint. The checkpoint format is separate from earlier PPO's format, so use the matching CLI.
+The recorded study uses `checkpoint.pt` at update 500, not the most favorable monitoring checkpoint. New checkpoints use format 2 and record optional inventory initialization; format-1 Joint PPO checkpoints still load with their original unscaled rewards and no initialization. The format remains separate from earlier PPO, so use the matching CLI.
 
 To evaluate a saved model on additional scenarios without training:
 
@@ -193,8 +195,19 @@ These records are local files under `outputs/paper_ppo_study/`, which is not inc
 
 | Code or test | What to read there |
 |---|---|
+| [paper_warmstart.py](../../src/charging_env/rl/paper_warmstart.py) | Optional inventory-rule demonstrations and supervised initialization |
 | [paper_ppo.py](../../src/charging_env/rl/paper_ppo.py) | Information boundary, action adapter, four networks, GAE, joint loss, training, checkpoints |
 | [paper_train.py](../../src/charging_env/rl/paper_train.py) | Train, resume, and evaluation CLI |
 | [run_paper_ppo_study.py](../../experiments/run_paper_ppo_study.py) | Frozen comparison protocol and data splits |
 | [test_paper_ppo.py](../../tests/test_paper_ppo.py) | Equation checks, masks, information isolation, network updates, and reproducibility |
 | [test_paper_study.py](../../tests/test_paper_study.py) | Split separation, frozen-source checks, control validation, and result viewer |
+
+## Optional inventory initialization and training units
+
+The default equations and settings above remain available unchanged. The recharge investigation adds an optional initialization step, described with its results in [COMPARISON.md](../COMPARISON.md#why-ppo-learned-almost-never-to-recharge). [TRAINING.md](../TRAINING.md#joint-ppo-with-an-inventory-rule-warm-start) gives the complete command.
+
+With `--warmstart-episodes N`, the trainer first generates N episodes using the constrained inventory teacher. Actor cross-entropy fits its action labels; critic mean-squared error fits its complete sampled returns. These critics initially approximate the teacher's value, not the current actor's true value. The demonstration data are discarded before ordinary on-policy PPO updates. Lambda 1 in the tested configuration makes subsequent critic targets complete-episode returns from the current neural policy.
+
+`--reward-scale s` divides both pricing and dispatch rewards by a positive constant s for learning only. Critics and their errors are consequently measured in units of 1/s dollars. Environment rewards, saved episode profits, and benchmark scores keep their original dollar units. Positive constant scaling preserves the economic ordering of policies, but can change optimization and the relative effect of the entropy bonus. It is therefore a training setting, not a change in accounting.
+
+Warm start defaults to disabled and reward scale to 1. The actor architecture, feasible actions, and inference API are unchanged. Initialization is recorded in checkpoints and is not repeated on resume. Changing reward scale or initialization settings on resume is rejected.

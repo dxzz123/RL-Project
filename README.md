@@ -1,6 +1,6 @@
 # Mobile charging: pricing and fleet dispatch
 
-This project studies how an operator can earn profit from fixed charging stations and mobile charging vehicles. The example city has four locations, two stations, and two mobile vehicles. An episode covers twelve one-hour periods.
+This project studies how an operator can earn profit from fixed charging stations and mobile charging vehicles. The introductory example has four locations, two stations, and two mobile vehicles. A larger synthetic scenario has 25 service zones, five stations, and ten mobile vehicles. An episode covers twelve one-hour periods.
 
 Each period follows the same sequence:
 
@@ -11,7 +11,7 @@ Each period follows the same sequence:
 
 For example, fully serving a 10-kWh mobile request at 0.60 dollars/kWh earns 6 dollars in revenue. Profit also accounts for energy purchases, travel, operating costs, and unmet-service penalties. Recharging costs money now but can make later service possible; the controllers must balance those consequences.
 
-**Approximate dynamic programming (ADP)** learns the future value of the fleet and searches dispatch actions using the known model. **Proximal Policy Optimization (PPO)** learns policies for pricing and dispatch from simulated experience. Joint PPO and the earlier PPO implementation are both retained for comparison.
+**Approximate dynamic programming (ADP)** compares actions using current profit and an estimate of future profit. The original version learns a two-vehicle value table; the newer rollout version simulates future operations at decision time and supports different fleet sizes. Rollout can use either a fixed price or a learned price policy that responds to time, demand forecasts and fleet state. **Proximal Policy Optimization (PPO)** learns policies for pricing and dispatch from simulated experience. Joint PPO and the earlier PPO implementation are both retained for comparison.
 
 ## Start here
 
@@ -21,7 +21,11 @@ For example, fully serving a 10-kWh mobile request at 0.60 dollars/kWh earns 6 d
 | Which controller performs better, and why? | [Current comparison](docs/COMPARISON.md) |
 | How do I train a controller or compare results? | [Training workflow](docs/TRAINING.md) |
 
-In the current base-case tests, ADP earns the most profit. Joint PPO improves on earlier PPO but still trails the strongest inventory rule. These results describe a small simulated city with assumed demand patterns; the comparison explains the limits of that conclusion.
+The newest [comparison](docs/COMPARISON.md#learned-pricing-on-independent-scenarios) tests learned prices with both rollout ADP and the inventory rule on fresh independent scenarios. On the 25-zone network, mean discounted profit is **941.91** for selected-pricing ADP, **924.80** for inventory with its own learned pricing, and **914.50** for fixed-price inventory. All three city ADP seeds improve; in the four-zone case, the original exhaustive inventory rule remains stronger. Earlier PPO and fixed-price ADP comparisons are preserved separately in the report.
+
+For the new controller, start with [Rollout ADP](docs/methods/GENERAL_ADP.md). Its fixed-price version needs no offline training. The [learned-pricing workflow](docs/TRAINING.md#learn-prices-for-rollout-adp) fits a compact price policy first; dispatch continues to estimate future values while making decisions. The same price policy is used in actual operation and imagined future periods.
+
+The tests also cover 9-zone/five-vehicle and 36-zone/twelve-vehicle configurations with different horizons and capacities. All data are simulated under a supplied model; neither larger dimensions nor known-model portability establish real-world robustness. Earlier PPO studies remain linked in the comparison report.
 
 ## Run a walkthrough
 

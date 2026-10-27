@@ -280,12 +280,12 @@ def paper_metadata(path, scenario, seed, expected_configuration):
     import torch
     from charging_env.rl.paper_ppo import PaperPPOConfig, PaperPPOTrainer
     payload = torch.load(path, map_location='cpu', weights_only=True)
-    if payload.get('algorithm') != 'paper_joint_ppo_v1' or payload.get('format_version') != 1:
+    if payload.get('algorithm') != 'paper_joint_ppo_v1' or payload.get('format_version') not in (1, 2):
         raise ValueError('Expected the new Joint PPO checkpoint format')
     if scenario_from_data(payload['scenario']) != scenario:
         raise ValueError('Joint PPO checkpoint scenario differs from the exact b=3 base scenario')
     config = PaperPPOConfig(**payload['training_config']).validate()
-    if asdict(config) != expected_configuration or config != config_for(seed):
+    if config != PaperPPOConfig(**expected_configuration).validate() or config != config_for(seed):
         raise ValueError('Joint PPO checkpoint training configuration differs from the frozen root protocol')
     counters = {key: int(payload[key]) for key in ('update_count', 'episode_count', 'environment_periods')}
     if counters != {'update_count': 500, 'episode_count': 8000, 'environment_periods': 96000}:

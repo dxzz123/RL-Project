@@ -391,31 +391,45 @@ class PaperPPOConfig:
     training_seed_base: int = 210000000
     torch_threads: int = 1
     device: str = 'cpu'
+    reward_scale: float = 1.
+    warmstart_episodes: int = 0
+    warmstart_epochs: int = 100
+    warmstart_seed_base: int = 412000000
+    warmstart_learning_rate: float = 1e-3
+    warmstart_minibatch_size: int = 256
+    warmstart_dispatch_solver: str = 'exhaustive'
+    warmstart_coordinate_sweeps: int = 2
 
     def validate(self):
         for name in ('updates', 'episodes_per_update', 'epochs', 'minibatch_size', 'hidden_size',
-                     'eval_episodes', 'torch_threads'):
+                     'eval_episodes', 'torch_threads', 'warmstart_epochs', 'warmstart_minibatch_size',
+                     'warmstart_coordinate_sweeps'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 1:
                 raise ValueError(f'{name} must be a positive integer')
-        for name in ('seed', 'eval_interval', 'eval_seed_base', 'eval_action_seed', 'training_seed_base'):
+        for name in ('seed', 'eval_interval', 'eval_seed_base', 'eval_action_seed', 'training_seed_base',
+                     'warmstart_episodes', 'warmstart_seed_base'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, int) or value < 0:
                 raise ValueError(f'{name} must be a nonnegative integer')
         if self.seed >= 2**31 or self.eval_seed_base % 2 != 1:
             raise ValueError('seed must be below 2**31 and eval_seed_base must be odd')
         for name in ('actor_learning_rate', 'critic_learning_rate', 'clip_ratio', 'gae_lambda',
-                     'pricing_entropy_coef', 'dispatch_entropy_coef', 'max_grad_norm', 'target_kl'):
+                     'pricing_entropy_coef', 'dispatch_entropy_coef', 'max_grad_norm', 'target_kl',
+                     'reward_scale', 'warmstart_learning_rate'):
             value = getattr(self, name)
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not np.isfinite(value) or value < 0:
                 raise ValueError(f'{name} must be finite and nonnegative')
-        if (min(self.actor_learning_rate, self.critic_learning_rate, self.max_grad_norm) <= 0
+        if (min(self.actor_learning_rate, self.critic_learning_rate, self.max_grad_norm,
+                self.reward_scale, self.warmstart_learning_rate) <= 0
                 or not 0 < self.clip_ratio < 1 or self.gae_lambda > 1):
             raise ValueError('Invalid learning rate, gradient bound, clipping ratio, or GAE lambda')
         if not isinstance(self.normalize_advantages, bool):
             raise ValueError('normalize_advantages must be boolean')
         if self.dispatch_critic_target not in ('dispatch', 'pricing_advantage'):
             raise ValueError('dispatch_critic_target must be dispatch or pricing_advantage')
+        if self.warmstart_dispatch_solver not in ('exhaustive', 'coordinate'):
+            raise ValueError('warmstart_dispatch_solver must be exhaustive or coordinate')
         if self.eval_policy not in ('stochastic', 'deterministic'):
             raise ValueError('eval_policy must be stochastic or deterministic')
         if self.device not in ('cpu', 'cuda') or self.device == 'cuda' and not torch.cuda.is_available():
@@ -459,12 +473,15 @@ def _scenario_data(data):
 
 class PaperPPOTrainer:
     """Four independent networks and optimizers; one joint dispatch PPO sample."""
-    CHECKPOINT_VERSION = 1
+    CHECKPOINT_VERSION = 2
 
     def __init__(self, scenario=None, config=None):
         self.scenario = (scenario or Scenario()).validate()
         self.training_scenario = self.scenario
         self.config = (config or PaperPPOConfig()).validate()
+        if self.config.warmstart_episodes:
+            from .paper_warmstart import validate_teacher_scenario
+            validate_teacher_scenario(self.scenario, solver=self.config.warmstart_dispatch_solver)
         self.device = torch.device(self.config.device)
         torch.set_num_threads(self.config.torch_threads)
         self._cuda_devices = list(range(torch.cuda.device_count())) if torch.cuda.is_available() else []
@@ -485,6 +502,8 @@ class PaperPPOTrainer:
         self._evaluation_deterministic = self.config.eval_policy == 'deterministic'
         self._adapter_torch_rng = self._train_torch_rng.clone()
         self._adapter_cuda_rng = [x.clone() for x in self._train_cuda_rng]
+        self.warmstart_metadata = dict(completed=False, summary=None)
+        self._loaded_checkpoint = False
 
     def _modules(self):
         return {name: getattr(self, name) for name in
@@ -590,11 +609,28 @@ class PaperPPOTrainer:
         self.environment_periods += len(data['rewards'])
         return PaperRollout(**data)
 
+    def warm_start(self, output_dir=None):
+        """Optionally initialize from the inventory rule, once before PPO updates."""
+        if self.warmstart_metadata['completed']:
+            return deepcopy(self.warmstart_metadata['summary'])
+        if not self.config.warmstart_episodes:
+            return None
+        if self._loaded_checkpoint or self.update_count or self.episode_count or self.environment_periods:
+            raise ValueError('Inventory warm start is only available on a fresh, untrained instance')
+        if self.scenario != self.training_scenario:
+            raise ValueError('Inventory warm start requires the original training scenario')
+        from .paper_warmstart import fit_inventory_warmstart
+        report = fit_inventory_warmstart(self, output_dir)
+        self.warmstart_metadata = dict(completed=True, summary=report)
+        return deepcopy(report)
+
     def update(self, rollout):
         c, n = self.config, len(rollout)
         if not n or not rollout.dones[-1]:
             raise ValueError('Joint PPO update requires complete nonempty episodes')
-        gae = interleaved_gae(rollout.pricing_rewards, rollout.rewards, rollout.price_values,
+        # Critics learn scaled currency units; the rollout's profit ledger stays raw.
+        gae = interleaved_gae(rollout.pricing_rewards / c.reward_scale,
+            rollout.rewards / c.reward_scale, rollout.price_values,
             rollout.dispatch_values, rollout.next_price_values, rollout.dones,
             self.scenario.discount_per_period, c.gae_lambda)
         targets = critic_targets(gae, rollout.price_values, rollout.dispatch_values, c.dispatch_critic_target)
@@ -707,7 +743,8 @@ class PaperPPOTrainer:
             optimizers={name: optimizer.state_dict() for name, optimizer in self.optimizers.items()},
             update_count=self.update_count, episode_count=self.episode_count,
             environment_periods=self.environment_periods, numpy_rng=self.rng.bit_generator.state,
-            torch_rng=self._train_torch_rng, cuda_rng=self._train_cuda_rng)
+            torch_rng=self._train_torch_rng, cuda_rng=self._train_cuda_rng,
+            warmstart_metadata=deepcopy(self.warmstart_metadata))
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         temporary = path.with_suffix(path.suffix+'.tmp')
@@ -719,8 +756,12 @@ class PaperPPOTrainer:
         payload = torch.load(path, map_location='cpu', weights_only=True)
         required = {'format_version', 'algorithm', 'scenario', 'training_config', 'models', 'optimizers',
                     'update_count', 'episode_count', 'environment_periods', 'numpy_rng', 'torch_rng', 'cuda_rng'}
+        version = payload.get('format_version') if isinstance(payload, dict) else None
+        if version == 2:
+            required.add('warmstart_metadata')
         if (not isinstance(payload, dict) or set(payload) != required
-                or payload['format_version'] != cls.CHECKPOINT_VERSION or payload['algorithm'] != ALGORITHM):
+                or version not in (1, cls.CHECKPOINT_VERSION) or not isinstance(version, int) or isinstance(version, bool)
+                or payload['algorithm'] != ALGORITHM):
             raise ValueError('Unsupported Joint PPO checkpoint format or algorithm')
         def check_finite(value):
             if torch.is_tensor(value) and not torch.isfinite(value).all():
@@ -732,6 +773,8 @@ class PaperPPOTrainer:
         check_finite(payload)
         scenario = _scenario_data(payload['scenario'])
         config = PaperPPOConfig(**dict(payload['training_config'], device=device)).validate()
+        if version == 1 and (config.reward_scale != 1. or config.warmstart_episodes):
+            raise ValueError('Version 1 checkpoints cannot claim scaled rewards or inventory warm starts')
         trainer = cls(scenario, config)
         if set(payload['models']) != set(trainer._modules()) or set(payload['optimizers']) != set(trainer.optimizers):
             raise ValueError('Joint PPO checkpoint must contain four independent models and optimizers')
@@ -745,6 +788,22 @@ class PaperPPOTrainer:
             setattr(trainer, name, value)
         trainer.rng.bit_generator.state = payload['numpy_rng']
         trainer._train_torch_rng = payload['torch_rng'].cpu().clone()
+        if version == 2:
+            metadata = payload['warmstart_metadata']
+            if (not isinstance(metadata, dict) or set(metadata) != {'completed', 'summary'}
+                    or not isinstance(metadata['completed'], bool)
+                    or (metadata['completed'] and (not config.warmstart_episodes
+                        or not isinstance(metadata['summary'], dict)
+                        or metadata['summary'].get('completed') is not True
+                        or metadata['summary'].get('demonstration_episodes') != config.warmstart_episodes
+                        or metadata['summary'].get('reward_scale') != config.reward_scale
+                        or metadata['summary'].get('dispatch_solver', 'exhaustive') != config.warmstart_dispatch_solver
+                        or (config.warmstart_dispatch_solver == 'coordinate' and
+                            metadata['summary'].get('coordinate_sweeps') != config.warmstart_coordinate_sweeps)))
+                    or (not metadata['completed'] and metadata['summary'] is not None)):
+                raise ValueError('Invalid inventory warm-start checkpoint metadata')
+            trainer.warmstart_metadata = deepcopy(metadata)
+        trainer._loaded_checkpoint = True
         if device == 'cuda':
             if len(payload['cuda_rng']) != len(trainer._cuda_devices):
                 raise ValueError('CUDA RNG device count differs from checkpoint')
@@ -753,11 +812,16 @@ class PaperPPOTrainer:
 
     def _source_hashes(self):
         package = Path(__file__).resolve().parents[1]
-        files = ('rl/paper_ppo.py', 'rl/paper_train.py', 'simulator.py', 'config.py', 'choice.py',
-                 'benchmarks/evaluation.py')
+        files = ('rl/paper_ppo.py', 'rl/paper_train.py', 'rl/paper_warmstart.py',
+                 'simulator.py', 'config.py', 'choice.py',
+                 'benchmarks/evaluation.py', 'benchmarks/policies.py', 'benchmarks/scalable.py')
         return {'src/charging_env/'+name: hashlib.sha256((package/name).read_bytes()).hexdigest() for name in files}
 
     def train(self, output_dir):
+        if (self._loaded_checkpoint and self.config.warmstart_episodes
+                and not self.warmstart_metadata['completed']):
+            raise ValueError('This checkpoint requests an inventory warm start but has not completed it; '
+                             'start a fresh training run or resume a completed warm-start checkpoint')
         directory = Path(output_dir)
         directory.mkdir(parents=True, exist_ok=True)
         if any(directory.iterdir()):
@@ -771,7 +835,14 @@ class PaperPPOTrainer:
             network_architecture='four independent encoders; two hidden SiLU layers with LayerNorm; centralized multihead dispatch',
             quantity_convention='maximum individually feasible charge/export request, then original shared-station allocation',
             idle_convention='stay=current WAIT; admissible other node=travel-only REPOSITION; current node idle fallback',
-            raw_rewards=True, reward_shaping=False, imitation=False, exhaustive_joint_dispatch=False,
+            raw_rewards=True, reward_scale=c.reward_scale, reward_shaping=False,
+            imitation=bool(c.warmstart_episodes), exhaustive_joint_dispatch=False,
+            warmstart_teacher=(('maximum_exchange_time_inventory_v1' if c.warmstart_dispatch_solver == 'exhaustive'
+                                else 'coordinate_maximum_exchange_time_inventory_v1') if c.warmstart_episodes else None),
+            warmstart_dispatch_solver=c.warmstart_dispatch_solver,
+            warmstart_seed_rule='2*(warmstart_seed_base+seed+episode_index)',
+            warmstart_completed_before_run=self.warmstart_metadata['completed'],
+            resumed=self._loaded_checkpoint,
             policy_surrogate='raw advantages by default, no outer period-discount weights',
             dispatch_critic_target=c.dispatch_critic_target,
             training_seed_rule='2*(training_seed_base+seed+episode_count)')
@@ -783,9 +854,23 @@ class PaperPPOTrainer:
         _write_json(directory/'initial_evaluation.json', initial)
         evaluations = []
         validation_history = [dict(update=self.update_count, phase='initial', **initial)]
-        _write_json(directory/'validation_history.json', validation_history)
         best = initial['mean_discounted_profit']
         self.save_checkpoint(directory/'best_checkpoint.pt')
+        warmstart = None
+        warm_evaluation = None
+        if c.warmstart_episodes and not self._loaded_checkpoint and not self.warmstart_metadata['completed']:
+            warmstart = self.warm_start(directory)
+            self.save_checkpoint(directory/'warmstart_checkpoint.pt')
+            warm_evaluation = self.evaluate(seeds, c.eval_policy == 'deterministic')
+            _write_json(directory/'warmstart_evaluation.json', warm_evaluation)
+            validation_history.append(dict(update=self.update_count, phase='warmstart', **warm_evaluation))
+            if warm_evaluation['mean_discounted_profit'] > best:
+                best = warm_evaluation['mean_discounted_profit']
+                self.save_checkpoint(directory/'best_checkpoint.pt')
+        elif self.warmstart_metadata['completed']:
+            warmstart = deepcopy(self.warmstart_metadata['summary'])
+            _write_json(directory/'warmstart_summary.json', warmstart)
+        _write_json(directory/'validation_history.json', validation_history)
         started = time.perf_counter()
         rows = []
         with (directory/'training_metrics.csv').open('w', newline='', encoding='utf-8') as stream:
@@ -838,12 +923,17 @@ class PaperPPOTrainer:
             best_validation_profit=best, all_metrics_finite=all(np.isfinite(value)
                 for row in rows for value in row.values()), checkpoint_reload_matches=replay_matches,
             invalid_evaluation_actions=initial['invalid_actions']+final['invalid_actions']+replay['invalid_actions']
+                +(0 if warm_evaluation is None else warm_evaluation['invalid_actions'])
                 +sum(e['invalid_actions'] for e in evaluations),
             checkpoint_sha256=hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
             protocol_sha256=hashlib.sha256((directory/'protocol.json').read_bytes()).hexdigest(),
-            monitoring_evaluation_episodes=(2+len(evaluations))*c.eval_episodes,
+            monitoring_evaluation_episodes=(2+len(evaluations)+(warm_evaluation is not None))*c.eval_episodes,
             checkpoint_replay_episodes=c.eval_episodes,
-            total_evaluation_policy_episodes=(3+len(evaluations))*c.eval_episodes,
+            total_evaluation_policy_episodes=(3+len(evaluations)+(warm_evaluation is not None))*c.eval_episodes,
             training_seconds=time.perf_counter()-started, final_evaluation=final)
+        summary.update(reward_scale=c.reward_scale, warmstart=warmstart,
+            warmstart_completed=self.warmstart_metadata['completed'],
+            demonstration_episodes=0 if warmstart is None else warmstart['demonstration_episodes'],
+            demonstration_periods=0 if warmstart is None else warmstart['demonstration_periods'])
         _write_json(directory/'summary.json', summary)
         return summary

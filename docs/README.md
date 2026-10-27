@@ -14,7 +14,9 @@ These guides explain the algorithms after you understand the charging model.
 
 | Question | Guide |
 |---|---|
-| How does ADP learn future value and choose a dispatch action? | [Approximate DP](methods/FITTED_VALUE.md) |
+| How does rollout ADP estimate future profit for different fleets and networks? | [Rollout ADP](methods/GENERAL_ADP.md) |
+| How can ADP learn prices as well as plan dispatch? | [Learned pricing](methods/GENERAL_ADP.md#learning-prices-as-well-as-planning-dispatch) |
+| How did the original two-vehicle ADP table work? | [Tabular ADP](methods/FITTED_VALUE.md) |
 | How does Joint PPO learn connected pricing and fleet decisions? | [Joint PPO](methods/JOINT_PPO.md) |
 | How does the earlier PPO implementation work? | [Earlier PPO/MAPPO](methods/LEGACY_PPO.md) |
 
