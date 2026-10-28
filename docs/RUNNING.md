@@ -2,7 +2,7 @@
 
 Commands for installing, running each controller, and reproducing the studies. Run everything from the project root (the folder with `pyproject.toml`).
 
-Always pass `--scenario` explicitly. Leaving it out selects the original `b = 0` toy city, which has a different customer model from the studies.
+For commands that accept a new `--scenario`, pass it explicitly. Leaving it out selects the original `b = 0` toy city, which has a different customer model from the studies. Saved checkpoints and study runners supply their own scenarios.
 
 | Scenario file | Use |
 |---|---|
@@ -29,7 +29,7 @@ In VS Code, choose `.venv/bin/python` with **Python: Select Interpreter**. The R
 ## Check that everything works
 
 ```bash
-python -m unittest discover -s tests          # 309 tests, under a minute
+python -m unittest discover -s tests          # run the complete test suite
 python examples/manual_walkthrough.py         # ▶ one scripted day, printed step by step
 python examples/fcs_discharge_walkthrough.py  # ▶ a vehicle sells energy at a station
 python examples/check_gym.py                  # ▶ Gymnasium interface check
@@ -39,11 +39,11 @@ The walkthrough writes `outputs/manual_episode.csv`. Its actions are scripted to
 
 ## Run a controller
 
-Every command below prints the output directory it used. If the directory you name already exists, the command picks a numbered sibling such as `outputs/rollout_adp_2` instead of overwriting.
+The single-controller commands in this section print the output directory they use. If the directory you name already exists, they pick a numbered sibling such as `outputs/rollout_adp_2` instead of overwriting. Study phases instead share one study directory, as explained below.
 
 ### Rollout ADP
 
-No training. The planner simulates futures at every decision. ▶
+No policy training. The planner simulates futures at every decision using the supplied scenario as its known model. ▶
 
 ```bash
 python -m charging_env.rl.rollout_adp --scenario configs/utility_b3.json \
@@ -69,7 +69,7 @@ For the large city, use `--scenario configs/synthetic_25_zones.json --price-inde
 
 ### Learned pricing
 
-Evaluate a saved price rule with rollout dispatch. The checkpoint supplies its own scenario.
+Evaluate a saved price rule with rollout dispatch. The checkpoint supplies the scenario used for both planning and evaluation. This command alone does not test a private environment with different demand; use the [historical-model comparison](#historical-model-comparison) for that.
 
 ```bash
 python -m charging_env.rl.priced_rollout \
@@ -166,11 +166,13 @@ python -m charging_env.rl.paper_train --evaluate-only outputs/joint_ppo/checkpoi
 **Output files:**
 
 - `checkpoint.pt`: the final model.
-- `best_checkpoint.pt`: the best model on the monitoring days. The studies always use the final model.
+- `best_checkpoint.pt`: the best model on the monitoring days; it may be the initial policy if later updates never improve that score.
 - `warmstart_checkpoint.pt`: the imitation-only model, when a warm start was used.
 - `training_metrics.csv`: losses and diagnostics for each update.
 - `validation_history.json`: monitoring profit over training.
 - `summary.json` and `protocol.json`: run summary and exact settings.
+
+Checkpoint choice depends on the study protocol. The historical-model study validates the final, monitoring-best and warm-start checkpoints on separate fitted-model days, then freezes one before testing. It does not choose a checkpoint using private test profit.
 
 ### Earlier PPO
 
@@ -212,7 +214,7 @@ For the bounded version, use `benchmarks.scalable.coordinate_inventory_dispatch`
 
 ## View or reproduce a study
 
-To see a finished study's numbers without rerunning anything, use the commands in [RESULTS.md, section 4](RESULTS.md#4-saved-evidence). In VS Code, ▶ "Show current scorecard (study 11)" and ▶ "Show saved algorithm comparison (study 07)" do the same.
+To see a finished study's numbers without rerunning anything, use the commands in [RESULTS.md, section 5](RESULTS.md#5-saved-evidence). The historical-model command below shows the latest comparison. The existing VS Code entries ▶ "Show current scorecard (study 11)" and ▶ "Show saved algorithm comparison (study 07)" still show those earlier studies.
 
 To rerun a study, follow the **Reproduce** section of its report in [studies/](studies/README.md). The study runners follow the same pattern:
 
@@ -222,6 +224,58 @@ To rerun a study, follow the **Reproduce** section of its report in [studies/](s
 4. `--phase show` prints the saved scorecard.
 
 The source hashes are checked again before training and testing. **Don't edit frozen source files in the middle of a study.** To test a code change, start a new study directory. Once a test bank has guided a change, a new claim needs new test days.
+
+### Historical-model comparison
+
+This workflow estimates demand and customer choice from synthetic quote histories, then compares rollout ADP, PPO and the inventory rule. All three prepare their policies using the same fitted simulator. Final evaluation uses private environments with the original demand pattern, higher arrival volume, and shifted demand locations and times. The fitted model stays frozen throughout those tests.
+
+If the installed project includes the finished study, read its saved results from the project root:
+
+```bash
+python experiments/run_history_adp_study.py --phase show \
+  --study-dir outputs/history_adp_study_20261027
+```
+
+The full sequence below starts the declared study on a clean checkout, or with a saved study history that has not used these scenario banks:
+
+```bash
+source .venv/bin/activate
+python -m pip install -e '.[train]'
+
+python experiments/run_history_adp_study.py --phase init \
+  --study-dir outputs/history_adp_study_20261027 --control-root .
+python experiments/run_history_adp_study.py --phase history \
+  --study-dir outputs/history_adp_study_20261027
+python experiments/run_history_adp_study.py --phase fit \
+  --study-dir outputs/history_adp_study_20261027
+python experiments/run_history_adp_study.py --phase rules \
+  --study-dir outputs/history_adp_study_20261027
+python experiments/run_history_adp_study.py --phase train \
+  --study-dir outputs/history_adp_study_20261027
+python experiments/run_history_adp_study.py --phase select \
+  --study-dir outputs/history_adp_study_20261027
+python experiments/run_history_adp_study.py --phase evaluate \
+  --study-dir outputs/history_adp_study_20261027
+python experiments/run_history_adp_study.py --phase show \
+  --study-dir outputs/history_adp_study_20261027
+```
+
+**Use one directory for all phases.** `init` requires an unused directory; subsequent phases reuse it and verify saved evidence. The runner declares fixed scenario banks in its source. Once this study is installed, `--control-root .` detects those banks in the saved history and rejects another initialization, even with a different directory name. A new independent study requires new, unused seed-bank constants and a newly frozen protocol; renaming the output directory alone is insufficient. Keep the original source and results intact when preparing that separate study.
+
+Run one phase at a time and continue only after it succeeds. Completed processing phases verify and reuse saved files where supported; `init` always requires a new directory. Incomplete artifacts are preserved rather than automatically resumed. Diagnose and archive a failed study before planning a documented restart.
+
+This is the full comparison, including three PPO seeds with 500 updates each, not a quick smoke test. The defaults use one worker. The `rules`, `train`, `select` and `evaluate` phases accept `--workers 2` or `--workers 3` when machine resources allow.
+
+| Output | What to inspect |
+|---|---|
+| `history/fit.npz`, `history/holdout.npz` | Complete quote records, including outside choices and zero-arrival count cells; 120 fitting days and 32 separate diagnostic days |
+| `model/fit_report.json`, `model/holdout_diagnostics.json` | Parameter fitting and historical prediction checks |
+| `model/checkpoint.npz` | The frozen fitted demand and customer-choice model |
+| `training/`, `selection/` | Policies trained in that model and the validation-based choices |
+| `analysis.json` | Paired profit comparisons for each private test regime |
+| `test/<regime>/` | Per-day results and saved planning or pricing traces where applicable |
+
+The histories assume that all quote opportunities, including declined offers, are observable. Poisson arrivals, uniform request sizes and logit customer choice are assumed model families whose parameters are estimated. Current accepted requests remain visible at dispatch; true future demand rates do not. See the [method explanation](methods/ROLLOUT_ADP.md#learning-the-model-from-quote-histories) and [study 12](studies/12_historical_model.md) for the assumptions and protocol.
 
 ## Judging a result
 

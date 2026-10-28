@@ -6,7 +6,8 @@ Numbers in different reports come from different test days, and sometimes from d
 
 | # | Date | Report | Question | Customer model |
 |---:|---|---|---|---|
-| 11 | Oct 25 | [Learned pricing](11_learned_pricing.md) | How much do learned prices add to rollout ADP and the inventory rule? **Current scorecard.** | `b = 3` |
+| 12 | Oct 27 | [Historical model](12_historical_model.md) | How do ADP, PPO and inventory perform with estimated demand and choice, including private demand shifts? **Current scorecard.** | Parameters estimated from historical quotes; private generating model has `b = 3` |
+| 11 | Oct 25 | [Learned pricing](11_learned_pricing.md) | How much do learned prices add to rollout ADP and the inventory rule with a known simulator? | `b = 3` |
 | 10 | Oct 25 | [Rollout ADP](10_rollout_adp.md) | Can a decision-time planner handle any fleet size? | `b = 3` |
 | 09 | Oct 24 | [25-zone city](09_25_zone_scale.md) | Does warm-started PPO keep up in a city five times larger? | `b = 3` |
 | 08 | Oct 24 | [Recharge warm start](08_recharge_warm_start.md) | Why did PPO stop recharging, and can imitation fix it? | `b = 3` |

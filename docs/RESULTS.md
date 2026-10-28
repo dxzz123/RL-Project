@@ -1,27 +1,72 @@
 # Results
 
-This page reports what the experiments show. Section 1 gives the current scorecard. Section 2 tells the story of how the project got there, one finding per study. Section 3 lists what remains open. Each study has a full report in [studies/](studies/README.md) with every number, setting and reproduction command.
+Start with the current comparison in section 1: controllers that estimate demand and customer choice from historical observations. Section 2 preserves the earlier comparison in which those market parameters were known. Section 3 explains the main findings that led to these experiments. Each study has a full report in [studies/](studies/README.md) with settings and reproduction commands.
 
 > **How to read the numbers**
 >
 > - **Score.** Mean discounted profit per simulated 12-hour day, in dollars, on **test days**: random seeds never used for training or for choosing settings. Higher is better.
 > - **Compare within a table only.** Each study draws its own test days, so the same controller scores slightly differently across studies.
-> - **Seeds.** Learned methods are trained three times (seeds 7, 19 and 37). Their row is the average of the three separately run policies.
-> - **Intervals.** "+4.12 [2.63, 5.58]" means a mean difference of 4.12 per day, with a paired 95% bootstrap interval over the shared test days. It covers day-to-day randomness for these trained policies, not the variation you would get by retraining.
-> - **Scope.** Everything happens inside one simulator with assumed demand. The results rank the implemented controllers under that model. They are not evidence about a real city.
+> - **Seeds.** Learned controllers are optimized with seeds 7, 19 and 37, then evaluated separately. Their row averages those three policies. In Study 12 they share one historical market-model fit; these are not three independently collected histories.
+> - **Intervals.** "+4.12 [2.63, 5.58]" means a mean difference of 4.12 per day, with a paired 95% bootstrap interval over the shared test days. It covers day-to-day randomness for the fixed policies, not uncertainty from retraining or collecting a different history.
+> - **Scope.** All observations and test days are synthetic. Study 12 separates the fitted model used by controllers from the private simulator used for testing, but still assumes particular demand and choice families. These results are not evidence about a real city.
 
-The two scenarios used throughout:
+Earlier studies use two scenarios; the current historical-model study uses the large city only:
 
 | Name | Config | Zones | Vehicles | Stations | Expected requests per day |
 |---|---|---:|---:|---:|---:|
 | Small city | `configs/utility_b3.json` | 4 | 2 | 2 | 165 |
 | Large city | `configs/synthetic_25_zones.json` | 25 | 10 | 5 | 1,032.5 |
 
-Both use 12 one-hour periods and customer charging benefit `b = 3`. See [MODEL.md](MODEL.md) for what that means.
+Both generating scenarios use 12 one-hour periods and customer charging benefit `b = 3`. Study 12 estimates that benefit from records instead of giving it to the controllers. See [MODEL.md](MODEL.md) for the model definitions.
 
-## 1. Current scorecard
+## 1. Current comparison: a market model learned from history
 
-**Study 11, 2026-10-25: learned pricing with rollout ADP and the inventory rule.** Each dispatcher gets its own learned prices, so the comparison separates better pricing from better dispatch. Test set: 256 new days per city.
+**Study 12, 2026-10-27: rollout ADP, Joint PPO and inventory in the large city.** Every controller uses the same demand and customer-choice model fitted from 120 historical days. Another 32 historical days check its predictions. The records include every quote opportunity, including customers who decline all offers; they are simulated complete quote histories, not real sales data.
+
+ADP plans with the fitted simulator, PPO trains in it, and the inventory rule is tuned in it. Both ADP and inventory can use learned prices. The private test environment supplies actual current observations but does not reveal its true demand forecasts or customer-preference parameters to a controller.
+
+PPO completed **500 updates of 16 episodes for each of seeds 7, 19 and 37**, following an inventory-teacher warm start. All three selected PPO checkpoints are the final, update-500 models. Pricing and checkpoint selection used separate fitted-model validation days. The fitted market model and all selected controllers are then frozen, with no refitting or tuning for a test condition.
+
+Each condition has **128 fresh test days**, shared by the compared controllers:
+
+| Test condition | What changes from the historical generating regime? |
+|---|---|
+| Original pattern | Only the sampled days; this evaluates fitted-model controllers in the historical generating regime |
+| Demand +40% | Every arrival rate is multiplied by 1.4 |
+| Shifted places and times | Demand locations rotate 180 degrees and the hourly pattern is delayed by three hours, circularly; total expected daily demand is unchanged |
+
+Customer-choice parameters stay unchanged in all three conditions. The controllers are not told which condition is running.
+
+| Controller | Original pattern | Demand +40% | Shifted places and times |
+|---|---:|---:|---:|
+| **Rollout ADP, selected pricing** | **940.46** | **1,081.91** | **932.46** |
+| Joint PPO, selected checkpoint | 718.00 | 771.83 | 717.58 |
+| Inventory rule, selected pricing | 925.53 | 1,038.58 | 917.91 |
+| Inventory rule, fixed price | 915.67 | 1,060.72 | 908.82 |
+
+The first three rows average the three selected policies. The fixed-price inventory rule is one controller, tuned to price 0.80 USD/kWh and early/late battery values 0.20/0.10 USD/kWh. The completed test contains 3,840 policy episodes.
+
+**Rollout ADP leads in all three conditions.** Its mean advantage per day, with paired 95% bootstrap intervals, is:
+
+| ADP compared with | Original pattern | Demand +40% | Shifted places and times |
+|---|---:|---:|---:|
+| Joint PPO | +222.46 [216.16, 228.75] | +310.08 [302.76, 317.59] | +214.88 [209.12, 221.14] |
+| Inventory, selected pricing | +14.93 [12.50, 17.38] | +43.33 [39.23, 47.50] | +14.55 [12.30, 16.99] |
+| Inventory, fixed price | +24.79 [20.97, 28.61] | +21.18 [16.25, 26.14] | +23.64 [19.76, 27.48] |
+
+The advantage is consistent across seeds 7, 19 and 37: each ADP policy has a positive paired interval against the corresponding PPO and learned-price inventory policy, and against fixed-price inventory, in every condition. This does not mean ADP wins on every day. These intervals describe the shared test-day variation, conditional on one historical fit and these three optimization seeds.
+
+**Learned prices do not always help inventory.** They add 9.85 per day in the original pattern and 9.09 after the location/time shift, but lose **22.14 per day** to fixed prices under 40% higher demand. In that higher-demand condition, both inventory versions deliver similar mobile energy (486.9 versus 483.3 kWh/day). The learned-price version collects less discounted mobile revenue (344.39 versus 369.48) and incurs more total unmet-demand cost (115.63 versus 105.60); its lower electricity and travel costs do not offset those losses. Pricing selected for the historical regime therefore fails to retain its advantage under this volume shift.
+
+**PPO's service gap remains.** Under the original pattern, it delivers 449.5 mobile kWh/day against ADP's 601.9, and leaves 414.2 mobile kWh/day unmet against 37.1. These observations locate the shortfall in the complete pricing-and-dispatch policy; they do not isolate a single training defect.
+
+**Cost and scope.** On the original-pattern tests, dispatch averages about 453 ms for ADP, 29 ms for learned-price inventory and 9 ms for PPO. ADP retains its advantage with an estimated market model and these two specified demand shifts, but uses substantially more online computation. This is not an equal-computation comparison or a test of arbitrary model misspecification.
+
+Full report: [studies/12_historical_model.md](studies/12_historical_model.md).
+
+## 2. Historical reference: the market model was known
+
+**Study 11, 2026-10-25: learned pricing with rollout ADP and the inventory rule.** In this earlier experiment, controllers were given the correct simulator parameters. Each dispatcher received its own learned prices, separating better pricing from better dispatch. These are historical results on 256 test days per city; they cannot be compared numerically with Study 12's different test days.
 
 | Controller | Small city | Large city |
 |---|---:|---:|
@@ -47,7 +92,7 @@ All three seeds have positive intervals in all three comparisons. Learned prices
 
 Full report: [studies/11_learned_pricing.md](studies/11_learned_pricing.md).
 
-## 2. How we got here
+## 3. How we got here
 
 ### Finding A: PPO learned, but lost to a simple inventory rule (studies 01–05, Oct 17–18)
 
@@ -121,22 +166,23 @@ PPO improved 102.80 per day over its imitation start but lost to the inventory r
 
 Rollout ADP beat PPO in both cities, by 180.32 per day in the large one. At a fixed price it was roughly tied with the bounded inventory rule: +1.43 small, −3.45 large. It stayed below both small-city specialists. Two extra configurations with no retuning (9 zones and 5 vehicles; 36 zones and 12 vehicles) showed the same pattern: rollout ADP beat service-first and was at or slightly below the inventory rule. Report: [10](studies/10_rollout_adp.md).
 
-Adding learned prices to this controller produced the current scorecard in section 1.
+Adding learned prices to this controller produced Study 11's known-model scorecard in section 2. Study 12 takes the next step: estimating the market model from historical quotes before training or planning.
 
-## 3. What remains open
+## 4. What remains open
 
-- **Small city.** Rollout ADP with learned prices (130.95) is still below the exhaustive inventory rule (133.63) and Table ADP. Candidate explanations are its approximations: imagined futures follow service-first instead of a stronger policy, only a handful of plans are compared, and its search proposals always recharge the full feasible amount. None has been tested in isolation.
-- **PPO in the large city.** The warm-started PPO is 135–185 per day behind the rules. Possible causes include vehicles competing for the same requests, imitation errors that lead to unfamiliar states, and early stopping that limits optimization steps. None has been isolated.
+- **Small city.** In the known-model studies, rollout ADP with learned prices (130.95) remains below the exhaustive inventory rule (133.63) and Table ADP. Candidate explanations are its approximations: imagined futures follow service-first instead of a stronger policy, only a handful of plans are compared, and its search proposals always recharge the full feasible amount. None has been tested in isolation. Study 12 does not repeat the small-city comparison.
+- **PPO in the large city.** Earlier known-model comparisons put warm-started PPO roughly 135–185 per day behind the rules. After three fresh 500-update runs in Study 12, PPO still trails both inventory versions and ADP. Vehicles competing for requests and imitation errors that lead to unfamiliar states remain possible causes; the service and unmet-demand measurements do not isolate them.
 - **Equal compute.** No experiment compares methods at equal decision time or equal simulator access.
-- **Transfer.** Learned prices are fitted per scenario. Using them on a different scenario has not been tested.
-- **Model error.** Every planner here is given the correct simulator. Robustness to a wrong demand or choice model is untested.
+- **Transfer.** Study 12 tests frozen controllers under two demand shifts in the same city. It does not test learned prices on a new network or fleet, or online adaptation after conditions change.
+- **Model error.** Study 12 introduces estimation error in demand and customer choice, then tests specified demand shifts. The assumed distribution families still match the generator. Wrong choice families, changing customer preferences, missing quote records, and errors in travel or operating costs remain untested. One fitted history also leaves uncertainty across different historical datasets unresolved.
 
-## 4. Saved evidence
+## 5. Saved evidence
 
-Study results live under `outputs/`, which is not in Git. With the local folder present, each line prints a saved scorecard without rerunning anything:
+Study results live under `outputs/`, which is not in Git. With a completed local study folder present, each line prints its saved scorecard without rerunning anything:
 
 | Study | Directory | Show the saved scorecard |
 |---|---|---|
+| 12 Historical market model | `outputs/history_adp_study_20261027/` | `python experiments/run_history_adp_study.py --phase show --study-dir outputs/history_adp_study_20261027` |
 | 11 Learned pricing | `outputs/priced_adp_study_20261025/` | `python experiments/run_priced_adp_study.py --phase show --study-dir outputs/priced_adp_study_20261025` |
 | 10 Rollout ADP | `outputs/general_adp_study_20261025/` | `python experiments/run_general_adp_study.py --phase show --study-dir outputs/general_adp_study_20261025` |
 | 10 Extra configurations | `outputs/adp_transfer_20261025/` | `python experiments/run_adp_transfer.py --show --output-dir outputs/adp_transfer_20261025` |
@@ -144,4 +190,4 @@ Study results live under `outputs/`, which is not in Git. With the local folder 
 | 08 Recharge warm start | `outputs/recharge_study_20261024/` | `python experiments/run_recharge_study.py --phase show --study-dir outputs/recharge_study_20261024` |
 | 07 Joint PPO, six methods | `outputs/paper_ppo_study/` | `python experiments/summarize_paper_ppo_study.py --show` |
 
-Each directory also holds the frozen protocol, checkpoints, every test episode and an independent audit. [reference/VALIDATION.md](reference/VALIDATION.md) explains what the audits check.
+Frozen protocols, checkpoints and every test episode are saved locally. The study reports link the independent audit evidence, and [reference/VALIDATION.md](reference/VALIDATION.md) explains what those checks cover.

@@ -4,6 +4,8 @@ Rollout ADP asks: **if the fleet takes this action now, how much profit could it
 
 This is an online, model-based controller. It estimates a continuation value when a decision is needed; it does not fit a value table or network beforehand. It supports different fleet sizes, zone layouts, station configurations, and horizons within the project's `Scenario` model and computation limits.
 
+The planning model can be supplied directly or [estimated from historical quotes](#learning-the-model-from-quote-histories). These are different information assumptions: knowing the simulator's generating parameters is easier than estimating demand and customer choice from observations.
+
 The basic version uses one fixed mobile price all day. An optional [learned pricing policy](#learning-prices-as-well-as-planning-dispatch) chooses prices by zone and hour; dispatch is the same in both versions. [METHODS.md](../METHODS.md#rollout-adp) has the short version. Results are in [studies 10 and 11](../studies/README.md); commands are in [RUNNING.md](../RUNNING.md#rollout-adp). The study runner for the fixed-price version is named `run_general_adp_study.py`, so older text calls this "general ADP".
 
 ## Why consider future profit?
@@ -106,6 +108,30 @@ Changing zone count, vehicle count, station locations, battery initial states, h
 
 If real demand, customer choice, or travel conditions differ from the planning model, the forecasts can be wrong. Persistent hidden demand regimes, waiting queues, or trips spanning several periods would require changes to the simulator and continuation state. Support for different scenario dimensions does not imply universal optimality or robustness to an incorrect model.
 
+## Learning the model from quote histories
+
+The historical-model workflow first estimates how customers arrive and choose, then gives that estimated model to the controllers. The simulator that generates the historical data and final test days is kept separate. Its true demand and preference parameters are never supplied to a controller.
+
+The input is a **complete quote history**, including customers who chose no service. Each record contains the offered payments, requested energy, available alternatives, waiting and travel attributes, and the customer's choice. Daily counts include zero-arrival hours and zones. The supplied experiment generates these records synthetically using randomized legal price offers and a simple service-first logging rule. It does not contain real-city data. Sales records alone would miss customers who declined and would not satisfy this data assumption.
+
+Three parts of the model are fitted:
+
+| Part | What is estimated from history |
+|---|---|
+| Arrivals | A Poisson mean for each hour and zone, with smoothing toward that zone's daily average |
+| Requested energy | The bounds of a uniform request-size distribution |
+| Customer choice | A common service intercept and sensitivity to payment, mobile waiting, station waiting and station travel |
+
+The Poisson, uniform and multinomial-logit families are assumptions; the fitting process estimates their parameters. Physical specifications, network geometry and tariff processes remain known. Separate historical days check demand predictions and choice likelihood. They do not choose policy settings.
+
+PPO and the pricing policies are then trained in the **same fitted simulator**. The inventory rule's settings are selected there too. A separate set of fitted-model validation days selects policies before any private test days are opened. PPO is retrained for this model; earlier checkpoints trained with the true generating parameters are not reused.
+
+During a private test, the forecast model and selected policies stay frozen. Before pricing, every controller receives fitted arrival forecasts, fleet state and observed electricity prices; latent current requests remain hidden. At dispatch, it receives the actual current requests and choices, because customers have now responded. Rollout samples imagined futures only from the fitted model. The private simulator alone determines what actually happens and the profit earned.
+
+This tests both estimation error and demand shifts: the experiment includes the original demand pattern, higher arrival volume, and a changed spatial and hourly pattern. There is no online model update or adjustment to each test regime. The service-first continuation policy and restricted candidate plans remain the same approximations described above. Learning the market model does not make those dispatch approximations optimal.
+
+See [RUNNING.md](../RUNNING.md#historical-model-comparison) for the complete workflow and [study 12](../studies/12_historical_model.md) for its protocol and evidence. This workflow still assumes complete quote visibility, known physical rules and the chosen distribution families; it does not establish reliability under arbitrary real-world changes.
+
 ## How it differs from the other controllers
 
 | Controller | Preparation | Decision-time calculation |
@@ -130,7 +156,7 @@ Fixed pricing leaves a useful decision unused. For example, a fleet with little 
 
 The new pricing policy maps the current permitted information to one legal price at each zone. It shares twelve coefficients across all zones. Its inputs summarize time, forecast demand, available service capacity, fleet battery, travel time, competing station prices, replacement-energy cost and expected station load. Two interaction terms let battery and capacity have different effects near closing time. The features are physically normalized and bounded; the linear price target is rounded to the nearest configured price level.
 
-Pricing uses the same information boundary as Joint PPO. It sees prescribed arrival rates, fleet locations and batteries, current station prices and the grid purchase price. It cannot see realized current requests, individual request sizes, customer choices or the congestion those requests reveal. Availability is recomputed from fleet physics rather than accepted from an input mask.
+Pricing uses the same information boundary as Joint PPO. It sees arrival forecasts, fleet locations and batteries, current station prices and the grid purchase price. Forecasts are prescribed in the known-model examples and estimated from history in the historical-model workflow. Pricing cannot see realized current requests, individual request sizes, customer choices or the congestion those requests reveal. Availability is recomputed from fleet physics rather than accepted from an input mask.
 
 ### How the price coefficients are learned
 
@@ -169,6 +195,8 @@ python -m charging_env.rl.rollout_adp \
 
 Use `--scenario configs/synthetic_25_zones.json` for the 25-zone, ten-vehicle case. Price index 5 means 0.80 in both supplied files. For another scenario, use an index from its own `price_levels`. Omitting `--price-index` selects the middle index, not a validation-selected price.
 
+This command is a **known-model evaluation**: the same scenario defines planning and the live simulator. It does not estimate a model from historical data or test a hidden demand shift. Use the historical-model study runner for that comparison.
+
 Here `--seed` controls planning randomness; there is no training seed or learned checkpoint. The run uses NumPy and the base environment dependencies. PyTorch is required separately for PPO comparisons. If the output directory is occupied, the command creates a numbered sibling and prints its actual path.
 
 | Output | What it contains |
@@ -202,6 +230,8 @@ Judge performance on independent scenarios after settings are fixed. Compare pol
 | [rollout_adp.py](../../src/charging_env/rl/rollout_adp.py) | Candidate comparison, future rollouts, local randomness, trace, and evaluation command |
 | [adaptive_pricing.py](../../src/charging_env/rl/adaptive_pricing.py) | Restricted pricing features, shared price coefficients, policy search, and checkpoints |
 | [priced_rollout.py](../../src/charging_env/rl/priced_rollout.py) | Apply the learned prices in live operation and simulated futures; evaluate a saved pricing policy |
+| [history_model.py](../../src/charging_env/rl/history_model.py) | Fit and save arrival, request-size and customer-choice models from complete quote histories |
+| [history_control.py](../../src/charging_env/rl/history_control.py) | Collect observable histories and separate fitted-model controllers from private test environments |
 | [scalable.py](../../src/charging_env/benchmarks/scalable.py) | Bounded coordinate search for inventory and current-profit proposals |
 | [policies.py](../../src/charging_env/benchmarks/policies.py) | Service-first rule and exact joint current-period outcomes |
 | [fitted_value.py](../../src/charging_env/rl/fitted_value.py) | Shared helper for sampling a future dispatch observation from a specified fleet state |

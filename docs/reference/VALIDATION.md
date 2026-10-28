@@ -2,7 +2,7 @@
 
 The project needs two kinds of evidence: the implementation must follow its rules, and a controller must earn useful profit on new scenarios. A checkpoint that reloads correctly can still contain a weak policy. This page covers correctness and reproducibility; [RESULTS.md](../RESULTS.md) covers measured performance.
 
-The current full suite contains **309 tests** covering the simulator, interfaces, learned policies, rollout planning, price learning, and study protocols. Passing correctness tests does not establish that a controller earns more profit than a benchmark.
+The current full suite contains **351 tests** covering the simulator, interfaces, learned policies, rollout planning, historical-model estimation, price learning, and study protocols. Passing correctness tests does not establish that a controller earns more profit than a benchmark.
 
 ## Run the checks
 
@@ -35,6 +35,7 @@ The manual example writes `outputs/manual_episode.csv` and follows a fixed scrip
 | Table ADP | `test_fitted_value.py` | Bilinear interpolation, sampled backward backups, ordered vehicle states, terminal reward counted once, checkpoint round trips |
 | Rollout ADP | `test_rollout_adp.py`, `test_general_adp_study.py` | Different fleet sizes, shared-draw score replay, terminal salvage, negative profits, action deduplication, planning RNG isolation, roundoff guards, price selection, counters and saved evidence |
 | Learned pricing for rollout and inventory | `test_adaptive_pricing.py`, `test_priced_rollout.py`, `test_priced_adp_study.py` | Pricing information limits, legal prices, immutable policies, safe checkpoints, policy-search reproduction, constant-price parity, future pricing, simulator score replay, selection, disjoint banks and frozen evidence |
+| Historical model and private evaluation | `test_history_model.py`, `test_history_control.py`, `test_history_study.py`, `test_history_training_checks.py` | Observable quote schemas, parameter recovery, masked choice likelihood, checkpoint safety, forecast replacement, separate true/fitted scenarios, PPO integration, saved training reconstruction and independent study banks |
 | Joint PPO | `test_paper_ppo.py` | Both GAE trace factors, joint fleet clipping, entropy sum, restricted pricing information, valid discrete actions, four-network updates, RNG isolation, exact continuation |
 | Benchmarks and study protocols | `test_benchmarks.py`, `test_compact_benchmarks.py`, `test_b3_*.py`, `test_paper_study.py`, `test_source_provenance.py` | Candidate outcomes versus simulator execution, paired evaluation, selection rules, separate seeds, source/checkpoint guards |
 
@@ -43,6 +44,30 @@ The manual example writes `outputs/manual_episode.csv` and follows a fixed scrip
 The two PPO advantage calculations are intentionally different. At GAE trace coefficient 1, both implementations' targets reduce to the full discounted return for their learning rewards. At coefficient 0, earlier PPO still combines customer choice and dispatch in its pricing target; joint PPO's pricing target uses the old dispatch critic directly. [EARLIER_PPO.md](../methods/EARLIER_PPO.md) and [JOINT_PPO.md](../methods/JOINT_PPO.md) give their respective equations. Passing one method's tests must not be interpreted as establishing that the methods are identical.
 
 Gymnasium may warn about unbounded observations because arrivals have no artificial count cap and one supported price-noise distribution is unbounded. It may also warn that energy actions use kWh rather than normalized fractions. These are interface choices described in [ENVIRONMENT.md](ENVIRONMENT.md). The checker validates the interface; it does not establish that an arbitrary off-the-shelf PPO implementation can handle this two-stage, variable-request problem.
+
+## Evidence behind the historical-model comparison (study 12)
+
+Study 12 is stored in `outputs/history_adp_study_20261027/`. Its protocol freezes the source, historical-data banks, training settings, private environments and test banks before the comparison. The market model is fitted from complete quote records; the private simulator's arrival rates and customer preferences are not passed to controllers. PPO and price search train in the fitted model, and all controllers receive fitted forecasts during testing.
+
+| Evidence | Location within the study |
+|---|---|
+| Original quote data and held-out history | `history/fit.npz`, `history/holdout.npz` |
+| Fitted parameters and held-out prediction checks | `model/` |
+| All inventory settings, price-search rounds and PPO training records | `rules/`, `training/` |
+| Every validation candidate and the resulting choices | `validation/`, `selection/` |
+| Frozen inputs, private test episodes and planning traces | `test/` |
+| Paired comparison and seed consistency | `analysis.json` |
+| Independent reconstruction and accounting | `audit.json` |
+| Simulator-based candidate and episode replay | `physics_audit.json` |
+| Replay of recorded pricing-training episodes | `training_replay_audit.json` |
+
+**All three audits pass.** The main audit reconstructs the historical fit exactly, checks the 14,592 pricing-search candidate episodes and three 500-update PPO budgets, verifies selection over 2,000 policy episodes, and reconciles all 3,840 private test episodes and their paired intervals. The seed audit checks 26,056 distinct environment seeds, 658,944 distinct declared future-query seeds, and separation from historical and development use. All final episodes have zero invalid actions.
+
+The physics audit uses original `ChargingSimulator` transitions to check nine deduplicated candidate plans across the three private conditions, including 792 imagined future transitions. It replays nine complete selected seed-7 episodes (108 actual periods) and four historical quote days (48 periods, 4,165 quote records). Spies on simulator construction confirm that the nine live episodes use the correct private models and all 4,856 observed production planning queries use the fitted model. Recorded actions, forecasts, profits and non-timing episode metrics reproduce exactly. The separate training audit replays four saved pricing-search episodes. The largest candidate-score or training-profit discrepancy is 2.27e-13, below the 1e-8 tolerance.
+
+The full-suite log and audit scripts are retained under `outputs/history_adp_development_20261027/`. A preparation run's final PPO checkpoint reload exposed NumPy scalars in fitted scenario metadata. A regression test covers the conversion to native Python floats. The failed study was preserved, and history collection through evaluation was rerun with unchanged hyperparameters before any private test had been opened. The archive and correction are recorded in `clean_restart.json` and `scalar_serialization_failure.json`; the published results belong entirely to the successful rerun.
+
+These checks verify the information boundary and implementation for the saved study. The histories and tests are synthetic, the distribution families remain assumed, and the model is frozen during testing. Three policy seeds share one fitted history. Neither these audits nor the conditional scenario intervals establish reliability on unseen real operator data. See [study 12](../studies/12_historical_model.md) for the results and limitations.
 
 ## Evidence behind the learned-pricing comparison (study 11)
 

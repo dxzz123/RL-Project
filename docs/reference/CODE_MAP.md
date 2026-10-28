@@ -54,6 +54,8 @@ Python counts from zero: stage 0 is pricing, stage 1 is dispatch, and period 0 i
 | Rollout ADP | `rl/rollout_adp.py` | `RolloutADPConfig`, `RolloutADPPolicy`, `evaluate_rollout_policy()`; CLI `python -m charging_env.rl.rollout_adp` |
 | Learned pricing | `rl/adaptive_pricing.py` | 12 pricing features, `LearnedPricingPolicy`, `PriceSearchConfig`, `fit_price_policy()` |
 | Rollout ADP + learned pricing | `rl/priced_rollout.py` | `PricedRolloutADPPolicy`, which also applies the price rule inside imagined futures; CLI `python -m charging_env.rl.priced_rollout` |
+| Historical market model | `rl/history_model.py` | `HistoricalLog`, `fit_history_model()`, `HistoricalModel`; safe saved logs/model and held-out prediction diagnostics |
+| Historical-model evaluation | `rl/history_control.py` | `collect_historical_log()`, `evaluate_history_policy()`; controllers receive fitted forecasts while the evaluator owns the private environment |
 | Table ADP | `rl/fitted_value.py`, `rl/fitted_train.py` | `FittedValueTrainer`, `FittedValuePolicy`; CLI `python -m charging_env.rl.fitted_train`. `sample_dispatch_observation()` is also used by rollout ADP |
 | Joint PPO | `rl/paper_ppo.py`, `rl/paper_train.py` | `PaperPPOConfig`, `PaperPPOTrainer`, `interleaved_gae()`, `joint_ppo_loss()`, `paper_dispatch_mask()`; CLI `python -m charging_env.rl.paper_train` |
 | Joint PPO warm start | `rl/paper_warmstart.py` | `fit_inventory_warmstart()`, which imitates the inventory rule before PPO |
@@ -80,10 +82,10 @@ The fast outcome model in `policies.py` has to agree exactly with `simulator.dis
 
 | Location | Contents |
 |---|---|
-| `experiments/` | Study runners for studies 06–11; see [experiments/README.md](../../experiments/README.md) |
+| `experiments/` | Study runners for studies 06–12; see [experiments/README.md](../../experiments/README.md) |
 | `experiments/archive/` | Runners for studies 01–05 |
 | `outputs/<study>/` | One study's frozen `protocol.json`, checkpoints, test episodes, `analysis.json`, audit, and a snapshot of the exact source that ran. Not in Git |
-| `tests/` | 309 unit and regression tests; [VALIDATION.md](VALIDATION.md) maps them to features |
+| `tests/` | Unit and regression tests; [VALIDATION.md](VALIDATION.md) maps them to features |
 
 ## Changing the code safely
 

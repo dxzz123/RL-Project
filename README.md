@@ -13,16 +13,20 @@ One episode is a 12-hour day. The score is total discounted profit for the day, 
 
 ## What we have found so far
 
-All results come from simulated days the controllers never saw during training or tuning. [RESULTS.md](docs/RESULTS.md) has the details and the uncertainty intervals.
+The latest comparison estimates demand and customer choice from past quote records instead of giving controllers the true simulator parameters. It uses the 25-zone, ten-vehicle city, policy seeds 7, 19 and 37, and 128 new test days per condition. PPO is retrained for 500 updates per seed in the same estimated model.
 
-| Question | Answer so far |
-|---|---|
-| Best controller on the 25-zone, 10-vehicle city? | **Rollout ADP with learned prices**: 941.91 per day, against 924.80 for the inventory rule with its own learned prices and 914.50 for the fixed-price inventory rule. All three seeds beat both rules. |
-| Best on the 4-zone, 2-vehicle city? | Methods that exploit how small this case is. On the same test days, **Table ADP** earns 136.10 and the exhaustive inventory rule 131.41, against 127.78 for rollout ADP. Learned prices lift rollout ADP only slightly. |
-| Does learned pricing help? | A lot in the large city: +30.39 per day for rollout ADP, +10.30 for the inventory rule. Very little in the small city: +0.70 and +2.08. |
-| How does PPO do? | It learned to almost never recharge. Warm-starting it from the inventory rule fixed that (+5.33 per day in the small city). PPO still trails the strongest rule in both cities: by 5.50 per day in the small city and by more than 130 per day in the large one. |
+| Mean daily discounted profit | Original pattern | 40% more arrivals | Shifted places and times |
+|---|---:|---:|---:|
+| **Rollout ADP with learned prices** | **940.46** | **1,081.91** | **932.46** |
+| PPO | 718.00 | 771.83 | 717.58 |
+| Inventory with learned prices | 925.53 | 1,038.58 | 917.91 |
+| Fixed-price inventory | 915.67 | 1,060.72 | 908.82 |
 
-These are results inside one simulator with assumed demand. They show which implemented controller earns more under that model, not how a real operator would fare.
+ADP beats both inventory variants and PPO for every policy seed in all three conditions, with positive paired 95% intervals. It is also slower: about 453 ms per dispatch on the original-pattern tests, versus 9 ms for PPO and 29 ms for learned-price inventory. Learned pricing is not always better: fixed-price inventory wins over learned-price inventory when arrivals rise by 40%.
+
+The quote histories and test days are synthetic, and the assumed distribution families remain known. The model stays frozen during testing, so these results cover two specified demand shifts, not arbitrary real-world changes. [Study 12](docs/studies/12_historical_model.md) explains the data, information limits and uncertainty.
+
+Earlier studies include the four-zone case, where Table ADP and exhaustive inventory search are especially strong, and known-model experiments with learned prices. [RESULTS.md](docs/RESULTS.md) separates that historical evidence from the current comparison.
 
 ## Quick start
 
@@ -36,14 +40,14 @@ python -m pip install -e '.[train]'        # use -e . if you don't need PPO
 python examples/manual_walkthrough.py      # one scripted day, printed step by step
 ```
 
-Run the current best controller for a few simulated days (no training needed):
+Try fixed-price rollout ADP for a few simulated days using a known simulator configuration (no training needed):
 
 ```bash
 python -m charging_env.rl.rollout_adp --scenario configs/utility_b3.json \
   --seed 7 --price-index 4 --episodes 4 --output-dir outputs/rollout_adp
 ```
 
-[RUNNING.md](docs/RUNNING.md) has commands for every controller and for viewing saved results.
+For the current comparison, use the [historical-model workflow](docs/RUNNING.md#historical-model-comparison): it estimates demand and choice from quote records before training and private testing. [RUNNING.md](docs/RUNNING.md) also has commands for every controller and for viewing saved results.
 
 ## Read in this order
 
@@ -64,6 +68,7 @@ The code kept its original file names, so a few names differ from the docs:
 |---|---|---|
 | Rollout ADP | Simulates a few futures for each candidate fleet plan at decision time; any fleet size | `rl/rollout_adp.py` |
 | Learned pricing | A 12-coefficient price rule fitted by direct search, usable with rollout ADP or the inventory rule | `rl/adaptive_pricing.py`, `rl/priced_rollout.py` |
+| Historical market model | Estimates arrivals, request sizes and customer choice from quote records; supplies forecasts and simulated futures | `rl/history_model.py`, `rl/history_control.py` |
 | Table ADP | Learns a value table offline; exactly two vehicles | `rl/fitted_value.py`, `rl/fitted_train.py` |
 | Joint PPO | Learns pricing and dispatch networks; optional inventory-rule warm start | `rl/paper_ppo.py`, `rl/paper_train.py`, `rl/paper_warmstart.py` |
 | Earlier PPO | The first SA-PPO–MAPPO implementation, kept as a control | `rl/trainer.py`, `rl/networks.py`, `rl/returns.py`, `rl/train.py` |
@@ -79,6 +84,6 @@ All paths are under `src/charging_env/`.
 | `configs/` | Scenario files; see [configs/README.md](configs/README.md) |
 | `examples/` | Three small scripts that walk through the simulator |
 | `experiments/` | Scripts that run the full studies; older ones are in `experiments/archive/` |
-| `tests/` | 309 automated checks (`python -m unittest discover -s tests`) |
+| `tests/` | Automated correctness checks (`python -m unittest discover -s tests`) |
 | `docs/` | The guides above |
 | `outputs/` | Results written by runs. Not in Git, so a fresh clone won't have the saved studies |

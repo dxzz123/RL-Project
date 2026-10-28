@@ -6,7 +6,7 @@ A **controller** makes the operator's two decisions every hour: the mobile price
 |---|---|---|---|---|
 | Service-first rule | Fixed | Serve now, recharge when low | Tune two settings on validation days | Any |
 | Inventory rule | Fixed or learned | Current profit plus a dollar value per stored kWh | Tune price and battery values | Exhaustive search: 2 vehicles. Bounded search: any |
-| **Rollout ADP** | Fixed or learned | Simulate a few futures for each candidate plan | None for fixed price; fit prices for learned pricing | Any |
+| **Rollout ADP** | Fixed or learned | Simulate a few futures for each candidate plan | Supply or fit a market model; optionally fit prices | Any |
 | Table ADP | Fixed | Current profit plus a learned value table | One backward pass over a battery grid | Exactly 2 |
 | Joint PPO | Learned | Learned neural network | 500 updates of policy-gradient training | Any (retrain per scenario) |
 | Earlier PPO | Learned | Learned shared vehicle network | Same as Joint PPO | 2 in the saved models |
@@ -24,6 +24,8 @@ The two decisions happen at different points in the hour, so they see different 
 Hiding current requests from pricing is a deliberate modeling choice. The operator knows that a zone usually gets four requests at noon, not that seven arrived today. The simulator draws the requests before pricing, so the code projects the raw observation down to the permitted fields (`paper_pricing_observation()` in Joint PPO, `pricing_observation()` in learned pricing).
 
 No controller sees future arrivals or future price shocks.
+
+**Where do the forecasts come from?** The earlier studies give controllers the simulator's demand and customer-choice parameters. The [historical-model study](studies/12_historical_model.md) instead estimates them from past quote records. All three controllers then receive forecasts from that fitted model, even when the private test environment changes. Current requests and choices still become visible at dispatch. This separates a forecast from knowledge of the actual future.
 
 ## The rules
 
@@ -62,9 +64,9 @@ In symbols, with base policy $`\mu`$, $`K`$ sampled futures, and next fleet stat
 + \gamma\,\frac1K\sum_{k=1}^{K}\sum_{j=t+1}^{T}\gamma^{\,j-t-1}R_j^{(k,\mu)}.
 ```
 
-**Why it works for any fleet size.** It never stores a value for every possible fleet state; it only simulates from the few states it is comparing. Nothing needs retraining for a new scenario.
+**Why it supports different fleet sizes.** It never stores a value for every possible fleet state; it only simulates from the few states it is comparing. The planner itself has no value network to retrain. A learned demand model or price policy may still need fitting for a changed operating environment, and computation grows with the problem.
 
-**What limits it.** The future is valued as if the fleet followed service-first, not the best possible policy. Only a handful of plans are compared. Eight samples leave noise. And it is slow at decision time: about 0.4–0.5 seconds per dispatch in the 25-zone city, against under 1 ms for a trained network.
+**What limits it.** The future is valued as if the fleet followed service-first, not the best possible policy. Only a handful of plans are compared. Eight samples leave noise. Planning is also slower than network inference or the inventory rule: roughly half a second per dispatch in the 25-zone city. [Study 12](studies/12_historical_model.md) reports measured decision times, including its information-boundary checks.
 
 Deep dive: [methods/ROLLOUT_ADP.md](methods/ROLLOUT_ADP.md).
 
@@ -143,7 +145,7 @@ Deep dive: [methods/EARLIER_PPO.md](methods/EARLIER_PPO.md).
 
 These controllers do not get equal information or equal computation, and the results should be read that way:
 
-- **Model access.** ADP and the inventory rules evaluate alternative actions with the known simulator. PPO only learns from actions it actually tried.
+- **Model access.** ADP and the inventory rules calculate alternative current actions with the known physical rules. Rollout ADP also samples futures from its market model. In the historical-model study that model is estimated from records; PPO trains by interacting with the same fitted simulator. This is simulator-trained PPO, not direct offline PPO training on logged actions.
 - **Computation at decision time.** Rollout ADP simulates futures at every decision. PPO runs one network pass.
 - **Pricing.** Some controllers learn prices and others use a fixed price chosen on validation days.
 
@@ -159,5 +161,5 @@ Results therefore compare complete implemented controllers under one simulator. 
 | Continuation value | Estimated profit from the next hour to the end of the day |
 | Shadow price, battery value | Dollar value per stored kWh used by the inventory rule |
 | Training / validation / test days | Separate random seeds for fitting, for choosing settings, and for the final score. Test days are used once, after everything else is frozen |
-| Seed 7, 19, 37 | The three independent repetitions of each learned method. Table rows average the three; they are not combined into one policy |
+| Seed 7, 19, 37 | Three optimization repetitions (and planning streams for rollout ADP). Table rows average separately run policies. Study 12 shares one historical model across them, so these do not measure uncertainty from collecting new histories |
 | Paired 95% interval | Uncertainty of a profit difference, computed from the per-day differences of two controllers on the same test days (5,000 bootstrap resamples). It does not include retraining uncertainty |

@@ -8,6 +8,8 @@ All runners need the `[train]` dependencies, even ones that don't train PPO, bec
 
 | Script | Study | What it does |
 |---|---|---|
+| `run_history_adp_study.py` | [12 Historical model](../docs/studies/12_historical_model.md) | Fits demand and choice from quote histories; trains PPO and pricing in the fitted simulator; tests frozen controllers under private demand shifts |
+| `history_training_checks.py` | helper | Checks saved CEM search arithmetic, PPO training budgets, checkpoints and evaluation ledgers without rerunning episodes |
 | `run_priced_adp_study.py` | [11 Learned pricing](../docs/studies/11_learned_pricing.md) | Fits price rules for rollout ADP and the inventory rule, selects on validation, tests both cities |
 | `run_general_adp_study.py` | [10 Rollout ADP](../docs/studies/10_rollout_adp.md) | Compares fixed-price rollout ADP with saved PPO, Table ADP and retuned rules |
 | `run_adp_transfer.py` | [10 Rollout ADP](../docs/studies/10_rollout_adp.md#extra-configurations-no-retuning) | Runs the same controllers on a 9-zone and a 36-zone configuration |
@@ -36,7 +38,7 @@ Most runners work in phases on one study directory: `--phase init`, then middle 
 | `run_b3_improved_training.py`, `run_b3_improved_benchmarks.py`, `summarize_b3_improved_study.py`, `plot_b3_improved_study.py`, `diagnose_b3_gap.py` | [05 PPO improvements](../docs/studies/05_ppo_improvements.md) |
 | `check_choice_intercept.py` | Customer-benefit check in [OUTSIDE_OPTION.md](../docs/reference/OUTSIDE_OPTION.md) |
 
-## Don't edit these six files
+## Reproducing frozen studies
 
 Studies 09–11 froze a hash of every file in `src/` and of these scripts:
 
@@ -47,4 +49,4 @@ Studies 09–11 froze a hash of every file in `src/` and of these scripts:
 - `run_recharge_study.py`
 - `run_fitted_value_study.py`
 
-Today those hashes still match, so the studies can be replayed exactly. Changing any of these files, or any file in `src/`, ends that. To change behavior, copy the script under a new name, and start a new study directory.
+The recorded source snapshots preserve those studies. Their runners check the source inventory as well as file hashes, so adding a module can also change the match. Use the saved snapshot for exact historical reproduction. For new behavior, start a new study directory with the new implementation; never edit runtime source during a frozen run.
