@@ -48,7 +48,8 @@ class GymInterfaceTests(unittest.TestCase):
         self.assertIn("pricing", env.render())
 
     def test_empty_requests_and_terminal_observations_have_exact_space_dtypes(self):
-        scenario = replace(Scenario(), mean_requests_by_zone=(0., 0., 0., 0.))
+        scenario = replace(Scenario(), mean_requests_by_zone=(0., 0., 0., 0.),
+                            fcs_pricing_mode="legacy", mcv_pricing_mode="absolute")
         env = ChargingEnv(scenario)
         obs, _ = env.reset(seed=7)
         for _ in range(2 * scenario.horizon + 1):
@@ -63,7 +64,8 @@ class GymInterfaceTests(unittest.TestCase):
         self.assertEqual(obs["stage"], 2)
 
     def test_unbounded_poisson_request_sequence_and_discrete_node_action(self):
-        env = ChargingEnv(replace(Scenario(), mean_requests_by_zone=(100., 100., 100., 100.)))
+        env = ChargingEnv(replace(Scenario(), mean_requests_by_zone=(100., 100., 100., 100.),
+                                        fcs_pricing_mode="legacy", mcv_pricing_mode="absolute"))
         obs, _ = env.reset(seed=11)
         self.assertTrue(env.observation_space.contains(obs))
         self.assertEqual(len(obs["request_details"]), int(obs["requests_by_zone"].sum()))

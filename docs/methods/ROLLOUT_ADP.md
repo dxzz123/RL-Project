@@ -193,7 +193,7 @@ python -m charging_env.rl.rollout_adp \
   --output-dir outputs/rollout_adp
 ```
 
-Use `--scenario configs/synthetic_25_zones.json` for the 25-zone, ten-vehicle case. Price index 5 means 0.80 in both supplied files. For another scenario, use an index from its own `price_levels`. Omitting `--price-index` selects the middle index, not a validation-selected price.
+Use `--scenario configs/synthetic_25_zones.json` for the 25-zone, ten-vehicle case. Both supplied files now use the three premium levels, so index 2 is the 1.7x premium over the nearest station's EV price. For another scenario, use an index from its own menu. Omitting `--price-index` selects the middle index, not a validation-selected price.
 
 This command is a **known-model evaluation**: the same scenario defines planning and the live simulator. It does not estimate a model from historical data or test a hidden demand shift. Use the historical-model study runner for that comparison.
 

@@ -132,5 +132,26 @@
   "unmet_penalty_per_kwh": 0.3,
   "terminal_value_per_stored_kwh": 0.0,
   "discount_per_period": 0.99,
-  "charging_utility_intercept": 0.0
+  "charging_utility_intercept": 0.0,
+  "fcs_pricing_mode": "base_price",
+  "period_types": null,
+  "first_period_hour_of_day": 14,
+  "fcs_base_price_mean": [
+    0.24368,
+    0.27739,
+    0.36667
+  ],
+  "fcs_base_price_halfwidth": [
+    0.01218,
+    0.01387,
+    0.02933
+  ],
+  "fcs_service_fee_rate": 0.1,
+  "mcv_pricing_mode": "premium",
+  "mcv_premium_levels": [
+    1.1,
+    1.4,
+    1.7
+  ],
+  "mcv_premium_reference": "ev_price"
 }

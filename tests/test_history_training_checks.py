@@ -52,6 +52,7 @@ class HistoryTrainingChecksTests(unittest.TestCase):
     def setUpClass(cls):
         cls.temp = tempfile.TemporaryDirectory(); cls.root = Path(cls.temp.name)
         cls.scenario = replace(Scenario(), horizon=2, arrival_profile=(1.,)*2,
+            fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
             grid_buy_per_kwh=(.15,)*2, grid_sell_per_kwh=(.1,)*2,
             charging_utility_intercept=3., terminal_value_per_stored_kwh=.04).validate()
         cls.configs = {}

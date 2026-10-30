@@ -23,6 +23,10 @@ def small_scenario(**overrides):
         charge_efficiency=0.8, mobile_service_efficiency=0.8,
         discharge_efficiency=0.8, fixed_service_efficiency=0.8,
         terminal_value_per_stored_kwh=0., discount_per_period=0.9,
+        # Physics and legacy-pricing regressions: keep the fixed absolute menu
+        # and the profile/shock station prices. See tests/test_station_pricing.py
+        # for the LADWP base-price and premium-menu behaviour.
+        fcs_pricing_mode="legacy", mcv_pricing_mode="absolute",
     )
     values.update(overrides)
     return replace(Scenario(), **values).validate()
@@ -142,13 +146,18 @@ class ModelTests(unittest.TestCase):
 
     def test_prices_are_discrete_and_indexed_by_nodes(self):
         sim = ChargingSimulator(Scenario())
-        sim.reset(seed=1, options={"requests": [0, 0, 0, 0]})
+        obs, _ = sim.reset(seed=1, options={"requests": [0, 0, 0, 0]})
+        # Under premium pricing the menu is per node and per period, so the
+        # admissible set comes from the observation rather than a fixed tuple.
+        menu = obs["mobile_price_menu"]
+        self.assertEqual(menu.shape, (4, sim.config.n_price_levels))
         with self.assertRaises(ValueError):
-            sim.quote_prices([0.6, 0.8])  # Old per-MCV shape.
+            sim.quote_prices(menu[:2, 0])  # Old per-MCV shape.
         with self.assertRaises(ValueError):
-            sim.quote_prices([0.55] * 4)
-        sim.quote_price_levels([0, 1, 2, 3])
-        np.testing.assert_array_equal(sim.mobile_prices, [0.2, 0.3, 0.4, 0.5])
+            sim.quote_prices([menu[0, 0] + 0.01] * 4)  # Between two menu entries.
+        sim.quote_price_levels([0, 1, 2, 0])
+        np.testing.assert_allclose(sim.mobile_prices,
+                                   [menu[0, 0], menu[1, 1], menu[2, 2], menu[3, 0]])
         sim.reset(seed=1)
         for indices in ([0, 1], [0., 1., 2., 3.], [0, 1, 2, 99], [True] * 4):
             with self.subTest(indices=indices), self.assertRaises(ValueError):

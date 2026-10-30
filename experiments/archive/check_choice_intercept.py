@@ -83,7 +83,8 @@ def build_reference_bank(scenario, seeds, specification):
         observation, _ = sim.reset(seed=seed)
         while sim.stage != 2:
             levels = rules.fixed_prices(observation, scenario, specification['price_index'])
-            prices = np.asarray(scenario.price_levels, dtype=np.float64)[levels]
+            prices = np.asarray(observation['mobile_price_menu'], dtype=np.float64)[
+                np.arange(scenario.n_zones), levels]
             mobile_cost, fixed_cost, mobile_available, accessible_fcs = perceived_costs(
                 observation, prices, scenario)
             actual = sim.choice_probabilities(prices)
@@ -192,11 +193,14 @@ def main(argv=None):
     if scenario.charging_utility_intercept != 0.:
         parser.error('This reference-bank protocol requires the unchanged default b=0 scenario')
     index = specification.get('price_index')
+    # The frozen rule quotes the medium 1.4x premium under premium pricing, or
+    # the historical 0.50 per kWh under the legacy absolute menu.
+    expected_price = 1.4 if scenario.mcv_pricing_mode == 'premium' else .50
     if (isinstance(index, bool) or not isinstance(index, int)
-            or not 0 <= index < len(scenario.price_levels)
-            or scenario.price_levels[index] != .50
+            or not 0 <= index < scenario.n_price_levels
+            or scenario.price_setting(index) != expected_price
             or 'shadow_price' not in specification):
-        parser.error('The original frozen inventory rule must quote 0.50 per kWh')
+        parser.error(f'The original frozen inventory rule must quote {expected_price}')
     seeds = [args.seed_base + 2*i for i in range(args.episodes)]
     sources = ['src/charging_env/config.py', 'src/charging_env/choice.py',
                'src/charging_env/simulator.py', 'src/charging_env/benchmarks/policies.py',

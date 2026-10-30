@@ -273,8 +273,12 @@ def fitted_metadata(path, scenario, seed):
     # cannot silently change the training method used in this comparison.
     if settings.get('seed') != seed or settings.get('grid_step') != 10.:
         raise ValueError(f'{path}: expected fitted seed {seed} and grid step 10')
-    if settings.get('samples_per_period') != 8 or scenario.price_levels[settings.get('price_index', -1)] != .6:
-        raise ValueError(f'{path}: expected eight samples and fixed mobile price 0.60')
+    # The frozen mobile price is the medium 1.4x premium under premium pricing,
+    # or the historical 0.60 per kWh under the legacy absolute menu.
+    expected_price = 1.4 if scenario.mcv_pricing_mode == 'premium' else .6
+    if (settings.get('samples_per_period') != 8
+            or scenario.price_setting(settings.get('price_index', -1)) != expected_price):
+        raise ValueError(f'{path}: expected eight samples and fixed mobile price setting {expected_price}')
     if tuple(settings.get('energy_fractions', ())) != (.5, 1.):
         raise ValueError(f'{path}: fitted exchange grid differs from the coordinated rules')
     expected_grid = np.array([5., 15., 25., 35., 45., 55., 65., 75., 80.])

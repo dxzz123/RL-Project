@@ -26,17 +26,22 @@ Start with [MODEL.md](../MODEL.md) for the physical model and [ENVIRONMENT.md](E
 | $`l_{m,t}`$ | Vehicle $`m`$'s node at the start of period $`t`$ | Node label | `locations[m]` |
 | $`e_{m,t}`$; $`B`$ | Stored battery energy; battery capacity | kWh | `energy_kwh[m]`; `battery_capacity_kwh` |
 | $`\tau_{i,i'}`$ | Travel time between any two nodes $`i`$ and $`i'`$ | Hours | `distances[i, destination] / speed_kmph` |
-| $`\mathcal L`$; $`\ell`$ | Allowed mobile price levels; one level | Set; level index | `price_levels`; index into that tuple |
-| $`p_\ell`$ | Unit price associated with level $`\ell`$ | Currency/kWh | `scenario.price_levels[level_index]` |
+| $`\tau(t)`$ | Time-of-use type of period $`t`$ | off-peak/normal/peak | `resolved_period_types[t]` indexing `PERIOD_TYPES` |
+| $`\mu_\tau`$; $`h_\tau`$ | Mean and half-width of the base-price band for type $`\tau`$ | Currency/kWh | `fcs_base_price_mean`; `fcs_base_price_halfwidth` |
+| $`p^{\mathrm{FCS}}_{j,t}`$ | FCS $`j`$'s drawn base energy price | Currency/kWh | `fcs_base_prices[f]` |
+| $`\alpha`$ | Station service fee added for EV customers | Fraction | `fcs_service_fee_rate` |
+| $`\mathcal L`$; $`\ell`$ | Allowed mobile price levels; one level | Set; level index | `mobile_price_menu[i]`; index into that row |
+| $`\rho_\ell`$ | Premium multiplier associated with level $`\ell`$ | Fraction | `scenario.mcv_premium_levels[level_index]` |
+| $`j(i)`$ | Station nearest to node $`i`$, ties to the lower slot | Station slot | `scenario.nearest_fcs[i]` |
 | $`p^M_{i,t}`$ | Mobile charging price posted at node $`i`$ | Currency/kWh | `mobile_prices[i]` |
-| $`p^{F,C}_{j,t}`$ | FCS $`j`$'s customer charging price | Currency/kWh | `fcs_retail_prices[f]` |
-| $`p^{F,D}_{j,t}`$ | Price paid for fleet energy exported through FCS $`j`$ | Currency/kWh | `fcs_discharge_prices[f]` |
+| $`p^{F,C}_{j,t}`$ | FCS $`j`$'s customer charging price, $`(1+\alpha)p^{\mathrm{FCS}}_{j,t}`$ | Currency/kWh | `fcs_retail_prices[f]` |
+| $`p^{F,D}_{j,t}`$ | Price paid for fleet energy exchanged at FCS $`j`$, $`=p^{\mathrm{FCS}}_{j,t}`$ | Currency/kWh | `fcs_discharge_prices[f]` |
 
 Here $`l`$ is the letter “ell” for a vehicle location. We write the price-level index as $`\ell`$ to make the two easier to distinguish. Neither one is the number 1.
 
 The station mapping deserves a concrete example. With `fcs_zones = (0, 3)`, station slot `f = 1` refers to the station at node `j = 3`. Therefore `fcs_retail_prices[1]` is the price at node 3; it is not the price at node 1. Node arrays, such as `mobile_prices`, still use the full node index.
 
-Similarly, a **price-level index** is not a price. With the default menu, level index `4` means a price of `0.60` per kWh. `quote_price_levels(...)` accepts indices, whereas `quote_prices(...)` accepts the corresponding monetary prices.
+Similarly, a **price-level index** is not a price. Under premium pricing, level index `1` means the medium premium $`\rho=1.4`$, so the dollar price it quotes depends on the period and on the node's nearest station: it is `mobile_price_menu[i, 1]`. `quote_price_levels(...)` accepts indices, whereas `quote_prices(...)` accepts the corresponding monetary prices from the current menu.
 
 The mathematical first period is $`t=1`$ and the Python first period is `period=0`. After the final dispatch, Python reports `period=horizon` and `stage=2` to mark termination. That observation does not describe another operating period.
 

@@ -26,7 +26,8 @@ class InventoryWarmStartTests(unittest.TestCase):
         scenario = replace(Scenario(), horizon=2, initial_locations=(0, 0),
                            initial_energy_kwh=(5., 5.), mean_requests_by_zone=(0., 0., 0., 0.),
                            arrival_profile=(1., 1.), grid_buy_per_kwh=(.10, .10),
-                           grid_sell_per_kwh=(.08, .08), charging_utility_intercept=3.).validate()
+                           grid_sell_per_kwh=(.08, .08), charging_utility_intercept=3.,
+                           fcs_pricing_mode='legacy', mcv_pricing_mode='absolute').validate()
         config.update(overrides)
         return Trainer(scenario, TrainingConfig(**config))
 

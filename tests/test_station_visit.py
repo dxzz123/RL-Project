@@ -9,7 +9,8 @@ from charging_env import ChargingSimulator, DispatchAction, Mode, Scenario
 
 class StationVisitTests(unittest.TestCase):
     def setup_no_requests(self):
-        sim = ChargingSimulator(replace(Scenario(), price_noise_distribution="none"))
+        sim = ChargingSimulator(replace(Scenario(), price_noise_distribution="none",
+                                         fcs_pricing_mode="legacy", mcv_pricing_mode="absolute"))
         sim.reset(seed=7, options={"requests": [0, 0, 0, 0]})
         sim.quote_prices([0.50] * sim.config.n_zones)
         return sim

@@ -34,7 +34,17 @@ SEEDS = (7, 19, 37)
 CASES = {'small': 'configs/utility_b3.json', 'city': 'configs/synthetic_25_zones.json'}
 BACKENDS = ('rollout', 'inventory')
 PHASES = ('warm', *BACKENDS)
-PRICE_INDICES = tuple(range(7))
+def price_indices(scenario):
+    """Every admissible price action; seven absolute levels, or the premiums."""
+    return tuple(range(scenario.n_price_levels))
+
+
+def study_price_indices():
+    """The study-wide price sweep; both CASES configs must share a menu size."""
+    sizes = {Scenario.from_json(ROOT/path).n_price_levels for path in CASES.values()}
+    if len(sizes) != 1:
+        raise ValueError('Both study cases must use the same price menu size')
+    return tuple(range(sizes.pop()))
 ACTION_SEED = 719991
 SCHEMA = 'charging_env.priced_adp_study.v1'
 VALIDATION = {case: [base+2*i for i in range(32)] for case, base in
@@ -43,6 +53,10 @@ TEST = {case: [base+2*i for i in range(256)] for case, base in
         [('small', 2_310_000_001), ('city', 2_330_000_001)]}
 EXACT = dict(price_index=4, early_shadow_price=.3, late_shadow_price=.15,
              energy_fractions=[.5, 1.], max_joint_actions=200000)
+# The historical reference quoted 0.60; under premium pricing the analogue is
+# the middle premium, so the index follows the configured menu.
+EXACT_PRICE_INDEX = lambda scenario: (scenario.n_price_levels//2
+    if scenario.mcv_pricing_mode == 'premium' else 4)
 read, write, digest, seal, sealed = previous.read, previous.write, previous.digest, previous.seal, previous.sealed
 normalized, check_result = previous.normalized, previous.check_result
 
@@ -72,10 +86,10 @@ def rule_grid(scenario):
 
 
 def constant_pricer(scenario, index):
-    if index not in range(len(scenario.price_levels)):
+    if index not in range(scenario.n_price_levels):
         raise ValueError('Invalid fixed price index')
     coefficients = np.zeros(PARAMETER_COUNT)
-    coefficients[0] = scenario.price_levels[index]
+    coefficients[0] = scenario.representative_price(index)
     return LearnedPricingPolicy(scenario, coefficients)
 
 
@@ -84,7 +98,7 @@ class RuleBackend:
     def __init__(self, scenario, pricer, backend, setting):
         self.scenario, self.pricer, self.backend, self.setting = scenario, pricer, backend, setting
         self.statistics = dict(decisions=0, coordinate_candidate_outcomes=0,
-            current_pricing_calls=0, current_active_price_counts=[0]*len(scenario.price_levels))
+            current_pricing_calls=0, current_active_price_counts=[0]*scenario.n_price_levels)
         self.solver_statistics, self.pricing_decisions = {}, []
         self.reset_episode()
 
@@ -98,7 +112,7 @@ class RuleBackend:
         stock = (float(np.mean(obs['energy_kwh']))-self.scenario.reserve_kwh)/width if width else 0.
         self.statistics['current_pricing_calls'] += 1
         self.statistics['current_active_price_counts'] = (np.asarray(self.statistics['current_active_price_counts'])
-            +np.bincount(levels[active], minlength=len(self.scenario.price_levels))).tolist()
+            +np.bincount(levels[active], minlength=self.scenario.n_price_levels)).tolist()
         self.pricing_decisions.append(dict(episode_key=self.episode_key,
             period=int(obs['period'][0]), price_levels=levels.tolist(), mobile_available=active.tolist(),
             fleet_usable_battery_fraction=stock))
@@ -240,7 +254,7 @@ def init(study, control_root):
         stage_seeds, stage_hashes = historical_seeds(ROOT)
         old_seeds.update(stage_seeds)
         old_hashes.update({'stage/'+name: sha for name, sha in stage_hashes.items()})
-    p = dict(schema=SCHEMA, cases=cases, seeds=list(SEEDS), price_indices=list(PRICE_INDICES),
+    p = dict(schema=SCHEMA, cases=cases, seeds=list(SEEDS), price_indices=list(study_price_indices()),
         action_seed=ACTION_SEED, final_policy_episodes=6912, exact_inventory=EXACT,
         selection='Fixed inventory: best of 49 settings. Fixed rollout: mean of all three planning seeds at all seven prices. Each backend/seed selects fixed, warm, or refined on validation, ties in that order.',
         pricing_fallback='Selected pricing includes a fixed-price fallback; a selected row need not use learned pricing. Every choice is reported.',
@@ -273,7 +287,7 @@ def init(study, control_root):
 
 def verify(study):
     p = sealed(study/'protocol.json')
-    if (p['schema'] != SCHEMA or p['seeds'] != list(SEEDS) or p['price_indices'] != list(PRICE_INDICES)
+    if (p['schema'] != SCHEMA or p['seeds'] != list(SEEDS) or p['price_indices'] != list(study_price_indices())
             or p['action_seed'] != ACTION_SEED or p['final_policy_episodes'] != 6912 or p['exact_inventory'] != EXACT
             or set(p['cases']) != set(CASES)):
         raise ValueError('Study protocol differs from the declared comparison')
@@ -489,17 +503,17 @@ def inspect_evaluation(study, p, case, seeds, path, specification):
 
 
 def summarize_pricing(records, scenario):
-    counts = np.zeros((scenario.horizon, len(scenario.price_levels)), dtype=np.int64)
+    counts = np.zeros((scenario.horizon, scenario.n_price_levels), dtype=np.int64)
     for row in records:
         levels, active = np.asarray(row['price_levels']), np.asarray(row['mobile_available'])
         if (levels.shape != (scenario.n_zones,) or levels.dtype.kind not in 'iu'
                 or active.shape != levels.shape or active.dtype.kind != 'b'
-                or (levels < 0).any() or (levels >= len(scenario.price_levels)).any()
+                or (levels < 0).any() or (levels >= scenario.n_price_levels).any()
                 or (levels[~active] != 0).any()
                 or not 0 <= row['period'] < scenario.horizon
                 or not -1e-8 <= row['fleet_usable_battery_fraction'] <= 1+1e-8):
             raise ValueError('Malformed current pricing trace')
-        counts[row['period']] += np.bincount(levels[active], minlength=len(scenario.price_levels))
+        counts[row['period']] += np.bincount(levels[active], minlength=scenario.n_price_levels)
     total = counts.sum(axis=0); levels = np.asarray(scenario.price_levels)
     return dict(counts=total.tolist(), by_period=counts.tolist(),
         mean_active_price=float(total@levels/total.sum()) if total.sum() else None)
@@ -604,7 +618,7 @@ def validate(study, case=None, seed=None, workers=1):
     for name in cases_for(case):
         for s in (SEEDS if seed is None else (seed,)):
             for phase in PHASES: inspect_training(study, p, name, phase, s)
-            jobs += [(str(study), 'validation', name, s, ('rollout', 'fixed', price)) for price in PRICE_INDICES]
+            jobs += [(str(study), 'validation', name, s, ('rollout', 'fixed', price)) for price in study_price_indices()]
             jobs += [(str(study), 'validation', name, s, (backend, kind, None))
                 for backend in BACKENDS for kind in ('warm', 'refined')]
     run_jobs(jobs, workers)
@@ -613,7 +627,7 @@ def validate(study, case=None, seed=None, workers=1):
 def selection_from_scores(fixed_prices, learned_scores, inventory):
     """Separate global fixed-price choice from each seed's declared fallback."""
     rows = [dict(price_index=price, by_seed=fixed_prices[str(price)],
-        mean_discounted_profit=float(np.mean([fixed_prices[str(price)][str(seed)] for seed in SEEDS]))) for price in PRICE_INDICES]
+        mean_discounted_profit=float(np.mean([fixed_prices[str(price)][str(seed)] for seed in SEEDS]))) for price in sorted(int(key) for key in fixed_prices)]
     fixed = max(rows, key=lambda row: row['mean_discounted_profit'])
     selected = {}
     for backend in BACKENDS:
@@ -630,7 +644,7 @@ def selection_from_scores(fixed_prices, learned_scores, inventory):
 def compute_selection(study, p, case):
     data = p['cases'][case]; setting = verify_rules(study, p, case)['winner']
     prices, learned = {}, {b: {} for b in BACKENDS}
-    for price in PRICE_INDICES:
+    for price in study_price_indices():
         prices[str(price)] = {}
         for seed in SEEDS:
             spec = dict(label=f'rollout/fixed/{seed}/{price}', backend='rollout', pricing='fixed',
@@ -678,7 +692,9 @@ def final_specs(case, selection):
         specs[f'rollout_price_inventory_{seed}'] = dict(specs[f'selected_rollout_{seed}'], backend='inventory')
     specs['fixed_inventory'] = fixed('inventory', setting['price_index'])
     if case == 'small':
-        specs['exact_inventory'] = dict(backend='exact', pricing='fixed', price_index=4, setting=EXACT)
+        exact_index = EXACT_PRICE_INDEX(Scenario.from_json(ROOT/CASES[case]))
+        specs['exact_inventory'] = dict(backend='exact', pricing='fixed',
+            price_index=exact_index, setting=dict(EXACT, price_index=exact_index))
     return {name: dict(spec, label=name) for name, spec in specs.items()}
 
 

@@ -110,7 +110,7 @@ def _fleet_pricing_mask(obs, scenario):
         (energy[:, None]-distance*scenario.travel_kwh_per_km-scenario.reserve_kwh)
         * scenario.mobile_service_efficiency, hours*scenario.mobile_service_kw))
     available = (capacity+1e-9 >= scenario.request_min_kwh).any(axis=0)
-    return np.repeat(available[:, None], len(scenario.price_levels), axis=1)
+    return np.repeat(available[:, None], scenario.n_price_levels, axis=1)
 
 
 def paper_pricing_observation(obs, scenario):
@@ -295,11 +295,11 @@ class _PaperPricingActor(nn.Module):
         super().__init__()
         self.scenario = scenario
         self.encoder = _PaperPricingEncoder(scenario, hidden_size)
-        self.head = _linear(hidden_size, scenario.n_zones*len(scenario.price_levels), .01)
+        self.head = _linear(hidden_size, scenario.n_zones*scenario.n_price_levels, .01)
 
     def _distribution(self, observations):
         c = self.scenario
-        logits = self.head(self.encoder(observations)).reshape(-1, c.n_zones, len(c.price_levels))
+        logits = self.head(self.encoder(observations)).reshape(-1, c.n_zones, c.n_price_levels)
         masks = torch.as_tensor(np.stack([_fleet_pricing_mask(o, c) for o in observations]),
                                 dtype=torch.bool, device=logits.device)
         active = masks.any(dim=-1)

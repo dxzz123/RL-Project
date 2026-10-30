@@ -18,7 +18,9 @@ def main():
     rows = []
     while sim.stage != 2:
         # Pricing is supplied first. No dispatch action has been selected yet.
-        prices = np.array([scenario.price_levels[len(scenario.price_levels)//2]]*scenario.n_zones)
+        # Quote the middle setting of each node's current menu.
+        menu = np.asarray(obs["mobile_price_menu"], dtype=float)
+        prices = menu[:, menu.shape[1]//2].copy()
         obs, reward, terminated, truncated, choice_info = sim.quote_prices(prices)
         print(f"Period {sim.period}: requests={obs['requests_by_zone'].tolist()}")
         print("  Mobile choices (pooled by zone):", obs["mobile_demand"].tolist())

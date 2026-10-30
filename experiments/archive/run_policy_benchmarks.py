@@ -40,7 +40,7 @@ def digest(path):
 
 def candidates(config):
     result = [{'id': 'random', 'family': 'random'}]
-    for price in range(len(config.price_levels)):
+    for price in range(config.n_price_levels):
         result.append({'id': f'wait_p{price}', 'family': 'fixed_wait', 'price_index': price})
         for threshold in (.2, .4, .6):
             result.append({'id': f'service_p{price}_b{threshold}', 'family': 'fixed_service',

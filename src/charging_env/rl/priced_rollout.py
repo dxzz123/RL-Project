@@ -15,6 +15,7 @@ import time
 import numpy as np
 
 from ..benchmarks.policies import dispatch_outcome, service_first_dispatch
+from ..config import price_level_indices
 from ..simulator import ChargingSimulator
 from .adaptive_pricing import pricing_observation
 from .fitted_train import _new_run_directory
@@ -37,7 +38,7 @@ def _price_levels(obs, scenario, pricing_policy):
     # random stream. This is the same inference mode in real and future states.
     levels = np.asarray(pricing_policy.prices(allowed, rng=None))
     if (levels.shape != (scenario.n_zones,) or levels.dtype.kind not in 'iu'
-            or (levels < 0).any() or (levels >= len(scenario.price_levels)).any()):
+            or (levels < 0).any() or (levels >= scenario.n_price_levels).any()):
         raise ValueError('Pricing policy must return one valid integer price index per zone')
     levels = levels.astype(np.int64, copy=True)
     levels[~active] = 0
@@ -125,12 +126,12 @@ class PricedRolloutADPPolicy(RolloutADPPolicy):
         super().__init__(scenario, rollout_config, extra_proposal=extra_proposal)
         self.pricing_decisions = []
         self.statistics.update(current_pricing_calls=0, future_pricing_calls=0,
-            current_active_price_counts=[0]*len(scenario.price_levels),
-            future_active_price_counts=[0]*len(scenario.price_levels))
+            current_active_price_counts=[0]*scenario.n_price_levels,
+            future_active_price_counts=[0]*scenario.n_price_levels)
 
     def prices(self, obs, rng=None):
         levels, active = _price_levels(obs, self.scenario, self.pricing_policy)
-        counts = np.bincount(levels[active], minlength=len(self.scenario.price_levels))
+        counts = np.bincount(levels[active], minlength=self.scenario.n_price_levels)
         self.statistics['current_pricing_calls'] += 1
         self.statistics['current_active_price_counts'] = (
             np.asarray(self.statistics['current_active_price_counts'])+counts).tolist()
@@ -164,7 +165,7 @@ class PricedRolloutADPPolicy(RolloutADPPolicy):
         outcomes = [dispatch_outcome(obs, scenario, actions) for actions in plans]
         scores = np.repeat(np.asarray([o['reward'] for o in outcomes])[:, None], config.rollout_samples, axis=1)
         price_hash = hashlib.sha256()
-        counts = np.zeros(len(scenario.price_levels), dtype=np.int64)
+        counts = np.zeros(scenario.n_price_levels, dtype=np.int64)
         first_prices, completed = None, 0
         for candidate, outcome in enumerate(outcomes):
             for draw in range(config.rollout_samples):
@@ -174,12 +175,13 @@ class PricedRolloutADPPolicy(RolloutADPPolicy):
                     energies = self._clip_roundoff(energies)
                     future = _sample_priced_dispatch_observation(scenario, future_period, locations,
                         energies, int(seeds[offset, draw]), self.pricing_policy)
-                    levels = np.searchsorted(scenario.price_levels, future['mobile_prices']).astype(np.int64)
+                    levels = price_level_indices(future['mobile_price_menu'],
+                                                 future['mobile_prices'])
                     price_hash.update(levels.astype('<i8', copy=False).tobytes(order='C'))
                     if first_prices is None:
                         first_prices = levels.tolist()
                     active = np.asarray(future['mobile_available'], dtype=bool)
-                    counts += np.bincount(levels[active], minlength=len(scenario.price_levels))
+                    counts += np.bincount(levels[active], minlength=scenario.n_price_levels)
                     actions = self._validated_actions(future, service_first_dispatch(future, scenario,
                         config.base_recharge_threshold))
                     step = dispatch_outcome(future, scenario, actions)

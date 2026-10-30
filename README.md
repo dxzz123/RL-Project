@@ -11,6 +11,8 @@ Every simulated hour has the same four steps:
 
 One episode is a 12-hour day. The score is total discounted profit for the day, in dollars.
 
+Mobile prices are quoted as a premium over the price at each zone's nearest station, and station prices are drawn each period from LADWP-anchored off-peak/normal/peak bands, so both move with time of day.
+
 ## What we have found so far
 
 The latest comparison estimates demand and customer choice from past quote records instead of giving controllers the true simulator parameters. It uses the 25-zone, ten-vehicle city, policy seeds 7, 19 and 37, and 128 new test days per condition. PPO is retrained for 500 updates per seed in the same estimated model.

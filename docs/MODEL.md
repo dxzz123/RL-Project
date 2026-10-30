@@ -96,9 +96,64 @@ w^F_{j,t}=\frac{\Delta t}{2}\max\left\{0,\frac{L_{j,t}}{K_j}-1\right\},\qquad K_
 
 A station with no customer-service capacity stores zero wait but remains unavailable. Other stations use this simple waiting estimate before customers choose, and keep it fixed for the whole period. The estimate is not recalculated after seeing their choices. Mobile-vehicle recharge and export use separate station capacity and do not affect these customer waiting estimates.
 
-## 4. How prices influence each customer's choice
+## 4. Station base prices and the mobile price menu
 
-The operator chooses one mobile price, $`p^M_{i,t}`$, for each node from the fixed list `Scenario.price_levels`. All customers at that node see the same price. In the Python interface, `quote_prices` accepts dollar-per-kWh amounts from this list, while `quote_price_levels` and Gymnasium's `price_levels` action accept positions in the list, such as index 0 for its first entry. A node without mobile availability receives a valid placeholder price, but customers there still cannot choose mobile charging.
+Every period is one of three experience-based time-of-use types, ordered
+off-peak < normal < peak. Each station $`j`$ then draws its own **base energy
+price** for that period,
+
+```math
+p^{\mathrm{FCS}}_{j,t}\sim\mathrm{Uniform}\!\left(\mu_{\tau(t)}-h_{\tau(t)},\;
+\mu_{\tau(t)}+h_{\tau(t)}\right),
+```
+
+where $`\tau(t)`$ is the period's type. The three means are the posted LADWP
+Electric Vehicle Commercial Charging Service (Pilot) energy charges for rate
+class EVA2a, effective 1 October 2026: **\$0.24368** off-peak, **\$0.27739**
+mid-peak (our "normal"), and **\$0.36667** peak per kWh. The half-widths are
+chosen so the three supports are disjoint and widen with the type, so
+peak > normal > off-peak holds for every draw, not merely in expectation.
+
+Two prices follow from the base price:
+
+```math
+p^{F,C}_{j,t}=(1+\alpha)\,p^{\mathrm{FCS}}_{j,t},\qquad
+p^{F,E}_{j,t}=p^{\mathrm{FCS}}_{j,t}.
+```
+
+An EV charging at station $`j`$ pays the base price plus a service fee
+$`\alpha`$ (`fcs_service_fee_rate`, 10% by default). A mobile vehicle exchanges
+energy at the station — recharging *and* discharging — at the base price
+itself. Round-tripping energy through a station is therefore never profitable
+on price alone, since both conversion efficiencies are below one; discharge
+pays off only when it frees capacity that is worth more elsewhere.
+
+The operator chooses one mobile price, $`p^M_{i,t}`$, for each node from a
+**menu that moves with the stations**. Let $`j(i)`$ be the station nearest to
+node $`i`$ by road distance, with ties going to the lower station index. The
+menu is
+
+```math
+p^M_{i,t}\in\left\{\rho\,p^{F,C}_{j(i),t}\;:\;\rho\in\{1.1,\,1.4,\,1.7\}\right\},
+```
+
+a low, medium, or high premium over what a customer at node $`i`$ would pay at
+their nearest station. All customers at that node see the same price. In the
+Python interface, `quote_prices` accepts dollar-per-kWh amounts from the current
+menu, while `quote_price_levels` and Gymnasium's `price_levels` action accept
+positions in it — index 0 for the low premium, 2 for the high one. The realized
+menu is published each period as the `mobile_price_menu` observation key, of
+shape `[n_zones, n_price_levels]`, and the drawn base prices as
+`fcs_base_prices`. A node without mobile availability receives a valid
+placeholder price, but customers there still cannot choose mobile charging.
+
+Setting `mcv_premium_reference` to `"base_price"` anchors the premium on
+$`p^{\mathrm{FCS}}_{j(i),t}`$ instead, dropping the service fee from the
+reference. Setting `fcs_pricing_mode` to `"legacy"` and `mcv_pricing_mode` to
+`"absolute"` restores the earlier scheme: fixed `fcs_retail_per_kwh` and
+`grid_sell_per_kwh` profiles perturbed by a multiplicative `price_noise` shock,
+fleet recharge bought at `grid_buy_per_kwh`, and one shared absolute
+`price_levels` menu at every node.
 
 A customer chooses mobile service at their origin, rather than choosing a named mobile vehicle. For request $`r`$ at node $`i`$, the customer compares payment plus inconvenience, with inconvenience expressed in dollars:
 
@@ -109,7 +164,7 @@ c^j_{r,t}&=p^{F,C}_{j,t}q_r+b_F d(i,j)+a_Fw^F_{j,t}.
 \end{aligned}
 ```
 
-Here `a_M` is the customer's cost per hour of waiting for mobile service, `a_F` is the cost per hour of waiting at a station, and `b_F` is the inconvenience cost per kilometre of traveling to a station. Mobile waiting cost uses the average arrival time of eligible vehicles. For example, 10 kWh at 0.60 dollars/kWh costs 6 dollars before any waiting inconvenience is added.
+Here `a_M` is the customer's cost per hour of waiting for mobile service, `a_F` is the cost per hour of waiting at a station, and `b_F` is the inconvenience cost per kilometre of traveling to a station. Mobile waiting cost uses the average arrival time of eligible vehicles. For example, 10 kWh at 0.40 dollars/kWh costs 4 dollars before any waiting inconvenience is added.
 
 Let $`\mathcal A_{r,t}`$ contain the charging options this customer may consider: mobile charging, if available, and accessible fixed stations. The outside option means leaving without using the operator's service, and its baseline preference score is zero. The positive parameter `eta` determines how strongly cost reduces the appeal of a charging option. The parameter `b` is a common charging benefit that makes all charging options more attractive relative to leaving. The following logit model converts these scores into probabilities:
 

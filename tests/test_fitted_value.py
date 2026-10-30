@@ -32,6 +32,10 @@ def tiny_scenario(horizon=2, zones=1, **changes):
         mobile_service_efficiency=.8, fixed_service_efficiency=.8,
         price_noise_distribution='uniform', price_noise_scale=.1,
         charging_utility_intercept=3.,
+        # Physics and legacy-pricing regressions: keep the fixed absolute menu
+        # and the profile/shock station prices. See tests/test_station_pricing.py
+        # for the LADWP base-price and premium-menu behaviour.
+        fcs_pricing_mode="legacy", mcv_pricing_mode="absolute",
     )
     settings.update(changes)
     return replace(Scenario(), **settings).validate()

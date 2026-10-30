@@ -7,6 +7,34 @@ from pathlib import Path
 
 import numpy as np
 
+# Experience-based time-of-use classes, ordered so that index 0 < 1 < 2 in price.
+PERIOD_TYPES = ("off_peak", "normal", "peak")
+
+# LADWP Electric Vehicle Commercial Charging Service (Pilot) weekday windows.
+# Peak 4pm-9pm, mid peak 7am-4pm and 9pm-11pm, off peak 11pm-7am. Source:
+# acquia.ladwp.com .../electric-vehicle-commercial-charging-service-monthly-rates
+_LADWP_PEAK_HOURS = frozenset(range(16, 21))
+_LADWP_MID_PEAK_HOURS = frozenset(range(7, 16)) | {21, 22}
+
+
+def price_level_indices(menu, prices):
+    """Recover the level index each quoted price came from, one per zone."""
+    menu = np.asarray(menu, dtype=float)
+    prices = np.asarray(prices, dtype=float)
+    if menu.ndim != 2 or prices.shape != (menu.shape[0],):
+        raise ValueError("prices must hold one value per row of the menu")
+    return np.abs(menu - prices[:, None]).argmin(axis=1).astype(np.int64)
+
+
+def ladwp_period_type(hour):
+    """Index into PERIOD_TYPES for a clock hour, wrapping past midnight."""
+    hour = int(hour) % 24
+    if hour in _LADWP_PEAK_HOURS:
+        return PERIOD_TYPES.index("peak")
+    if hour in _LADWP_MID_PEAK_HOURS:
+        return PERIOD_TYPES.index("normal")
+    return PERIOD_TYPES.index("off_peak")
+
 
 @dataclass(frozen=True)
 class Scenario:
@@ -63,6 +91,32 @@ class Scenario:
     discount_per_period: float = 0.99
     # Common service utility relative to outside; zero preserves the original model.
     charging_utility_intercept: float = 0.0
+    # --- Station base energy price -------------------------------------------
+    # "base_price": every period is typed off-peak/normal/peak, and each station
+    # draws its base price p^FCS from Uniform(mean -+ halfwidth) for that type.
+    # An EV pays base * (1 + fcs_service_fee_rate); the fleet exchanges energy
+    # (recharge and discharge alike) at the base price itself.
+    # "legacy": the original fcs_retail_per_kwh / grid_sell_per_kwh profiles with
+    # a multiplicative price_noise shock, and fleet recharge at grid_buy_per_kwh.
+    fcs_pricing_mode: str = "base_price"
+    # Explicit per-period type names; derived from the LADWP windows when None.
+    period_types: tuple | None = None
+    first_period_hour_of_day: int = 14
+    # Defaults are LADWP EVA2a energy charges, effective 10/1/2026 - 12/31/2026:
+    # off peak $0.24368, mid peak $0.27739, peak $0.36667 per kWh.
+    fcs_base_price_mean: tuple = (0.24368, 0.27739, 0.36667)
+    # Half-widths keep the three supports disjoint and increasing in width, so
+    # peak > normal > off-peak holds for every draw, not only in expectation.
+    fcs_base_price_halfwidth: tuple = (0.01218, 0.01387, 0.02933)
+    fcs_service_fee_rate: float = 0.10
+    # --- Mobile retail price --------------------------------------------------
+    # "premium": the menu at zone i is mcv_premium_levels times the reference
+    # price of the station nearest to i, so it moves with the base price.
+    # "absolute": the original fixed price_levels menu, shared by every zone.
+    mcv_pricing_mode: str = "premium"
+    mcv_premium_levels: tuple = (1.1, 1.4, 1.7)
+    # "ev_price" anchors on base * (1 + fee); "base_price" anchors on base.
+    mcv_premium_reference: str = "ev_price"
 
     @property
     def n_zones(self):
@@ -90,10 +144,40 @@ class Scenario:
         return np.outer(self.arrival_profile, self.mean_requests_by_zone)
 
     @property
+    def n_price_levels(self):
+        """Number of admissible mobile pricing actions at a zone."""
+        if self.mcv_pricing_mode == "premium":
+            return len(self.mcv_premium_levels)
+        return len(self.price_levels)
+
+    @property
+    def resolved_period_types(self):
+        """Index into PERIOD_TYPES for every period [horizon]."""
+        if self.period_types is not None:
+            return np.array([PERIOD_TYPES.index(name) for name in self.period_types], dtype=np.int64)
+        hours = self.first_period_hour_of_day + np.arange(self.horizon) * self.period_hours
+        return np.array([ladwp_period_type(hour) for hour in hours], dtype=np.int64)
+
+    @property
+    def resolved_base_price_bounds(self):
+        """Uniform support (low, high) of the base price in every period [horizon, 2]."""
+        mean = np.asarray(self.fcs_base_price_mean, dtype=float)[self.resolved_period_types]
+        halfwidth = np.asarray(self.fcs_base_price_halfwidth, dtype=float)[self.resolved_period_types]
+        return np.stack([mean - halfwidth, mean + halfwidth], axis=1)
+
+    @cached_property
+    def nearest_fcs(self):
+        """Station index anchoring each zone's mobile price menu; ties take the lower index."""
+        return self.distances[:, list(self.fcs_zones)].argmin(axis=1).astype(np.int64)
+
+    @property
     def resolved_fcs_charge_price_profile(self):
         """Baseline FCS customer charging prices [period, station]."""
         if self.fcs_charge_price_profile is not None:
             return np.asarray(self.fcs_charge_price_profile, dtype=float)
+        if self.fcs_pricing_mode == "base_price":
+            mean = np.asarray(self.fcs_base_price_mean, dtype=float)[self.resolved_period_types]
+            return np.tile((mean * (1. + self.fcs_service_fee_rate))[:, None], (1, self.n_fcs))
         return np.tile(np.asarray(self.fcs_retail_per_kwh, dtype=float), (self.horizon, 1))
 
     @property
@@ -101,7 +185,58 @@ class Scenario:
         """Baseline fleet discharge prices [period, station]."""
         if self.fcs_discharge_price_profile is not None:
             return np.asarray(self.fcs_discharge_price_profile, dtype=float)
+        if self.fcs_pricing_mode == "base_price":
+            mean = np.asarray(self.fcs_base_price_mean, dtype=float)[self.resolved_period_types]
+            return np.tile(mean[:, None], (1, self.n_fcs))
         return np.repeat(np.asarray(self.grid_sell_per_kwh, dtype=float)[:, None], self.n_fcs, axis=1)
+
+    def mobile_price_menu(self, fcs_retail_prices):
+        """Admissible mobile prices [zone, level] implied by station customer prices.
+
+        Premium mode anchors each zone on its nearest station, so the menu is a
+        function of the station prices alone and carries no request information.
+        This is the single definition; the simulator and the pricing controllers
+        both go through it.
+        """
+        retail = np.asarray(fcs_retail_prices, dtype=float)
+        if retail.shape != (self.n_fcs,) or not np.isfinite(retail).all():
+            raise ValueError("fcs_retail_prices must hold one finite price per station")
+        if self.mcv_pricing_mode != "premium":
+            return np.tile(np.asarray(self.price_levels, dtype=float), (self.n_zones, 1))
+        anchor = retail[self.nearest_fcs]
+        if self.mcv_premium_reference == "base_price":
+            anchor = anchor / (1. + self.fcs_service_fee_rate)
+        return np.outer(anchor, np.asarray(self.mcv_premium_levels, dtype=float))
+
+    def representative_price(self, index):
+        """A single dollar price standing in for menu level `index`.
+
+        Averages that level across zones and periods at the expected base price.
+        In absolute mode this returns ``price_levels[index]`` exactly, so callers
+        that need one constant price per level work unchanged in both modes.
+        """
+        profile = self.resolved_fcs_charge_price_profile
+        menus = np.stack([self.mobile_price_menu(profile[t]) for t in range(self.horizon)])
+        return float(menus[:, :, int(index)].mean())
+
+    @property
+    def mobile_price_bounds(self):
+        """Lowest and highest mobile price this scenario can ever quote."""
+        if self.mcv_pricing_mode != "premium":
+            levels = np.asarray(self.price_levels, dtype=float)
+            return float(levels.min()), float(levels.max())
+        bounds = self.resolved_base_price_bounds * self.base_price_reference_scale()
+        premiums = np.asarray(self.mcv_premium_levels, dtype=float)
+        return float(bounds[:, 0].min() * premiums.min()), float(bounds[:, 1].max() * premiums.max())
+
+    def price_setting(self, index):
+        """The menu entry an action index selects: a premium factor, or a dollar price."""
+        levels = self.mcv_premium_levels if self.mcv_pricing_mode == "premium" else self.price_levels
+        return float(levels[int(index)])
+
+    def base_price_reference_scale(self):
+        """Factor turning a base price into a mobile menu anchor."""
+        return 1. + self.fcs_service_fee_rate if self.mcv_premium_reference == "ev_price" else 1.
 
     def validate(self):
         integer_fields = ("horizon", "max_requests_per_zone")
@@ -175,6 +310,49 @@ class Scenario:
         e = np.asarray(self.initial_energy_kwh)
         if (e < self.reserve_kwh).any() or (e > self.battery_capacity_kwh).any():
             raise ValueError("Initial energy must lie between reserve and capacity")
+        if self.fcs_pricing_mode not in ("base_price", "legacy"):
+            raise ValueError("fcs_pricing_mode must be 'base_price' or 'legacy'")
+        if self.mcv_pricing_mode not in ("premium", "absolute"):
+            raise ValueError("mcv_pricing_mode must be 'premium' or 'absolute'")
+        if self.mcv_premium_reference not in ("ev_price", "base_price"):
+            raise ValueError("mcv_premium_reference must be 'ev_price' or 'base_price'")
+        hour = self.first_period_hour_of_day
+        if isinstance(hour, bool) or not isinstance(hour, int) or not 0 <= hour < 24:
+            raise ValueError("first_period_hour_of_day must be an integer clock hour in [0, 24)")
+        if self.period_types is not None:
+            if (len(self.period_types) != self.horizon
+                    or any(name not in PERIOD_TYPES for name in self.period_types)):
+                raise ValueError(f"period_types must give one of {PERIOD_TYPES} for each of {self.horizon} periods")
+        fee = self.fcs_service_fee_rate
+        if isinstance(fee, bool) or not isinstance(fee, Real) or not np.isfinite(fee) or fee < 0:
+            raise ValueError("fcs_service_fee_rate must be a finite nonnegative number")
+        mean = np.asarray(self.fcs_base_price_mean, dtype=float)
+        halfwidth = np.asarray(self.fcs_base_price_halfwidth, dtype=float)
+        for name, array in (("fcs_base_price_mean", mean), ("fcs_base_price_halfwidth", halfwidth)):
+            if array.shape != (len(PERIOD_TYPES),) or not np.isfinite(array).all() or (array < 0).any():
+                raise ValueError(f"{name} must contain {len(PERIOD_TYPES)} finite nonnegative values")
+        if (halfwidth >= mean).any():
+            raise ValueError("fcs_base_price_halfwidth must stay below the matching mean, so base prices are positive")
+        # Disjoint, increasing supports make peak > normal > off-peak hold per draw.
+        if (mean[:-1] + halfwidth[:-1] >= mean[1:] - halfwidth[1:]).any():
+            raise ValueError(f"Base price supports must be disjoint and increasing across {PERIOD_TYPES}")
+        if (np.diff(halfwidth) <= 0).any():
+            raise ValueError(f"Base price ranges must widen across {PERIOD_TYPES}")
+        premiums = np.asarray(self.mcv_premium_levels, dtype=float)
+        if (premiums.ndim != 1 or premiums.size == 0 or not np.isfinite(premiums).all()
+                or (premiums <= 0).any() or (np.diff(premiums) <= 0).any()):
+            raise ValueError("mcv_premium_levels must be finite, positive, and strictly increasing")
+        if self.fcs_pricing_mode == "base_price":
+            explicit = ("fcs_charge_price_profile", "fcs_discharge_price_profile")
+            if any(getattr(self, name) is not None for name in explicit):
+                raise ValueError(f"base_price mode samples station prices; clear {explicit} or use 'legacy' mode")
+        if self.mcv_pricing_mode == "premium":
+            if self.fcs_pricing_mode != "base_price":
+                raise ValueError("premium mobile pricing requires the base_price station pricing mode")
+            low, high = self.mobile_price_bounds
+            if low < self.price_min - 1e-12 or high > self.price_max + 1e-12:
+                raise ValueError(f"Premium mobile prices span [{low:.4f}, {high:.4f}], "
+                                 f"outside price_min/price_max [{self.price_min}, {self.price_max}]")
         matrices = (
             ("arrival_rates", self.resolved_arrival_rates, (self.horizon, self.n_zones)),
             ("fcs_charge_price_profile", self.resolved_fcs_charge_price_profile, (self.horizon, self.n_fcs)),

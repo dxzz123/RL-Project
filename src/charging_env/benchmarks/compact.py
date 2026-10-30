@@ -24,34 +24,46 @@ def _price_index(config, price):
 
 
 def candidates(config):
-    """Return the fixed 82-setting search grid, in deterministic tie order.
+    """Return the predeclared search grid, in deterministic tie order.
 
-    Service-first uses every price and three recharge thresholds. Constant
-    inventory uses five prices and nine shadow values. Time inventory fixes
-    price 0.60 and uses 16 early/late shadow schedules. Both coordinated rules
-    share the fitted-value controller's half/full feasible exchange grid.
+    Service-first uses every price setting and three recharge thresholds.
+    Constant inventory uses the upper price settings and nine shadow values.
+    Time inventory fixes the middle setting and uses 16 early/late schedules.
+    Both coordinated rules share the fitted-value controller's half/full
+    feasible exchange grid. Premium pricing sweeps every premium, giving
+    3L + 9L + 16 settings for L levels: 52 for the three-level menu and 76 for
+    a five-level one. The historical absolute menu yields 21 + 45 + 16 = 82.
     """
     config.validate()
-    if len(config.price_levels) != 7:
-        raise ValueError('The predeclared compact study requires seven price levels')
+    if config.mcv_pricing_mode == 'premium':
+        levels = config.n_price_levels
+        service = range(levels)
+        constant = range(levels)
+        middle = levels // 2
+    else:
+        if len(config.price_levels) != 7:
+            raise ValueError('The predeclared compact study requires seven price levels')
+        service = range(7)
+        constant = [_price_index(config, price) for price in (.4, .5, .6, .8, 1.)]
+        middle = _price_index(config, .6)
     result = []
-    for price in range(len(config.price_levels)):
+    for price in service:
         for threshold in (.2, .4, .6):
             result.append({'id': f'service_p{price}_b{threshold:g}', 'family': 'service_first',
                            'price_index': price, 'recharge_threshold': threshold})
-    for price in (.4, .5, .6, .8, 1.):
-        index = _price_index(config, price)
+    for index in constant:
         for shadow in (.05, .10, .15, .20, .25, .30, .35, .40, .45):
             result.append({'id': f'constant_p{index}_s{shadow:g}', 'family': 'constant_inventory',
                            'price_index': index, 'shadow_price': shadow})
     for early in (.1, .2, .3, .4):
         for late in (0., .05, .10, .15):
             result.append({'id': f'time_e{early:g}_l{late:g}', 'family': 'time_inventory',
-                           'price_index': _price_index(config, .6),
+                           'price_index': middle,
                            'early_shadow_price': early, 'late_shadow_price': late,
                            'switch_period': config.horizon // 2})
     if Counter(item['family'] for item in result) != {
-            'service_first': 21, 'constant_inventory': 45, 'time_inventory': 16}:
+            'service_first': 3*len(service), 'constant_inventory': 9*len(constant),
+            'time_inventory': 16}:
         raise ValueError('Unexpected compact candidate grid')
     return result
 

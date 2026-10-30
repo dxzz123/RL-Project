@@ -21,6 +21,10 @@ from charging_env.rl.adaptive_pricing import (LearnedPricingPolicy, PriceSearchC
 
 def scenario(vehicles=2, horizon=2, **changes):
     values = dict(horizon=horizon, arrival_profile=(1.,)*horizon,
+        # Dispatch/rollout/history regressions: keep the fixed absolute menu and
+        # profile station prices. tests/test_station_pricing.py covers the LADWP
+        # base-price bands and the premium menu.
+        fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
         grid_buy_per_kwh=(.15,)*horizon, grid_sell_per_kwh=(.1,)*horizon,
         initial_locations=tuple(i % 4 for i in range(vehicles)),
         initial_energy_kwh=(55.,)*vehicles, charging_utility_intercept=3.)

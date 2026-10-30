@@ -53,7 +53,7 @@ python -m charging_env.rl.rollout_adp --scenario configs/utility_b3.json \
 
 | Option | Meaning |
 |---|---|
-| `--price-index` | Position in the scenario's price list. In both supplied cities, 4 = $0.60 and 5 = $0.80. Validation chose 4 for the small city and 5 for the large one |
+| `--price-index` | Position in the zone's price menu. Both supplied cities now use the three premium levels, so 0 = 1.1x, 1 = 1.4x and 2 = 1.7x over the nearest station's EV price. The recorded validation choices predate the pricing change |
 | `--seed` | Planning randomness. Nothing is trained |
 | `--rollout-samples` | Imagined futures per candidate plan |
 | `--episodes`, `--eval-seed-base` | How many simulated days to evaluate, and which ones |
@@ -112,7 +112,7 @@ python -m charging_env.rl.fitted_train --scenario configs/utility_b3.json \
   --seed 7 --grid-step 10 --samples 8 --output-dir outputs/table_adp
 ```
 
-`--grid-step` is the battery grid spacing in kWh. `--samples` is the number of sampled hours per grid state. The price is fixed at index 4 ($0.60). Then evaluate a saved table:
+`--grid-step` is the battery grid spacing in kWh. `--samples` is the number of sampled hours per grid state. The price is fixed at the middle menu index (the 1.4x premium). Then evaluate a saved table:
 
 ```python
 from charging_env.rl.fitted_value import FittedValuePolicy
@@ -201,7 +201,7 @@ days = [901000001 + 2 * i for i in range(32)]
 schedule = {"family": "time_inventory", "early_shadow_price": 0.30,
             "late_shadow_price": 0.15, "switch_period": scenario.horizon // 2}
 
-def price(obs, rng):                      # $0.60 everywhere mobile service is available
+def price(obs, rng):                      # medium premium where mobile service is available
     return policies.fixed_prices(obs, scenario, 4)
 
 def dispatch(obs, rng):                   # exhaustive time-dependent inventory rule

@@ -62,7 +62,7 @@ class B3BenchmarkGuardTests(unittest.TestCase):
         with patch.object(self.module,'evaluate_rule',side_effect=evaluate) as rules, \
              patch.object(self.module,'evaluate_checkpoint') as learned,redirect_stdout(io.StringIO()):
             self.module.select_rules(self.study,self.scenario,self.provenance)
-        self.assertEqual(rules.call_count,61)
+        self.assertEqual(rules.call_count,8*self.scenario.n_price_levels+5)
         learned.assert_not_called()
 
     def test_selection_uses_only_validation_and_can_run_without_checkpoints(self):

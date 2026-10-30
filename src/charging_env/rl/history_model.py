@@ -32,6 +32,12 @@ PUBLIC_FIELDS = (
     'discharge_efficiency', 'fixed_service_efficiency', 'fcs_ev_capacity_kwh',
     'fcs_fleet_exchange_capacity_kwh', 'operating_cost_per_mcv_period',
     'unmet_penalty_per_kwh', 'terminal_value_per_stored_kwh', 'discount_per_period',
+    # Posted tariff structure: the utility's time-of-use bands, the station
+    # service fee, and the premium menu are observable, like price_levels above.
+    # Demand parameters stay private and are replaced by neutral placeholders.
+    'fcs_pricing_mode', 'period_types', 'first_period_hour_of_day',
+    'fcs_base_price_mean', 'fcs_base_price_halfwidth', 'fcs_service_fee_rate',
+    'mcv_pricing_mode', 'mcv_premium_levels', 'mcv_premium_reference',
 )
 COEFFICIENT_NAMES = ('service_intercept', 'payment', 'mobile_wait', 'fixed_wait', 'fixed_travel')
 LOG_ARRAYS = ('counts', 'request_day', 'request_period', 'request_zone',

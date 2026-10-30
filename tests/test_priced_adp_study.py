@@ -24,16 +24,20 @@ spec.loader.exec_module(study)
 
 def small_scenario():
     return replace(Scenario(), horizon=2, arrival_profile=(1., 1.), grid_buy_per_kwh=(.15, .15),
+        fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
                    grid_sell_per_kwh=(.1, .1), charging_utility_intercept=3.).validate()
 
 
 def selection_fixture():
-    prices = {str(price): {str(seed): 0. for seed in study.SEEDS} for price in study.PRICE_INDICES}
+    scenario = Scenario.from_json(ROOT/study.CASES['small'])
+    prices = {str(price): {str(seed): 0. for seed in study.SEEDS}
+              for price in study.price_indices(scenario)}
     prices['0'] = {'7': 100., '19': -100., '37': -100.}
     prices['1'] = {str(seed): 10. for seed in study.SEEDS}
     learned = {backend: {str(seed): dict(warm=10., refined=9.) for seed in study.SEEDS}
                for backend in study.BACKENDS}
-    inventory = dict(mean_discounted_profit=8., specification=dict(id='inventory', price_index=4,
+    inventory = dict(mean_discounted_profit=8., specification=dict(id='inventory',
+        price_index=study.EXACT_PRICE_INDEX(scenario),
         early_shadow_price=.2, late_shadow_price=.1, family='inventory_rule', switch_period=6))
     return study.selection_from_scores(prices, learned, inventory)
 
@@ -43,12 +47,13 @@ class PricedADPStudyTests(unittest.TestCase):
         banks = []
         for case in study.CASES:
             scenario = Scenario.from_json(ROOT/study.CASES[case])
-            self.assertEqual(len(study.rule_grid(scenario)), 49)
-            self.assertEqual(study.PRICE_INDICES, tuple(range(7)))
+            self.assertEqual(len(study.rule_grid(scenario)),
+                             scenario.n_price_levels*len(study.previous.SCHEDULES))
+            self.assertEqual(study.price_indices(scenario), tuple(range(scenario.n_price_levels)))
             for seed in study.SEEDS:
                 warm = study.training_config(case, 'warm', seed)
                 self.assertEqual(warm.generations*warm.population*warm.episodes_per_generation, 4608)
-                self.assertEqual(warm.anchors(scenario), tuple(range(7)))
+                self.assertEqual(warm.anchors(scenario), tuple(range(scenario.n_price_levels)))
                 for phase in study.PHASES:
                     config = study.training_config(case, phase, seed)
                     bank = sum(config.generation_seeds(), [])
@@ -83,7 +88,8 @@ class PricedADPStudyTests(unittest.TestCase):
             if row['backend'] == 'inventory':
                 self.assertEqual(row['setting'], selection['fixed_inventory']['specification'])
         self.assertEqual(small['exact_inventory']['setting']['energy_fractions'], [.5, 1.])
-        self.assertEqual(small['exact_inventory']['price_index'], 4)
+        self.assertEqual(small['exact_inventory']['price_index'],
+                         study.EXACT_PRICE_INDEX(Scenario.from_json(ROOT/study.CASES['small'])))
 
     def test_splits_reject_historical_and_cross_case_reuse(self):
         p = dict(cases={case: dict(validation_seeds=study.VALIDATION[case], test_seeds=study.TEST[case])

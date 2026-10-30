@@ -30,6 +30,10 @@ def tiny_scenario(intercept=0., **overrides):
         fcs_retail_per_kwh=(.42, .55), fcs_ev_capacity_kwh=(30., 40.),
         fcs_fleet_exchange_capacity_kwh=(20., 25.),
         price_noise_distribution='none', charging_utility_intercept=intercept,
+        # Physics and legacy-pricing regressions: keep the fixed absolute menu
+        # and the profile/shock station prices. See tests/test_station_pricing.py
+        # for the LADWP base-price and premium-menu behaviour.
+        fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
     )
     settings.update(overrides)
     return replace(Scenario(), **settings).validate()

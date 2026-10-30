@@ -100,7 +100,6 @@ class ChargingSimulator:
             # Explicit J_r overrides the geometric default; zero-capacity stations remain unavailable.
             self.accessible_fcs = options["accessible_fcs"].copy() & (
                 np.asarray(c.fcs_ev_capacity_kwh) >= c.request_min_kwh)
-        self.mobile_prices = np.full(c.n_zones, c.price_levels[0], dtype=float)
         self._refresh_demand()
         self.potential_energy_kwh = np.bincount(self.request_origins,
             weights=self.request_energy_kwh, minlength=c.n_zones).astype(float)
@@ -118,19 +117,36 @@ class ChargingSimulator:
         self.fcs_wait_hours = np.maximum(0., ratio - 1.) * c.period_hours / 2.
         t = min(self.period, c.horizon - 1)
         if not terminal:
-            if c.price_noise_distribution == "uniform":
-                noise = self.rng.uniform(-c.price_noise_scale, c.price_noise_scale, c.n_fcs)
-            elif c.price_noise_distribution == "normal":
-                noise = self.rng.normal(0., c.price_noise_scale, c.n_fcs)
+            if c.fcs_pricing_mode == "base_price":
+                # One independent base-price draw per station, from this period's
+                # type band. The draw itself carries the price randomness, so the
+                # legacy multiplicative shock is not applied on top of it.
+                low, high = c.resolved_base_price_bounds[t]
+                self.fcs_base_prices = self.rng.uniform(low, high, c.n_fcs)
+                self.fcs_retail_prices = self.fcs_base_prices * (1. + c.fcs_service_fee_rate)
+                self.fcs_discharge_prices = self.fcs_base_prices.copy()
             else:
-                noise = np.zeros(c.n_fcs)
-            factor = np.maximum(0., 1. + noise)
-            self.fcs_retail_prices = c.resolved_fcs_charge_price_profile[t] * factor
-            self.fcs_discharge_prices = c.resolved_fcs_discharge_price_profile[t] * factor
+                if c.price_noise_distribution == "uniform":
+                    noise = self.rng.uniform(-c.price_noise_scale, c.price_noise_scale, c.n_fcs)
+                elif c.price_noise_distribution == "normal":
+                    noise = self.rng.normal(0., c.price_noise_scale, c.n_fcs)
+                else:
+                    noise = np.zeros(c.n_fcs)
+                factor = np.maximum(0., 1. + noise)
+                self.fcs_retail_prices = c.resolved_fcs_charge_price_profile[t] * factor
+                self.fcs_discharge_prices = c.resolved_fcs_discharge_price_profile[t] * factor
+                # Legacy mode has no single exchange price; recharge uses grid_buy.
+                self.fcs_base_prices = self.fcs_discharge_prices.copy()
+            self.mobile_price_menu = self._price_menu()
         else:
             self.eligible_mcvs.fill(False)
             self.mobile_available.fill(False)
             self.mobile_wait_hours.fill(0.)
+        self.mobile_prices = self.mobile_price_menu[:, 0].copy()
+
+    def _price_menu(self):
+        """Admissible mobile prices [zone, level] for the current station prices."""
+        return self.config.mobile_price_menu(self.fcs_retail_prices)
 
     def _refresh_demand(self):
         """Aggregate retained request choices without losing identities or energy needs."""
@@ -171,11 +187,11 @@ class ChargingSimulator:
         prices = np.asarray(prices, dtype=float)
         if prices.shape != (c.n_zones,) or not np.isfinite(prices).all():
             raise ValueError("prices must be a finite vector of length n_zones")
-        levels = np.asarray(c.price_levels)
-        matches = np.isclose(prices[:, None], levels, rtol=0., atol=1e-8)
+        menu = self.mobile_price_menu
+        matches = np.isclose(prices[:, None], menu, rtol=0., atol=1e-8)
         if not matches.any(axis=1).all():
-            raise ValueError("Every node price must belong to price_levels")
-        return levels[matches.argmax(axis=1)].copy()
+            raise ValueError("Every node price must belong to that node's current price menu")
+        return np.take_along_axis(menu, matches.argmax(axis=1)[:, None], axis=1).ravel().copy()
 
     def choice_probabilities(self, prices):
         """One MNL row per request: [mobile, station 0, ..., station F-1, outside]."""
@@ -195,9 +211,9 @@ class ChargingSimulator:
         c = self.config
         levels = np.asarray(levels)
         if (levels.shape != (c.n_zones,) or not np.issubdtype(levels.dtype, np.integer)
-                or (levels < 0).any() or (levels >= len(c.price_levels)).any()):
+                or (levels < 0).any() or (levels >= c.n_price_levels).any()):
             raise ValueError("Provide one valid integer price level per node")
-        return self.quote_prices(np.asarray(c.price_levels)[levels])
+        return self.quote_prices(self.mobile_price_menu[np.arange(c.n_zones), levels])
 
     def quote_prices(self, prices):
         self._require(0)
@@ -346,7 +362,9 @@ class ChargingSimulator:
             "mobile_service_revenue": float(np.sum(delivered_mobile*self.mobile_prices)),
             "fixed_service_revenue": float(np.dot(self.fcs_retail_prices, fixed_delivered)),
             "discharge_revenue": float(np.dot(self.fcs_discharge_prices, fcs_export_grid)),
-            "procurement_cost": float(c.grid_buy_per_kwh[t]*(fixed_grid.sum()+charge_grid.sum())),
+            "procurement_cost": float(c.grid_buy_per_kwh[t]*fixed_grid.sum()
+                + (np.dot(self.fcs_base_prices, fcs_charge_grid) if c.fcs_pricing_mode == "base_price"
+                   else c.grid_buy_per_kwh[t]*charge_grid.sum())),
             "travel_cost": float(c.travel_cost_per_km*travel_km.sum()),
             "operating_cost": float(c.operating_cost_per_mcv_period*c.n_mcv),
             "unmet_demand_cost": float(c.unmet_penalty_per_kwh*(unmet_mobile_kwh+unmet_fixed_kwh)),
@@ -402,7 +420,7 @@ class ChargingSimulator:
         t = min(self.period, c.horizon-1)
         details = np.column_stack((self.request_origins, self.request_energy_kwh,
                                    self.request_choices, self.accessible_fcs)).astype(np.float64)
-        pricing_mask = np.repeat(self.mobile_available[:, None], len(c.price_levels), axis=1)
+        pricing_mask = np.repeat(self.mobile_available[:, None], c.n_price_levels, axis=1)
         if self.stage != 0:
             pricing_mask.fill(False)
         return {
@@ -417,6 +435,7 @@ class ChargingSimulator:
             "mobile_wait_hours": self.mobile_wait_hours.copy(), "mobile_available": self.mobile_available.astype(np.int8),
             "eligible_mcvs": self.eligible_mcvs.astype(np.int8), "fcs_wait_hours": self.fcs_wait_hours.copy(),
             "fcs_retail_prices": self.fcs_retail_prices.copy(), "fcs_discharge_prices": self.fcs_discharge_prices.copy(),
+            "fcs_base_prices": self.fcs_base_prices.copy(), "mobile_price_menu": self.mobile_price_menu.copy(),
             "grid_buy_price": np.array([c.grid_buy_per_kwh[t]], dtype=float),
             "pricing_mask": pricing_mask.astype(np.int8), "action_mask": self.feasible_actions().astype(np.int8),
         }

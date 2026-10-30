@@ -17,7 +17,7 @@ import zipfile
 import numpy as np
 
 from ..benchmarks.evaluation import evaluate_policy
-from ..config import Scenario
+from ..config import Scenario, price_level_indices
 
 
 FEATURE_SCHEMA = 'charging_env.shared_zone_pricing_features.v1'
@@ -105,7 +105,7 @@ def pricing_observation(obs, scenario):
         * scenario.mobile_service_efficiency, hours*scenario.mobile_service_kw))
     available = (capacity+1e-9 >= scenario.request_min_kwh).any(axis=0)
     result['stage'] = 0
-    result['pricing_mask'] = np.repeat(available[:, None], len(scenario.price_levels), axis=1)
+    result['pricing_mask'] = np.repeat(available[:, None], scenario.n_price_levels, axis=1)
     return result
 
 
@@ -150,9 +150,11 @@ def _pricing_features(o, c):
     generalized = o['fcs_retail_prices'][None, :]+c.fixed_travel_cost_per_km*station_distance/mean_request
     generalized = np.where(access, generalized, np.inf)
     competitor = generalized.min(axis=1)
-    levels = np.asarray(c.price_levels)
-    middle, span = float((levels.min()+levels.max())/2), max(float(np.ptp(levels)), 1e-12)
-    competitor = np.where(np.isfinite(competitor), competitor, levels.max())
+    # Normalize against the prices this scenario can ever quote, so the features
+    # stay stationary even though the premium menu moves with the base price.
+    low, high = c.mobile_price_bounds
+    middle, span = (low+high)/2., max(high-low, 1e-12)
+    competitor = np.where(np.isfinite(competitor), competitor, high)
     t = 2*float(o['period'][0])/max(1, c.horizon-1)-1
     columns = (np.ones(c.n_zones), np.full(c.n_zones, t),
         2*rates/max(1., float(np.max(c.resolved_arrival_rates)))-1, balance,
@@ -197,9 +199,11 @@ class LearnedPricingPolicy:
     def prices(self, obs, rng=None):
         filtered = pricing_observation(obs, self._scenario)
         targets = _pricing_features(filtered, self._scenario) @ self._coefficients
-        levels = np.asarray(self._scenario.price_levels)
-        targets = np.clip(targets, levels.min(), levels.max())
-        indices = np.abs(targets[:, None]-levels).argmin(axis=1).astype(np.int64)
+        # The menu is per zone and per period, and follows from the station
+        # customer prices the pricing observation already carries.
+        menu = self._scenario.mobile_price_menu(filtered['fcs_retail_prices'])
+        targets = np.clip(targets, menu.min(axis=1), menu.max(axis=1))
+        indices = price_level_indices(menu, targets)
         indices[~filtered['pricing_mask'].any(axis=1)] = 0
         return indices
 
@@ -302,11 +306,11 @@ class PriceSearchConfig:
         if len(set(anchors)) != len(anchors): raise ValueError('Fixed-price anchors must be unique')
         for index in anchors:
             _integer(index, 'fixed_anchor_index')
-            if index >= len(scenario.price_levels): raise ValueError('Fixed-price anchor is outside price levels')
+            if index >= scenario.n_price_levels: raise ValueError('Fixed-price anchor is outside price levels')
         return self
 
     def anchors(self, scenario):
-        return tuple(range(len(scenario.price_levels))) if self.fixed_anchor_indices is None else tuple(self.fixed_anchor_indices)
+        return tuple(range(scenario.n_price_levels)) if self.fixed_anchor_indices is None else tuple(self.fixed_anchor_indices)
 
     def generation_seeds(self):
         return [[int(self.training_seed_base+2*(g*self.episodes_per_generation+i))
@@ -334,13 +338,14 @@ def fit_price_policy(scenario, config, backend_factory, output_dir, initial_poli
         raise FileExistsError('Pricing output directory contains an earlier run')
     directory.mkdir(parents=True, exist_ok=True)
     started = time.perf_counter()
-    levels = np.asarray(scenario.price_levels)
-    span = max(float(np.ptp(levels)), 1e-6)
+    low, high = scenario.mobile_price_bounds
+    span = max(high-low, 1e-6)
     lower = np.full(PARAMETER_COUNT, -config.coefficient_bound*span)
     upper = -lower
-    lower[0], upper[0] = levels.min(), levels.max()
+    lower[0], upper[0] = low, high
     if initial_policy is None:
-        initial = np.zeros(PARAMETER_COUNT); initial[0] = levels[len(levels)//2]
+        initial = np.zeros(PARAMETER_COUNT)
+        initial[0] = scenario.representative_price(scenario.n_price_levels//2)
         initial_policy = LearnedPricingPolicy(scenario, initial)
     incumbent = initial_policy.coefficients.copy()
     if (incumbent < lower).any() or (incumbent > upper).any():
@@ -379,7 +384,7 @@ def fit_price_policy(scenario, config, backend_factory, output_dir, initial_poli
                 proposals.append((value.copy(), kind)); seen.add(key)
         add(incumbent, 'incumbent'); add(mean, 'search_mean')
         for index in config.anchors(scenario):
-            anchor = np.zeros(PARAMETER_COUNT); anchor[0] = levels[index]
+            anchor = np.zeros(PARAMETER_COUNT); anchor[0] = scenario.representative_price(index)
             add(anchor, f'fixed_price_{index}')
         while len(proposals) < config.population:
             noise = rng.standard_normal(PARAMETER_COUNT)

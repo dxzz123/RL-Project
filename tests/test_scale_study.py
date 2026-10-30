@@ -89,7 +89,8 @@ class ScaleStudyTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             directory = Path(temporary)
             calls = self.selection_fixture(directory)
-            self.assertEqual(calls, [study.VALIDATION_SEEDS]*37)
+            self.assertEqual(calls,
+                             [study.VALIDATION_SEEDS]*len(study.rule_candidates(self.scenario)))
             selected = study.verify_selection(directory, self.protocol)
             self.assertEqual(set(selected['winners']), set(study.FAMILIES))
             self.assertFalse(selected['test_scenarios_accessed'])

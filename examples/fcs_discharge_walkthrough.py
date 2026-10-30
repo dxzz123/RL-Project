@@ -17,7 +17,7 @@ def main():
     print("Initial MCV zones:", starts.tolist())
     print("FCS zones:", list(scenario.fcs_zones))
     print("Initial battery (kWh):", obs["energy_kwh"].tolist())
-    obs, _, _, _, _ = sim.quote_prices([scenario.price_levels[0]]*scenario.n_zones)
+    obs, _, _, _, _ = sim.quote_prices(obs["mobile_price_menu"][:, 0].copy())
     actions = [DispatchAction(Mode.DISCHARGE, scenario.fcs_zones[m % scenario.n_fcs], 10.)
                for m in range(scenario.n_mcv)]
     for m, action in enumerate(actions):

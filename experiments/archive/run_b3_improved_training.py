@@ -16,8 +16,9 @@ from charging_env.rl.trainer import Trainer, TrainingConfig
 SEEDS = (7, 19, 37)
 PILOT_UPDATES = 150
 UPDATES = 500
+# Index 1 is the medium 1.4x premium under the premium pricing menu.
 WARMSTART = dict(episodes=256, epochs=20, minibatch_size=256, learning_rate=1e-3,
-                 price_index=4, shadow_price=.30)
+                 price_index=1, shadow_price=.30)
 
 
 def write_json(path, value):

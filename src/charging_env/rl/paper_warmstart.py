@@ -29,8 +29,17 @@ def validate_teacher_scenario(scenario, solver='exhaustive'):
         raise ValueError('Inventory dispatch solver must be exhaustive or coordinate')
     if solver == 'exhaustive' and scenario.n_mcv != 2:
         raise ValueError('Inventory warm start requires exactly two mobile vehicles')
-    if not np.isclose(np.asarray(scenario.price_levels), .60, rtol=0., atol=1e-8).any():
+    teacher_price_index(scenario)
+
+
+def teacher_price_index(scenario):
+    """The teacher's quote: the middle premium, or the historical 0.60 level."""
+    if scenario.mcv_pricing_mode == 'premium':
+        return scenario.n_price_levels//2
+    matches = np.flatnonzero(np.isclose(scenario.price_levels, .60, rtol=0., atol=1e-8))
+    if not matches.size:
         raise ValueError('Inventory warm start requires a 0.60 price level')
+    return int(matches[0])
 
 
 def inventory_teacher_prices(obs, scenario, *, solver='exhaustive'):
@@ -38,7 +47,7 @@ def inventory_teacher_prices(obs, scenario, *, solver='exhaustive'):
     validate_teacher_scenario(scenario, solver)
     if int(obs['stage']) != 0:
         raise ValueError('Inventory teacher pricing requires the before-choice stage')
-    index = int(np.flatnonzero(np.isclose(scenario.price_levels, .60, rtol=0., atol=1e-8))[0])
+    index = teacher_price_index(scenario)
     return np.where(_fleet_pricing_mask(obs, scenario).any(-1), index, 0).astype(np.int64)
 
 
@@ -220,7 +229,8 @@ def fit_inventory_warmstart(trainer, output_dir=None):
         shuffle_seed=909000 + c.seed, epochs=c.warmstart_epochs,
         minibatch_size=c.warmstart_minibatch_size, learning_rate=c.warmstart_learning_rate,
         optimizer_steps=optimizer_steps, network_optimizer_steps=4 * optimizer_steps,
-        teacher_price=.60, teacher_shadow_prices=dict(early=.30, late=.15, terminal=0.),
+        teacher_price=scenario.price_setting(teacher_price_index(scenario)),
+        teacher_shadow_prices=dict(early=.30, late=.15, terminal=0.),
         teacher_exchange='maximum feasible, filtered to the Joint PPO action mask',
         teacher_joint_candidate_outcomes=teacher_statistics.get('joint_candidate_outcomes'),
         teacher_admissible_joint_candidates=teacher_statistics.get('admissible_joint_candidates'),

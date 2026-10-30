@@ -75,8 +75,10 @@ class GeneralADPStudyTests(unittest.TestCase):
 
     def test_protocol_has_online_planning_no_offline_training_and_all_rules(self):
         for case, data in self.protocol['cases'].items():
-            self.assertEqual(len(data['rule_candidates']), 70)
-            self.assertEqual(len({r['id'] for r in data['rule_candidates']}), 70)
+            scenario = study.Scenario.from_json(ROOT/study.CASES[case])
+            expected = scenario.n_price_levels*(3+len(study.SCHEDULES))
+            self.assertEqual(len(data['rule_candidates']), expected)
+            self.assertEqual(len({r['id'] for r in data['rule_candidates']}), expected)
             for price in study.PRICE_INDICES:
                 for seed in study.SEEDS:
                     cfg = study.config_for(case, seed, price)
@@ -98,7 +100,7 @@ class GeneralADPStudyTests(unittest.TestCase):
 
     def test_trace_reconstructs_every_local_seed_and_query_counter(self):
         data = self.protocol['cases']['city']; scenario = study._scenario_data(data['scenario'])
-        config = study.config_for('city', 19, 5)
+        config = study.config_for('city', 19, study.PRICE_INDICES[-1])
         trace, stats = trace_fixture(scenario, config, [17, 19])
         used = study.check_planning_trace(trace, stats, scenario, config, [17, 19])
         self.assertTrue(all(s % 2 == 0 for s in used))
@@ -112,7 +114,7 @@ class GeneralADPStudyTests(unittest.TestCase):
 
     def test_trace_checks_selected_argmax_and_terminal_current_profit(self):
         scenario = study._scenario_data(self.protocol['cases']['small']['scenario'])
-        config = study.config_for('small', 7, 4)
+        config = study.config_for('small', 7, study.PRICE_INDICES[0])
         trace, stats = trace_fixture(scenario, config, [17])
         changed = deepcopy(trace); changed[0]['selected'] = 'inventory'
         with self.assertRaisesRegex(ValueError, 'selection'):
@@ -124,12 +126,12 @@ class GeneralADPStudyTests(unittest.TestCase):
     def test_rollout_provenance_hash_and_exact_configuration_are_required(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp); self.protocol['cases']['small']['validation_seeds'] = [17, 19]
-            path, _, _ = self.write_rollout(directory, 'small', 4, 7)
-            actual = study.inspect_rollout(path, self.protocol, 'small', 4, 7, [17, 19])
+            path, _, _ = self.write_rollout(directory, 'small', study.PRICE_INDICES[0], 7)
+            actual = study.inspect_rollout(path, self.protocol, 'small', study.PRICE_INDICES[0], 7, [17, 19])
             self.assertEqual(actual['planning_seed'], 7)
-            changed = study.read(path); changed['price_index'] = 5; study.write(path, changed)
+            changed = study.read(path); changed['price_index'] = study.PRICE_INDICES[-1]; study.write(path, changed)
             with self.assertRaisesRegex(ValueError, 'provenance'):
-                study.inspect_rollout(path, self.protocol, 'small', 4, 7, [17, 19])
+                study.inspect_rollout(path, self.protocol, 'small', study.PRICE_INDICES[0], 7, [17, 19])
 
     def test_rule_selection_uses_all_validation_scores(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -151,11 +153,12 @@ class GeneralADPStudyTests(unittest.TestCase):
             study.write(directory/'protocol.json', self.protocol)
             for price in study.PRICE_INDICES:
                 for seed in study.SEEDS:
-                    profit = 1000. if price == 4 and seed == 7 else (0. if price == 4 else 400.)
+                    low = study.PRICE_INDICES[0]
+                    profit = 1000. if price == low and seed == 7 else (0. if price == low else 400.)
                     self.write_rollout(directory, 'small', price, seed, profit)
             with patch.object(study, 'verify', return_value=self.protocol): study.select(directory, 'small')
             selection = study.verify_prices(directory, self.protocol, 'small')
-            self.assertEqual(selection['winner']['price_index'], 5)
+            self.assertEqual(selection['winner']['price_index'], study.PRICE_INDICES[-1])
             self.assertEqual(selection['winner']['mean_discounted_profit'], 400.)
             self.assertFalse(selection['offline_training'])
             self.assertNotIn('checkpoint_sha256', selection)
@@ -169,8 +172,8 @@ class GeneralADPStudyTests(unittest.TestCase):
 
     def test_partial_validation_jobs_are_explicit_and_workers_bounded(self):
         with patch.object(study, 'verify', return_value=self.protocol), patch.object(study, 'run_jobs') as jobs:
-            study.validate(Path('/unused'), 'city', 19, 5, 3)
-            jobs.assert_called_once_with([('/unused', 'validation', 'city', 'rollout_adp', 19, 5)], 3)
+            study.validate(Path('/unused'), 'city', 19, study.PRICE_INDICES[-1], 3)
+            jobs.assert_called_once_with([('/unused', 'validation', 'city', 'rollout_adp', 19, study.PRICE_INDICES[-1])], 3)
         for workers in (0, 4, True):
             with self.assertRaises(ValueError): study.run_jobs([], workers)
 
@@ -191,13 +194,13 @@ class GeneralADPStudyTests(unittest.TestCase):
             return []
         def evaluate(config, seeds, pricing, dispatch, **kwargs):
             obs = {'stage': 0, 'mobile_available': np.ones(config.n_zones, dtype=bool)}
-            np.testing.assert_array_equal(pricing(obs, None), np.full(config.n_zones, 5))
+            np.testing.assert_array_equal(pricing(obs, None), np.full(config.n_zones, study.PRICE_INDICES[-1]))
             dispatch({}, None)
             return result(seeds)
         with patch.object(study, 'coordinate_inventory_dispatch', side_effect=coordinate), \
              patch.object(study, 'evaluate_policy', side_effect=evaluate):
-            output = study.evaluate_zero(scenario, [17, 19], 5)
-        self.assertEqual(calls, [(0., 2, (1.,))]); self.assertEqual(output['price_index'], 5)
+            output = study.evaluate_zero(scenario, [17, 19], study.PRICE_INDICES[-1])
+        self.assertEqual(calls, [(0., 2, (1.,))]); self.assertEqual(output['price_index'], study.PRICE_INDICES[-1])
 
     def test_existing_output_and_changed_sealed_evidence_are_rejected(self):
         with tempfile.TemporaryDirectory() as tmp:

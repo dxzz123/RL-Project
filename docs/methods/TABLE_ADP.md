@@ -2,7 +2,7 @@
 
 This controller learns **how valuable each fleet state is for the rest of the episode**. At each dispatch decision, it compares feasible actions using today's exact profit plus that learned future value. The docs call it **Table ADP**. The code and older study reports call it **fitted value** or **approximate DP** (`rl/fitted_value.py`). For other fleet sizes, use [rollout ADP](ROLLOUT_ADP.md), which estimates future profit by simulation at decision time.
 
-The controller uses a fixed mobile price of **0.60 dollars/kWh** in the main `b=3` scenario. It learns dispatch, not pricing. It currently supports exactly **two mobile charging vehicles (MCVs)**.
+The controller uses a fixed mobile price setting -- the **1.4x medium premium** over the nearest station's EV price -- in the main `b=3` scenario. It learns dispatch, not pricing. It currently supports exactly **two mobile charging vehicles (MCVs)**.
 
 [METHODS.md](../METHODS.md#table-adp) has the short version. This guide gives the equations, the training budget and the code. Results are in [RESULTS.md](../RESULTS.md).
 

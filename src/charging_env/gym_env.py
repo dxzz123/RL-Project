@@ -19,7 +19,7 @@ class ChargingEnv(gym.Env):
         self.render_mode = render_mode
         maximum_exchange = max(c.mobile_charge_kw, c.mobile_discharge_kw)*c.period_hours
         self.action_space = spaces.Dict({
-            "price_levels": spaces.MultiDiscrete(np.full(c.n_zones, len(c.price_levels))),
+            "price_levels": spaces.MultiDiscrete(np.full(c.n_zones, c.n_price_levels)),
             "modes": spaces.MultiDiscrete(np.full(c.n_mcv, len(Mode))),
             "targets": spaces.MultiDiscrete(np.full(c.n_mcv, c.n_zones)),
             "energy_kwh": spaces.Box(0., maximum_exchange, (c.n_mcv,), dtype=np.float64),
@@ -53,8 +53,10 @@ class ChargingEnv(gym.Env):
             # no upper bound; observation bounds must allow their full support.
             "fcs_retail_prices": nonnegative((c.n_fcs,)),
             "fcs_discharge_prices": nonnegative((c.n_fcs,)),
+            "fcs_base_prices": nonnegative((c.n_fcs,)),
+            "mobile_price_menu": nonnegative((c.n_zones, c.n_price_levels)),
             "grid_buy_price": spaces.Box(0., max(c.grid_buy_per_kwh), (1,), dtype=np.float64),
-            "pricing_mask": spaces.MultiBinary((c.n_zones, len(c.price_levels))),
+            "pricing_mask": spaces.MultiBinary((c.n_zones, c.n_price_levels)),
             "action_mask": spaces.MultiBinary((c.n_mcv, len(Mode), c.n_zones)),
         })
 

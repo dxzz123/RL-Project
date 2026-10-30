@@ -29,7 +29,7 @@ def _validate(trainer, episodes, epochs, seed_base, price_index, shadow_price,
             or seed_base < 0 or seed_base % 2):
         raise ValueError('seed_base must be a nonnegative even integer')
     if (isinstance(price_index, (bool, np.bool_)) or not isinstance(price_index, (int, np.integer))
-            or not 0 <= price_index < len(trainer.scenario.price_levels)):
+            or not 0 <= price_index < trainer.scenario.n_price_levels):
         raise ValueError('price_index must be a valid integer price-level index')
     for name, value in (('shadow_price', shadow_price), ('learning_rate', learning_rate)):
         if (isinstance(value, (bool, np.bool_)) or not isinstance(value, Real)
@@ -157,7 +157,7 @@ def _fit_metrics(trainer, data, minibatch_size):
 
 
 def warm_start_from_inventory(trainer, *, episodes=256, epochs=20, seed_base=60000000,
-                              price_index=4, shadow_price=.30, minibatch_size=256,
+                              price_index=1, shadow_price=.30, minibatch_size=256,
                               learning_rate=1e-3):
     """Clone a frozen rule, then leave fresh PPO optimizers ready for student data.
 
@@ -219,7 +219,7 @@ def warm_start_from_inventory(trainer, *, episodes=256, epochs=20, seed_base=600
         'loss_definition': 'pricing_joint_NLL / n_zones + dispatch_categorical_NLL + 5 * selected_Beta_mean_MSE',
         'teacher_configuration': {
             'family': 'fixed_inventory', 'price_index': int(price_index),
-            'price_per_kwh': float(trainer.scenario.price_levels[price_index]),
+            'price_setting': trainer.scenario.price_setting(price_index),
             'shadow_price': float(shadow_price), 'energy_fractions': [.5, 1.],
             'charging_utility_intercept': float(trainer.scenario.charging_utility_intercept),
         },

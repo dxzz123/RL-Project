@@ -59,7 +59,7 @@ class RolloutADPConfig:
     energy_fractions: tuple = (1.,)
 
     def resolved_price_index(self, scenario):
-        return len(scenario.price_levels)//2 if self.price_index is None else int(self.price_index)
+        return scenario.n_price_levels//2 if self.price_index is None else int(self.price_index)
 
     def validate(self, scenario, *, extra_proposal=False):
         scenario.validate()
@@ -70,7 +70,7 @@ class RolloutADPConfig:
             raise ValueError('Rollout sample or coordinate-sweep budget exceeded')
         if self.price_index is not None:
             _integer(self.price_index, 'price_index')
-        if self.resolved_price_index(scenario) >= len(scenario.price_levels):
+        if self.resolved_price_index(scenario) >= scenario.n_price_levels:
             raise ValueError('price_index is outside this scenario')
         _real(self.base_recharge_threshold, 'base_recharge_threshold', maximum=1.)
         for threshold in self.alternative_recharge_thresholds:

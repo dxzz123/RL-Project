@@ -90,8 +90,9 @@ def select_rules(study, scenario, provenance):
     if output.exists():
         raise ValueError('Rule-selection output already exists; selection evidence is not overwritten')
     specs = candidates(scenario)
-    if len(specs)!=61 or {spec['family'] for spec in specs}!=RULE_FAMILIES:
-        raise ValueError('Expected the predeclared 61 candidates across six rule families')
+    expected = 8*scenario.n_price_levels + 5
+    if len(specs)!=expected or {spec['family'] for spec in specs}!=RULE_FAMILIES:
+        raise ValueError(f'Expected the predeclared {expected} candidates across six rule families')
     started = time.monotonic()
     protocol = dict(provenance, scenario=asdict(scenario), validation_seeds=VALIDATION_SEEDS,
                     action_seed=ACTION_SEED, rule_candidates=specs, source_sha256=source_hashes(),

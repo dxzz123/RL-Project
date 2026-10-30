@@ -23,9 +23,9 @@ sim = ChargingSimulator()
 obs, info = sim.reset(seed=7)
 assert obs["stage"] == 0  # Ready to price, in Python period 0.
 
-# One actual dollar/kWh price for every node, from Scenario.price_levels.
+# One actual dollar/kWh price for every node, taken from this period's menu.
 obs, reward, terminated, truncated, choice_info = sim.quote_prices(
-    [0.40] * sim.config.n_zones
+    obs["mobile_price_menu"][:, 1]
 )
 assert obs["stage"] == 1  # Choices are now observed; ready to dispatch.
 assert reward == 0.0
@@ -44,8 +44,8 @@ There are two ways to submit a price, and they take different inputs:
 
 | Call | Input for each node | Example |
 |---|---|---|
-| `quote_prices(...)` | Actual dollars per delivered kWh | `0.40` |
-| `quote_price_levels(...)` | Integer position in `Scenario.price_levels` | `2`, because the default third price is `0.40` |
+| `quote_prices(...)` | Actual dollars per delivered kWh, from `obs["mobile_price_menu"]` | `0.4073` |
+| `quote_price_levels(...)` | Integer position in that node's menu row | `1`, the medium 1.4x premium |
 
 Alternate one pricing call and one dispatch call. Calling pricing twice or dispatching before customers choose causes a stage error. After the episode ends, call `reset` to start another one.
 
@@ -96,7 +96,12 @@ The main demand and price settings are listed below. In a table shape such as `[
 | `request_min_kwh`, `request_max_kwh` | Smallest and largest energy amount a customer may request |
 | `fcs_charge_price_profile` | Optional `[horizon, n_fcs]` table of baseline customer charging prices |
 | `fcs_discharge_price_profile` | Optional `[horizon, n_fcs]` table of baseline prices paid for MCV energy exported through stations |
-| `fcs_retail_per_kwh` | Default baseline customer price for each station, kept constant over periods |
+| `fcs_pricing_mode` | `"base_price"` to draw station base prices by period type, or `"legacy"` for the profile/shock scheme |
+| `period_types`, `first_period_hour_of_day` | Explicit off-peak/normal/peak label per period, or the clock hour the day starts at so LADWP windows supply them |
+| `fcs_base_price_mean`, `fcs_base_price_halfwidth` | Uniform band of the station base price for each of the three period types |
+| `fcs_service_fee_rate` | Fee `alpha` an EV pays over the base price; the fleet still exchanges energy at base |
+| `mcv_pricing_mode`, `mcv_premium_levels`, `mcv_premium_reference` | Premium menu over the nearest station's price, its multipliers, and whether the anchor includes the fee |
+| `fcs_retail_per_kwh` | Legacy-mode baseline customer price for each station, kept constant over periods |
 | `grid_sell_per_kwh` | Default baseline export price for each period, used at every station |
 | `grid_buy_per_kwh` | Price the operator pays for electricity from the external grid in each period |
 | `price_noise_distribution` | How random price changes are drawn: `"none"`, `"uniform"`, or `"normal"` |
@@ -142,7 +147,7 @@ The manual example, `examples/manual_walkthrough.py`, demonstrates service, rech
 
 ## 6. Understand observations without confusing their units
 
-An **array** is a list or table of numbers. Its **shape** describes how many values it holds along each dimension. The table below abbreviates sizes as `I = n_zones`, `M = n_mcv`, `F = n_fcs`, `L = len(price_levels)`, and `N` for the number of customers who actually arrived this period. Thus `[M, I]` means one row per vehicle and one column per zone. The fields `period` and `outside_requests` each hold a one-element array, while `stage` is a single integer.
+An **array** is a list or table of numbers. Its **shape** describes how many values it holds along each dimension. The table below abbreviates sizes as `I = n_zones`, `M = n_mcv`, `F = n_fcs`, `L = n_price_levels`, and `N` for the number of customers who actually arrived this period. Thus `[M, I]` means one row per vehicle and one column per zone. The fields `period` and `outside_requests` each hold a one-element array, while `stage` is a single integer.
 
 | Fields | Shape | Meaning |
 |---|---|---|
@@ -157,7 +162,9 @@ An **array** is a list or table of numbers. Its **shape** describes how many val
 | `outside_requests` | `[1]` | Count of customers choosing outside |
 | `mobile_wait_hours`, `mobile_available` | `[I]` each | Delay estimate and whether mobile service can be offered |
 | `eligible_mcvs` | `[M, I]` | Which vehicles can reach each node, keep the battery reserve, and deliver at least the minimum request |
-| `fcs_wait_hours`, `fcs_retail_prices`, `fcs_discharge_prices` | `[F]` each | Station queue estimates and customer/export prices |
+| `fcs_wait_hours`, `fcs_retail_prices`, `fcs_discharge_prices` | `[F]` each | Station queue estimates and customer/exchange prices |
+| `fcs_base_prices` | `[F]` | This period's drawn base energy price at each station |
+| `mobile_price_menu` | `[I, L]` | The admissible mobile prices at each node, in dollars per kWh |
 | `grid_buy_price` | `[1]` | External wholesale dollars per grid-side kWh |
 | `pricing_mask` | `[I, L]` | Which price choices are available at each node during pricing |
 | `action_mask` | `[M, 5, I]` | Which operation/destination combinations each vehicle may choose during dispatch |
@@ -188,7 +195,7 @@ A Python **dictionary** stores named fields and their values. `ChargingEnv.step`
 
 | Field | Shape and dtype | Meaning |
 |---|---|---|
-| `price_levels` | `[I]`, integer | Price-list indices, not dollar prices |
+| `price_levels` | `[I]`, integer | Menu-row indices, not dollar prices |
 | `modes` | `[M]`, integer | Vehicle mode codes |
 | `targets` | `[M]`, integer | Target city-node IDs |
 | `energy_kwh` | `[M]`, float64 | Requested grid-side exchange energy |
@@ -204,7 +211,7 @@ obs, info = env.reset(seed=7)
 c = env.simulator.config
 
 action = {
-    "price_levels": np.full(c.n_zones, 2, dtype=np.int64),
+    "price_levels": np.full(c.n_zones, 1, dtype=np.int64),
     "modes": np.zeros(c.n_mcv, dtype=np.int64),
     "targets": obs["locations"].copy(),
     "energy_kwh": np.zeros(c.n_mcv, dtype=np.float64),

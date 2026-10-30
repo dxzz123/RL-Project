@@ -65,7 +65,7 @@ class FittedValueConfig:
     seed: int = 7
     grid_step: float = 10.
     samples_per_period: int = 8
-    price_index: int = 4
+    price_index: int = 1
     energy_fractions: tuple = (.5, 1.)
     max_joint_actions: int = 200_000
     training_seed_base: int = 130_000_000
@@ -78,7 +78,7 @@ class FittedValueConfig:
             _positive_integer(getattr(self, name), name, minimum=0)
         if self.training_seed_base % 2:
             raise ValueError("training_seed_base must be even to keep generative query seeds even")
-        if self.price_index >= len(scenario.price_levels):
+        if self.price_index >= scenario.n_price_levels:
             raise ValueError("price_index is outside the scenario's admissible price levels")
         for name in ("samples_per_period", "max_joint_actions"):
             _positive_integer(getattr(self, name), name)
@@ -112,7 +112,7 @@ def _config_from_mapping(data, scenario):
     return FittedValueConfig(**copied).validate(scenario)
 
 
-def sample_dispatch_observation(scenario, period, locations, energies, seed, price_index=4):
+def sample_dispatch_observation(scenario, period, locations, energies, seed, price_index=1):
     """Sample one synthetic dispatch observation from an arbitrary fleet state.
 
     This training-only generative interface intentionally sets simulator private
@@ -409,7 +409,7 @@ class FittedValueTrainer:
             "output_dir": str(directory.resolve()), "checkpoint": str(checkpoint.resolve()),
             "checkpoint_sha256": hashlib.sha256(checkpoint.read_bytes()).hexdigest(),
             "protocol_sha256": protocol_hash, "value_shape": list(shape), "value_entries": int(policy.values.size),
-            "energy_grid_kwh": grid.tolist(), "fixed_mobile_price": float(scenario.price_levels[config.price_index]),
+            "energy_grid_kwh": grid.tolist(), "fixed_mobile_price_setting": scenario.price_setting(config.price_index),
             "completed_layers": scenario.horizon, "states_per_period": states_per_period,
             "state_draw_queries": total_queries, "candidate_outcomes": total_candidates,
             "unique_exogenous_draw_seeds": scenario.horizon * config.samples_per_period,

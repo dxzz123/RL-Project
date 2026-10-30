@@ -22,6 +22,10 @@ except ImportError:
 
 def small_scenario(**changes):
     values = dict(
+        # Dispatch/rollout/history regressions: keep the fixed absolute menu and
+        # profile station prices. tests/test_station_pricing.py covers the LADWP
+        # base-price bands and the premium menu.
+        fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
         horizon=3, zone_xy_km=((0., 0.), (2., 0.)), fcs_zones=(0,),
         initial_locations=(0, 1), initial_energy_kwh=(35., 40.),
         mean_requests_by_zone=(3., 3.), arrival_profile=(1., 1., 1.),

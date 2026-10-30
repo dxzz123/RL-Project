@@ -23,7 +23,7 @@ def fixed_prices(obs, config, index):
     _stage(obs, 0)
     if isinstance(index, (bool, np.bool_)) or not isinstance(index, (int, np.integer)):
         raise ValueError("Price index must be an integer")
-    if not 0 <= index < len(config.price_levels):
+    if not 0 <= index < config.n_price_levels:
         raise ValueError("Price index is out of range")
     return np.where(np.asarray(obs["mobile_available"], dtype=bool), index, 0).astype(np.int64)
 
@@ -31,7 +31,7 @@ def fixed_prices(obs, config, index):
 def random_prices(obs, config, rng):
     """Uniform price-level sampling at available nodes, with explicit RNG."""
     _stage(obs, 0)
-    result = rng.integers(len(config.price_levels), size=config.n_zones)
+    result = rng.integers(config.n_price_levels, size=config.n_zones)
     result[~np.asarray(obs["mobile_available"], dtype=bool)] = 0
     return result.astype(np.int64)
 
@@ -75,12 +75,13 @@ are fluid proxies; no future arrivals or sampled customer choices are used.
     station_load = accessible_load.sum(axis=0)
     buy = float(np.asarray(obs["grid_buy_price"])[0])
     replacement_cost = buy / (config.charge_efficiency * config.mobile_service_efficiency)
-    levels = np.asarray(config.price_levels)
+    menu = np.asarray(obs["mobile_price_menu"], dtype=float)
     for z in np.flatnonzero(obs["mobile_available"]):
         at = origins == z
         if not at.any():
             continue
         q = energy[at]
+        levels = menu[z]
         mobile_cost = (levels[:, None] * q
                        + config.mobile_wait_cost_per_hour * obs["mobile_wait_hours"][z])
         fixed_cost = (q[:, None] * obs["fcs_retail_prices"]

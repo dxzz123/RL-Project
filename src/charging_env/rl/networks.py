@@ -75,7 +75,7 @@ class _ObservationEncoder(nn.Module):
             ("fcs_retail_prices", f, price_scale),
             ("fcs_discharge_prices", f, price_scale),
             ("grid_buy_price", 1, price_scale),
-            ("pricing_mask", z * len(c.price_levels), 1.0),
+            ("pricing_mask", z * c.n_price_levels, 1.0),
         )
         # Period, stage, fleet positions/energy, eligibility, action masks.
         dense_size = (1 + 3 + m * (z + 1) + m * z
@@ -175,11 +175,11 @@ class PricingActor(nn.Module):
         super().__init__()
         self.scenario = scenario
         self.encoder = _ObservationEncoder(scenario, hidden_size, local=False, layer_norm=layer_norm)
-        self.head = _linear(hidden_size, scenario.n_zones * len(scenario.price_levels), gain=0.01)
+        self.head = _linear(hidden_size, scenario.n_zones * scenario.n_price_levels, gain=0.01)
 
     def _distribution(self, observations: Sequence[dict]) -> tuple[Categorical, Tensor]:
         logits = self.head(self.encoder(observations)).reshape(
-            len(observations), self.scenario.n_zones, len(self.scenario.price_levels))
+            len(observations), self.scenario.n_zones, self.scenario.n_price_levels)
         mask = torch.as_tensor(np.stack([obs["pricing_mask"] for obs in observations]),
                                dtype=torch.bool, device=logits.device)
         active = mask.any(dim=-1)

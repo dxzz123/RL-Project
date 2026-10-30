@@ -75,7 +75,7 @@ class HistoryStudyTests(unittest.TestCase):
         for seed in study.SEEDS:
             warm = study.price_config('warm', seed)
             self.assertEqual(warm.generations*warm.population*warm.episodes_per_generation, 4608)
-            self.assertEqual(warm.anchors(scenario), tuple(range(7)))
+            self.assertEqual(warm.anchors(scenario), tuple(range(scenario.n_price_levels)))
             for backend in ('rollout', 'inventory'):
                 c = study.price_config(backend, seed)
                 self.assertEqual(c.generations*c.population*c.episodes_per_generation, 128)
@@ -198,6 +198,7 @@ class HistoryStudyTests(unittest.TestCase):
     def test_actual_evaluation_resume_keeps_private_truth_and_fitted_controller_separate(self):
         # Deliberate tiny development fixture, never a declared study scene.
         truth = replace(Scenario(), horizon=2, arrival_profile=(1., 1.),
+            fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
             grid_buy_per_kwh=(.15, .16), grid_sell_per_kwh=(.1, .11),
             charging_utility_intercept=3.).validate()
         fitted = replace(truth, arrival_rates=((2., 2.5, 2., 2.5),)*2,

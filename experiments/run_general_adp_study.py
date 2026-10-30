@@ -29,7 +29,11 @@ from charging_env.benchmarks.scalable import coordinate_inventory_dispatch, _ind
 from charging_env.benchmarks.evaluation import evaluate_policy, paired_comparison
 
 SEEDS = (7, 19, 37)
-PRICE_INDICES = (4, 5)
+# The two planning prices this study sweeps. Under the old absolute menu these
+# were indices 4 and 5, i.e. 0.60 and 0.80 per kWh. Both CASES configs now use
+# the three-level premium menu, so the analogue is its top two premiums;
+# rule_candidates() refuses a scenario whose menu size does not match.
+PRICE_INDICES = (1, 2)
 CASES = {'small': 'configs/utility_b3.json', 'city': 'configs/synthetic_25_zones.json'}
 VALIDATION_SEEDS = {case: [base+2*i for i in range(32)]
     for case, base in [('small', 697000001), ('city', 699000001)]}
@@ -93,13 +97,15 @@ def control_seeds(metadata):
 
 
 def rule_candidates(scenario):
-    if len(scenario.price_levels) != 7:
-        raise ValueError('This study requires the seven configured price levels')
+    expected_levels = 3 if scenario.mcv_pricing_mode == 'premium' else 7
+    if scenario.n_price_levels != expected_levels:
+        raise ValueError(f'This study requires the {expected_levels} configured price levels')
+    levels = scenario.n_price_levels
     return ([dict(id=f'service_p{p}_b{b:g}', family='service_first', price_index=p, recharge_threshold=b)
-             for p in range(7) for b in (.2, .4, .6)]
+             for p in range(levels) for b in (.2, .4, .6)]
         + [dict(id=f'inventory_p{p}_e{e:g}_l{l:g}', family='inventory_rule', price_index=p,
                 early_shadow_price=e, late_shadow_price=l, switch_period=scenario.horizon//2)
-           for p in range(7) for e, l in SCHEDULES])
+           for p in range(levels) for e, l in SCHEDULES])
 
 
 def check_result(result, seeds):

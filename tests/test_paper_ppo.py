@@ -33,6 +33,10 @@ def paper_scenario(**changes):
         fcs_retail_per_kwh=(.45,), fcs_ev_capacity_kwh=(30.,),
         fcs_fleet_exchange_capacity_kwh=(30.,), price_noise_distribution='none',
         charging_utility_intercept=3., price_sensitivity_per_dollar=.1,
+        # Physics and legacy-pricing regressions: keep the fixed absolute menu
+        # and the profile/shock station prices. See tests/test_station_pricing.py
+        # for the LADWP base-price and premium-menu behaviour.
+        fcs_pricing_mode="legacy", mcv_pricing_mode="absolute",
     )
     settings.update(changes)
     return replace(Scenario(), **settings).validate()

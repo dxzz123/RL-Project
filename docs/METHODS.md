@@ -105,7 +105,7 @@ Code that combines the two: `rl/priced_rollout.py`. Deep dive: [methods/ROLLOUT_
 
 **Learning** (code: `rl/fitted_value.py`). Start at the last hour, where future value is zero, and work backward. For each hour and each grid state (4 × 4 location pairs × 9 × 9 battery levels on a 10 kWh grid), sample eight possible hours of demand. For each sample, find the best action by current profit plus the next hour's table value, then average. Battery levels between grid points are interpolated.
 
-**Deciding.** Try every joint action on the half/full exchange grid and pick the one with the best current profit + 0.99 × table value of the next state. The price is fixed at $0.60.
+**Deciding.** Try every joint action on the half/full exchange grid and pick the one with the best current profit + 0.99 × table value of the next state. The price is fixed at the middle setting of the menu, which is the 1.4x premium over the nearest station's EV price.
 
 **Limits.** The table grows exponentially with the number of vehicles, so it supports exactly two. It also needs to query the simulator from arbitrary fleet states, which is stronger access than PPO gets.
 

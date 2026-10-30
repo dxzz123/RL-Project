@@ -238,7 +238,7 @@ def collect_historical_logs(true_scenario, environment_seeds, *, day_ids,
         rng = np.random.default_rng(np.random.SeedSequence([int(action_seed), int(day_id), 0x48495354]))
         for period in range(logging_model.horizon):
             # No raw observation enters the random pricing rule.
-            levels = rng.integers(0, len(logging_model.price_levels), size=logging_model.n_zones)
+            levels = rng.integers(0, logging_model.n_price_levels, size=logging_model.n_zones)
             post, reward, done, truncated, _ = simulator.quote_price_levels(levels)
             if reward != 0. or done or truncated:
                 raise RuntimeError('Unexpected logging pricing transition')

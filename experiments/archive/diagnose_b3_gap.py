@@ -23,6 +23,12 @@ from charging_env.benchmarks.evaluation import evaluate_policy,paired_comparison
 from charging_env.benchmarks import policies as rules
 from run_policy_benchmarks import average_trained_models
 
+
+def rule_price_index(config):
+    """The frozen rule's price action: medium premium, or the legacy 0.60 level."""
+    return 1 if config.mcv_pricing_mode == 'premium' else 4
+
+
 SEEDS = [4100001+2*i for i in range(64)]
 ACTION_SEED = 419991
 TRAINING_SEEDS = (7,19,37)
@@ -71,9 +77,11 @@ def evaluate(config,checkpoint,pricing_source,dispatch_source,label):
             # Consume each trained actor's draws in the original stage order,
             # including when a rule replaces its executed decision in a swap.
             sampled=trainer.pricing_actor.sample([obs]) if trainer else None
-            levels=sampled['actions'][0].cpu().numpy() if pricing_source=='rl' else rules.fixed_prices(obs,config,4)
+            levels=(sampled['actions'][0].cpu().numpy() if pricing_source=='rl'
+                    else rules.fixed_prices(obs,config,rule_price_index(config)))
             active=np.asarray(obs['mobile_available'],bool)
-            context['quotes']=np.asarray(config.price_levels)[levels[active]].tolist()
+            menu=np.asarray(obs['mobile_price_menu'],dtype=float)
+            context['quotes']=menu[np.arange(config.n_zones),levels][active].tolist()
             context['quote_indices']=levels[active].tolist()
             context['potential_energy']=np.asarray(obs['potential_energy_kwh'])[active].tolist()
             return levels
@@ -157,7 +165,8 @@ def main(argv=None):
     hashes={str(seed):digest(path) for seed,path in paths.items()}
     protocol={'scenario':asdict(scenario),'development_seeds':SEEDS,'action_seed':ACTION_SEED,
         'checkpoint_paths':{str(seed):str(path) for seed,path in paths.items()},'checkpoint_sha256':hashes,
-        'rule':{'price_index':4,'price':.6,'shadow_price':.3},
+        'rule':{'price_index':rule_price_index(scenario),
+                'price':scenario.price_setting(rule_price_index(scenario)),'shadow_price':.3},
         'purpose':'Development diagnostics only; not final-test evidence, retraining ablations, or tuning of the frozen rule.',
         'rng':'Common evaluate_policy harness; episode-local Torch seed action_seed+environment_seed; both trained actors sampled in stage order even for execution swaps.',
         'inventory_objective_gap':'Rule minus executed current reward plus0.30*stored-energy change, zero artificial shadow at terminal; heuristic objective, not full-horizon regret.'}

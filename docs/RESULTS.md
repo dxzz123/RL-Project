@@ -1,5 +1,15 @@
 # Results
 
+> [!IMPORTANT]
+> **Station pricing changed on 30 October 2026.** Station base prices are now
+> drawn per period from LADWP-anchored off-peak/normal/peak bands, EV customers
+> pay a 10% service fee over that base, and the mobile menu is a premium over
+> the nearest station's EV price. Every profit figure on this page predates that
+> change and no longer describes the current scenarios. See
+> [MODEL.md](MODEL.md#4-station-base-prices-and-the-mobile-price-menu) for the
+> mechanism and [RESULTS_NEW_PRICING.md](RESULTS_NEW_PRICING.md) for a completed
+> re-run of the comparison under it.
+
 Start with the current comparison in section 1: controllers that estimate demand and customer choice from historical observations. Section 2 preserves the earlier comparison in which those market parameters were known. Section 3 explains the main findings that led to these experiments. Each study has a full report in [studies/](studies/README.md) with settings and reproduction commands.
 
 > **How to read the numbers**

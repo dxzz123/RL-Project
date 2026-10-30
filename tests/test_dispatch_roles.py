@@ -24,7 +24,9 @@ class DispatchRoleTests(unittest.TestCase):
         torch.manual_seed(113)
         self.scenario = replace(Scenario(), initial_locations=(0, 0),
                                 initial_energy_kwh=(40., 40.),
-                                charging_utility_intercept=3.).validate()
+                                charging_utility_intercept=3.,
+                                fcs_pricing_mode='legacy',
+                                mcv_pricing_mode='absolute').validate()
 
     def observations(self, counts=(3, 2, 3, 2)):
         simulator = ChargingSimulator(self.scenario)

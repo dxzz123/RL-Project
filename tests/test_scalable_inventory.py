@@ -14,6 +14,10 @@ from charging_env.simulator import ChargingSimulator, Mode
 
 def scenario(vehicles=6, **changes):
     base = dict(horizon=3, zone_xy_km=((0., 0.), (2., 0.), (4., 0.)),
+        # Dispatch/rollout/history regressions: keep the fixed absolute menu and
+        # profile station prices. tests/test_station_pricing.py covers the LADWP
+        # base-price bands and the premium menu.
+        fcs_pricing_mode='legacy', mcv_pricing_mode='absolute',
                 fcs_zones=(0,), initial_locations=(0,)*vehicles,
                 initial_energy_kwh=(40.,)*vehicles,
                 mean_requests_by_zone=(3., 4., 3.), arrival_profile=(1.,)*3,

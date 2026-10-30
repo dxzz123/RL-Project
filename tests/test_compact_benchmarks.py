@@ -27,11 +27,27 @@ def study_module():
 
 class CompactBenchmarkTests(unittest.TestCase):
     def test_frozen_grid_has_three_meaningful_families_and_unique_settings(self):
-        scenario = replace(Scenario(), charging_utility_intercept=3.).validate()
+        scenario = replace(Scenario(), charging_utility_intercept=3.,
+                           fcs_pricing_mode='legacy', mcv_pricing_mode='absolute').validate()
         specs = compact.candidates(scenario)
         self.assertEqual(len(specs), 82)
         self.assertEqual(Counter(item['family'] for item in specs),
                          {'service_first': 21, 'constant_inventory': 45, 'time_inventory': 16})
+        premium = compact.candidates(replace(scenario, fcs_pricing_mode='base_price',
+                                             mcv_pricing_mode='premium'))
+        self.assertEqual(len(premium), 52)
+        self.assertEqual(Counter(item['family'] for item in premium),
+                         {'service_first': 9, 'constant_inventory': 27, 'time_inventory': 16})
+        self.assertEqual(len({item['id'] for item in premium}), len(premium))
+        wide = compact.candidates(replace(scenario, fcs_pricing_mode='base_price',
+                                          mcv_pricing_mode='premium',
+                                          mcv_premium_levels=(1.1, 1.4, 1.7, 2.0, 2.2)))
+        self.assertEqual(len(wide), 76)
+        self.assertEqual(Counter(item['family'] for item in wide),
+                         {'service_first': 15, 'constant_inventory': 45, 'time_inventory': 16})
+        # Time inventory pins the middle premium, which moves with the menu size.
+        self.assertEqual({item['price_index'] for item in wide
+                          if item['family'] == 'time_inventory'}, {2})
         self.assertEqual(len({item['id'] for item in specs}), len(specs))
         self.assertEqual(specs, compact.candidates(scenario))
         constants = [spec for spec in specs if spec['family'] == 'constant_inventory']

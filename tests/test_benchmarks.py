@@ -34,6 +34,10 @@ def benchmark_scenario(**overrides):
         mobile_service_efficiency=.8, fixed_service_efficiency=.8,
         price_noise_distribution="uniform", price_noise_scale=.1,
         price_sensitivity_per_dollar=.1,
+        # Physics and legacy-pricing regressions: keep the fixed absolute menu
+        # and the profile/shock station prices. See tests/test_station_pricing.py
+        # for the LADWP base-price and premium-menu behaviour.
+        fcs_pricing_mode="legacy", mcv_pricing_mode="absolute",
     )
     values.update(overrides)
     return replace(Scenario(), **values).validate()
