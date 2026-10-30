@@ -16,12 +16,17 @@ and are no longer valid. For how the methods differ see
 | Table ADP | yes | **no** | indexes both vehicles' state; ten vehicles is out of reach |
 | Rollout ADP | yes | yes | |
 | Joint PPO | yes | yes | 500 updates per seed |
-| Learned pricing | **no** | **no** | not re-run; see "What is not covered" |
-| Historical market model | **no** | **no** | not re-run; study 12's whole premise |
+| Learned pricing | partly | **no** | policies fitted for the inventory backend (3 seeds); **not yet scored on test days** |
+| Historical market model | - | partly | model fitted and rule arms scored; the rollout ADP arm is **not run** |
 
-Produced by `experiments/run_pricing_reevaluation.py`. The frozen studies 08-12
-could not be rerun: their artifacts live on another machine and several guards
-read recorded protocols from absolute paths there.
+Produced by `experiments/run_pricing_reevaluation.py`, entirely on this branch.
+The frozen studies 08-12 could not be rerun: their artifacts live on another
+machine and several guards read recorded protocols from absolute paths there.
+
+Every table below was produced by a run on this branch. The two mechanism
+tables were first measured on an earlier branch and have since been reproduced
+here to four decimals; their artifacts are in
+`outputs/pricing_reevaluation/mechanism/`.
 
 ## Protocol
 
@@ -172,15 +177,47 @@ better margins. Pricing here is a demand-allocation lever, not a revenue lever.
 5. **ADP is markedly more stable across training seeds** (+-0.2 to +-0.9) than
    the rules' within-bank error (+-1.0 to +-4.7).
 
+## The historical market model
+
+The fitted model recovers the true parameters closely from 120 historical days
+of complete quote logs (123,880 quote opportunities):
+
+| Parameter | Fitted | Truth |
+|---|---:|---:|
+| `charging_utility_intercept` | 3.0052 | 3.0 |
+| `price_sensitivity_per_dollar` | 0.6990 | 0.7 |
+| `mobile_wait_cost_per_hour` | 0.9896 | 1.0 |
+| `fixed_travel_cost_per_km` | 0.2515 | 0.25 |
+| arrival-rate total | 1032.3 | 1032.5 |
+
+The fitted scenario also carries the correct premium menu, because the tariff
+fields were added to `history_model.PUBLIC_FIELDS`; without that the public
+adapter silently falls back to defaults and gives the logging model a different
+menu size than the truth.
+
+**The rule baselines are forecast-free.** Scored against the fitted model, the
+selected rules return exactly their known-model numbers -- service-first
+480.05 / 308.26 / 447.48 in both. That is not a bug: `fixed_prices` and
+`service_first_dispatch` never read `arrival_rates`, and `inventory_shadow` is
+an early/late constant, so substituting an estimated demand model for the true
+one cannot change them. Study 12's historical condition therefore only bites
+for controllers that simulate futures -- rollout ADP and PPO -- and that arm is
+not run here.
+
 ## What is not covered
 
-- **Learned pricing** (`adaptive_pricing.py`) was not re-run. In study 11 it was
-  the winner, worth +30.39/day in the large city. It is also where the new
-  pricing is most likely to change the conclusion, since a pricing learner now
-  searches a premium menu whose top level binds.
-- **The historical market model** (`history_model.py`, study 12) was not re-run.
-  Every controller here sees the true scenario, so these results correspond to
-  [RESULTS.md](RESULTS.md) section 2, not section 1.
+- **Learned pricing** has fitted policies for the small city's inventory backend
+  only (training scores +57.76, +61.71, +59.26 across seeds 7/19/37), and none
+  of them are scored on test days, so no learned-pricing row appears in the
+  tables above. The city inventory and both rollout backends are unfitted. In
+  study 11 learned pricing was the winner, worth +30.39/day in the large city,
+  and it is where the new pricing is most likely to change the conclusion, since
+  a pricing learner now searches a premium menu whose top level binds.
+- **The historical model's ADP arm is not run.** Only the forecast-free rule
+  baselines are scored under the fitted model, and those are identical to the
+  known-model results by construction. The headline tables therefore all use the
+  true scenario, corresponding to [RESULTS.md](RESULTS.md) section 2, not
+  section 1.
 - **No equal-compute comparison.** Rollout ADP costs about 5.0 s per dispatch
   decision in the large city and 0.66 s in the small one, against 0.2 s and
   14 ms for the coordinate inventory rule.

@@ -41,6 +41,11 @@ from charging_env.benchmarks.scalable import coordinate_inventory_dispatch
 from charging_env.benchmarks.evaluation import evaluate_policy, paired_comparison
 from charging_env.rl.fitted_value import FittedValueConfig, FittedValuePolicy, FittedValueTrainer
 from charging_env.rl.paper_ppo import PaperPPOConfig, PaperPPOTrainer
+from charging_env.rl.history_control import collect_historical_log, evaluate_history_policy
+from charging_env.rl.history_model import HistoricalModel, HistoryFitConfig, fit_history_model
+from charging_env.rl.adaptive_pricing import (LearnedPricingPolicy, PriceSearchConfig,
+                                               fit_price_policy, pricing_observation)
+from charging_env.rl.priced_rollout import PricedRolloutADPPolicy
 from charging_env.rl.rollout_adp import RolloutADPConfig, RolloutADPPolicy
 
 CASES = {'small': 'configs/utility_b3.json', 'city': 'configs/synthetic_25_zones.json'}
@@ -57,6 +62,186 @@ BANK_BASE = {'small': (181_000_001, 183_000_001), 'city': (191_000_001, 193_000_
 ACTION_SEED = 189991
 BASELINE = 'service_first'
 CONDITIONS = ('original', 'demand_plus_40', 'shifted_places_times')
+
+
+class RuleController:
+    """A selected rule as a controller object, declaring its planning scenario."""
+
+    def __init__(self, scenario, case, spec):
+        self.scenario, self.case, self.spec = scenario, case, spec
+
+    def reset_episode(self, episode_key=0, action_seed=None):
+        pass
+
+    def prices(self, obs, rng=None):
+        # The history pricing observation exposes pricing_mask, not
+        # mobile_available, so availability comes from the mask.
+        active = np.asarray(obs['pricing_mask'], dtype=bool).any(axis=1)
+        return np.where(active, self.spec['price_index'], 0).astype(np.int64)
+
+    def dispatch(self, obs, rng=None):
+        if self.spec['family'] == 'service_first':
+            return service_first_dispatch(obs, self.scenario, self.spec['recharge_threshold'])
+        if self.case == 'city':
+            return coordinate_inventory_dispatch(
+                obs, self.scenario, inventory_shadow(obs, self.scenario, self.spec),
+                sweeps=2, energy_fractions=(1.,))
+        return coordinated_dispatch(obs, self.scenario,
+            inventory_shadow(obs, self.scenario, self.spec),
+            energy_fractions=ENERGY_FRACTIONS)
+
+
+def phase_fit_history(case, scenario, study, fit_days=120, holdout_days=32):
+    """Collect historical quote logs from truth and fit the market model."""
+    out = study / case / 'history'
+    out.mkdir(parents=True, exist_ok=True)
+    fit_seeds = tuple(3_100_000_001 + 2 * i for i in range(fit_days))
+    print(f'[{case}] collecting {fit_days} historical days')
+    started = time.monotonic()
+    log = collect_historical_log(scenario, fit_seeds, logging_seed=91731, start_day=0)
+    print(f'  {len(log.request_zone)} quote opportunities in {time.monotonic()-started:.1f}s')
+    model, report = fit_history_model(log, HistoryFitConfig())
+    model.save_checkpoint(out / 'model.npz')
+    model.scenario.to_json(out / 'fitted_scenario.json')
+    write_json(out / 'fit_report.json', json.loads(json.dumps(report, default=float)))
+    f = model.scenario
+    print(f'  fitted b={f.charging_utility_intercept:.4f} (truth {scenario.charging_utility_intercept}), '
+          f'eta={f.price_sensitivity_per_dollar:.4f} (truth {scenario.price_sensitivity_per_dollar})')
+    return model
+
+
+def phase_evaluate_history(case, scenario, study, only=None, seeds=SEEDS, tag=None):
+    """Score fitted-model controllers against the private true environment."""
+    model = HistoricalModel.load_checkpoint(study / case / 'history' / 'model.npz')
+    fitted = model.scenario
+    winners = read_json(study / case / 'selection.json')['family_winners']
+    banks, test = conditions(scenario), seeds_for(case, 'testing')
+    target = study / f'{case}_history'
+    target.mkdir(parents=True, exist_ok=True)
+    results = {}
+    print(f'[{case}/history] controllers plan with the fitted model; truth keeps the ledger')
+
+    def record(method, condition, row):
+        results.setdefault(method, {}).setdefault(condition, []).append(compact(row))
+        print(f'  {method:<18} {condition:<22} {row["mean_discounted_profit"]:+9.2f}')
+
+    for family, win in winners.items():
+        if only and family not in only:
+            continue
+        spec = {k: v for k, v in win.items() if k != 'mean_discounted_profit'}
+        for condition, truth in banks.items():
+            result = evaluate_history_policy(
+                truth, fitted, test, lambda f, s=spec: RuleController(f, case, s),
+                action_seed=ACTION_SEED, label=f'{family}/{condition}')
+            record(family, condition, result)
+
+    if not only or 'rollout_adp' in only:
+        chosen = adp_price_index(case, scenario, study, 'rollout_adp')
+        for seed in seeds:
+            for condition, truth in banks.items():
+                result = evaluate_history_policy(
+                    truth, fitted, test,
+                    lambda f, sd=seed: RolloutADPPolicy(f, RolloutADPConfig(
+                        seed=sd, rollout_samples=8, price_index=chosen,
+                        planner_sweeps=2, energy_fractions=(1.,))),
+                    action_seed=ACTION_SEED, label=f'rollout_adp/{condition}/{seed}')
+                record('rollout_adp', condition, result)
+
+    comparisons = {}
+    for condition in CONDITIONS:
+        baseline = results.get(BASELINE, {}).get(condition)
+        if not baseline:
+            continue
+        for method, rows in results.items():
+            if method != BASELINE and condition in rows:
+                comparisons.setdefault(condition, {})[method] = paired_comparison(
+                    dict(rows[condition][0], label=method), dict(baseline[0], label=BASELINE))
+    write_json(target / (f'evaluation_{tag}.json' if tag else 'evaluation.json'),
+               {'case': f'{case}_history', 'scenario': asdict(scenario),
+                'fitted_scenario': asdict(fitted), 'test_seeds': test,
+                'action_seed': ACTION_SEED, 'training_seeds': list(seeds),
+                'results': results, 'paired_vs_service_first': comparisons})
+    return results
+
+
+class InventoryBackend:
+    """The selected inventory rule driven by a learned pricing policy."""
+
+    def __init__(self, scenario, case, pricer, spec):
+        self.scenario, self.case, self.pricer, self.spec = scenario, case, pricer, spec
+
+    def reset_episode(self, episode_key=0, action_seed=None):
+        pass
+
+    def prices(self, obs, rng=None):
+        return self.pricer.prices(obs, None)
+
+    def dispatch(self, obs, rng=None):
+        if self.case == 'city':
+            return coordinate_inventory_dispatch(
+                obs, self.scenario, inventory_shadow(obs, self.scenario, self.spec),
+                sweeps=2, energy_fractions=(1.,))
+        return coordinated_dispatch(obs, self.scenario,
+            inventory_shadow(obs, self.scenario, self.spec),
+            energy_fractions=ENERGY_FRACTIONS)
+
+
+# Study 11's warm budget is 12 x 24 x 16 = 4608 candidate episodes per seed.
+# That is affordable with the inventory backend in both cities and with the
+# rollout backend in the small city, but costs about 6.6 hours per seed with the
+# rollout backend in the large city, so that one case uses a reduced budget.
+PRICING_BUDGETS = {
+    ('small', 'inventory'): dict(generations=12, population=24, elite_count=6,
+                                 episodes_per_generation=16),
+    ('city', 'inventory'): dict(generations=12, population=24, elite_count=6,
+                                episodes_per_generation=16),
+    ('small', 'rollout'): dict(generations=12, population=24, elite_count=6,
+                               episodes_per_generation=16),
+    ('city', 'rollout'): dict(generations=6, population=12, elite_count=3,
+                              episodes_per_generation=8),
+}
+
+
+def pricing_backend_factory(case, scenario, study, backend):
+    """Build the factory fit_price_policy calls for each candidate."""
+    if backend == 'rollout':
+        chosen = adp_price_index(case, scenario, study, 'rollout_adp')
+        def factory(pricer, planning_seed):
+            return PricedRolloutADPPolicy(scenario, pricer,
+                RolloutADPConfig(seed=planning_seed, rollout_samples=8,
+                                 planner_sweeps=2, energy_fractions=(1.,)))
+        return factory
+    winners = read_json(study / case / 'selection.json')['family_winners']
+    spec = {k: v for k, v in winners['time_inventory'].items()
+            if k != 'mean_discounted_profit'}
+    def factory(pricer, planning_seed):
+        return InventoryBackend(scenario, case, pricer, spec)
+    return factory
+
+
+def phase_fit_pricing(case, scenario, study, backend, seeds=SEEDS):
+    """Fit a learned pricing policy for one dispatch backend, per seed."""
+    budget = PRICING_BUDGETS[(case, backend)]
+    factory = pricing_backend_factory(case, scenario, study, backend)
+    episodes = budget['generations'] * budget['population'] * budget['episodes_per_generation']
+    for seed in seeds:
+        directory = study / case / 'learned_pricing' / backend / f'seed_{seed}'
+        if (directory / 'summary.json').exists():
+            print(f'[{case}/{backend}] pricing seed {seed}: present, skipping')
+            continue
+        config = PriceSearchConfig(seed=seed, training_seed_base=2_100_000_000 + 1000 * seed,
+                                   **budget).validate(scenario)
+        print(f'[{case}/{backend}] fitting pricing seed {seed}, {episodes} candidate episodes')
+        started = time.monotonic()
+        policy, summary = fit_price_policy(scenario, config, factory, directory)
+        print(f'  done in {(time.monotonic()-started)/60:.1f} min, '
+              f'training score {summary["final_mean_discounted_profit"]:+.2f}')
+
+
+def learned_pricer(case, scenario, study, backend, seed):
+    """Load a fitted pricing policy, or None when it was never fitted."""
+    path = study / case / 'learned_pricing' / backend / f'seed_{seed}' / 'checkpoint.npz'
+    return LearnedPricingPolicy.load_checkpoint(path) if path.exists() else None
 
 
 def write_json(path, value):
@@ -402,21 +587,29 @@ def main(argv=None):
                                      formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--phase', required=True,
                         choices=('select', 'select-adp', 'train-adp', 'train-ppo',
+                                 'fit-pricing', 'fit-history', 'evaluate-history',
                                  'evaluate', 'summarize'))
-    parser.add_argument('--case', choices=tuple(CASES), required=True)
+    parser.add_argument('--case', required=True,
+                        choices=tuple(CASES) + tuple(f'{c}_history' for c in CASES))
     parser.add_argument('--study-dir', type=Path, default=ROOT / 'outputs/pricing_reevaluation')
     parser.add_argument('--updates', type=int, default=PaperPPOConfig().updates)
     parser.add_argument('--seeds', type=int, nargs='+', default=list(SEEDS))
     parser.add_argument('--only', nargs='+', help='Evaluate only these methods')
     parser.add_argument('--tag', help='Write this arm to evaluation_<tag>.json')
     parser.add_argument('--price-index', type=int, help='Fit table ADP at this premium')
+    parser.add_argument('--backend', choices=('inventory', 'rollout'), default='inventory',
+                        help='Dispatch backend the learned pricing policy is fitted against')
     args = parser.parse_args(argv)
 
-    scenario = Scenario.from_json(ROOT / CASES[args.case])
+    base_case = args.case.removesuffix('_history')
+    scenario = Scenario.from_json(ROOT / CASES[base_case])
     if scenario.mcv_pricing_mode != 'premium' or scenario.fcs_pricing_mode != 'base_price':
         parser.error('This re-evaluation requires the base-price and premium pricing modes')
     study = args.study_dir
     (study / args.case).mkdir(parents=True, exist_ok=True)
+    if args.phase == 'summarize':
+        TESTING.setdefault(args.case, TESTING[base_case])
+        FAMILIES.setdefault(args.case, FAMILIES[base_case])
 
     if args.phase == 'select':
         phase_select(args.case, scenario, study)
@@ -424,6 +617,12 @@ def main(argv=None):
         phase_select_adp(args.case, scenario, study)
     elif args.phase == 'train-adp':
         phase_train_adp(args.case, scenario, study, tuple(args.seeds), args.price_index)
+    elif args.phase == 'fit-history':
+        phase_fit_history(args.case, scenario, study)
+    elif args.phase == 'evaluate-history':
+        phase_evaluate_history(args.case, scenario, study, args.only, tuple(args.seeds), args.tag)
+    elif args.phase == 'fit-pricing':
+        phase_fit_pricing(args.case, scenario, study, args.backend, tuple(args.seeds))
     elif args.phase == 'train-ppo':
         phase_train_ppo(args.case, scenario, study, args.updates, tuple(args.seeds))
     elif args.phase == 'evaluate':
