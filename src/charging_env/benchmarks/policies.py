@@ -258,7 +258,10 @@ def _batch_dispatch_outcomes(obs, c, action_modes, action_targets, requested_ene
         "mobile_service_revenue": (delivered * obs["mobile_prices"][None, None, :]).sum(axis=(1, 2)),
         "fixed_service_revenue": np.full(batch, float(np.dot(obs["fcs_retail_prices"], fixed_delivered))),
         "discharge_revenue": (station_export * obs["fcs_discharge_prices"]).sum(axis=1),
-        "procurement_cost": float(obs["grid_buy_price"][0]) * (fixed_delivered.sum() / c.fixed_service_efficiency + charge.sum(axis=1)),
+        "procurement_cost": (float(obs["grid_buy_price"][0]) * fixed_delivered.sum() / c.fixed_service_efficiency
+            + (station_charge @ (np.asarray(obs["fcs_retail_prices"]) / (1. + c.fcs_service_fee_rate))
+               if c.fcs_pricing_mode == "base_price"
+               else float(obs["grid_buy_price"][0]) * charge.sum(axis=1))),
         "travel_cost": c.travel_cost_per_km * distances.sum(axis=1),
         "operating_cost": np.full(batch, c.operating_cost_per_mcv_period * c.n_mcv),
         "unmet_demand_cost": c.unmet_penalty_per_kwh * (unmet_mobile + unmet_fixed),
