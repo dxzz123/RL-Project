@@ -6,7 +6,8 @@ Numbers in different reports come from different test days, and sometimes from d
 
 | # | Date | Report | Question | Customer model |
 |---:|---|---|---|---|
-| 12 | Oct 27 | [Historical model](12_historical_model.md) | How do ADP, PPO and inventory perform with estimated demand and choice, including private demand shifts? **Current scorecard.** | Parameters estimated from historical quotes; private generating model has `b = 3` |
+| 13 | Nov 12 | [Offline-warm PPO](13_offline_warm_ppo.md) | How do three heuristics, Rollout ADP, NN ADP, and offline-warm PPO compare on matched test days? **Current scorecard.** | Historical model fitted before control; sealed offline trajectories for NN ADP and PPO warm start |
+| 12 | Oct 27 | [Historical model](12_historical_model.md) | How do ADP, PPO and inventory perform with estimated demand and choice, including private demand shifts? Historical scorecard. | Parameters estimated from historical quotes; private generating model has `b = 3` |
 | 11 | Oct 25 | [Learned pricing](11_learned_pricing.md) | How much do learned prices add to rollout ADP and the inventory rule with a known simulator? | `b = 3` |
 | 10 | Oct 25 | [Rollout ADP](10_rollout_adp.md) | Can a decision-time planner handle any fleet size? | `b = 3` |
 | 09 | Oct 24 | [25-zone city](09_25_zone_scale.md) | Does warm-started PPO keep up in a city five times larger? | `b = 3` |
@@ -43,6 +44,9 @@ Later studies reuse earlier trained models as fixed controls instead of retraini
         │
         ▼
 11 Learned pricing ──► reuses the exhaustive-inventory reference from 10
+
+13 Offline-warm PPO ──► reuses one sealed offline trajectory bank for NN ADP and PPO warm start,
+                         then gives PPO 512 fresh joint on-policy training days
 ```
 
 ## Scripts and saved results
