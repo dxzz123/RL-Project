@@ -1,18 +1,24 @@
 # Results
 
-> [!IMPORTANT]
-> **Station pricing changed on 30 October 2026.** Station base prices are now
-> drawn per period from LADWP-anchored off-peak/normal/peak bands, EV customers
-> pay a 10% service fee over that base, and the mobile menu is a premium over
-> the nearest station's EV price. Every profit figure on this page predates that
-> change and no longer describes the current scenarios. See
-> [MODEL.md](MODEL.md#4-station-base-prices-and-the-mobile-price-menu) for the
-> mechanism, and [RESULTS_NEW_PRICING.md](RESULTS_NEW_PRICING.md) for a completed
-> re-run in both cities covering the rules, table ADP, rollout ADP and Joint
-> PPO. Learned pricing and the historical market model are not yet re-run, so
-> sections 1 and 2 below remain the only record for those.
+## Current `model_1112` scorecard
 
-Start with the current comparison in section 1: controllers that estimate demand and customer choice from historical observations. Section 2 preserves the earlier comparison in which those market parameters were known. Section 3 explains the main findings that led to these experiments. Each study has a full report in [studies/](studies/README.md) with settings and reproduction commands.
+The current comparison is Study 13. It evaluates the same six methods on 128 shared test days in each regime. Values are mean discounted daily profit with a 95% test-day bootstrap interval.
+
+| Method | Baseline | 40% higher demand | Spatiotemporal shift |
+|---|---:|---:|---:|
+| Service-first heuristic | 474.21 [467.45, 480.79] | 302.55 [292.70, 312.49] | 435.62 [428.61, 442.72] |
+| Constant-inventory heuristic | 458.88 [451.86, 465.83] | 316.29 [306.70, 325.83] | 420.36 [413.43, 427.44] |
+| **Time-varying-inventory heuristic** | **503.48 [496.52, 510.34]** | 355.29 [345.86, 364.64] | **461.72 [455.02, 468.36]** |
+| Rollout ADP | 494.35 [488.09, 500.74] | 352.62 [343.52, 361.75] | 451.54 [444.77, 458.16] |
+| **NN ADP (offline trajectories)** | 500.44 [493.61, 507.21] | **361.30 [351.57, 370.72]** | 459.10 [452.03, 465.89] |
+| Offline-warm PPO | 342.19 [335.36, 349.03] | 180.28 [170.67, 190.20] | 296.07 [288.55, 303.55] |
+
+Full protocol and pairwise intervals: [Study 13](studies/13_offline_warm_ppo.md).
+
+> [!CAUTION]
+> The remaining sections preserve earlier experiment history. They use older scenarios, controller definitions, or test-day banks and are not the current `model_1112` scorecard. Do not compare their absolute values with Study 13.
+
+Section 1 below records the former historical-model comparison, section 2 the earlier known-model comparison, and section 3 the findings that led to them. Each study has a full report in [studies/](studies/README.md) with settings and reproduction commands.
 
 > **How to read the numbers**
 >

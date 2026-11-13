@@ -7,6 +7,8 @@ A **controller** makes the operator's two decisions every hour: the mobile price
 | Service-first rule | Fixed | Serve now, recharge when low | Tune two settings on validation days | Any |
 | Inventory rule | Fixed or learned | Current profit plus a dollar value per stored kWh | Tune price and battery values | Exhaustive search: 2 vehicles. Bounded search: any |
 | **Rollout ADP** | Fixed or learned | Simulate a few futures for each candidate plan | Supply or fit a market model; optionally fit prices | Any |
+| **NN ADP** | Prescribed or learned | Neural continuation value over feasible candidate plans | Fit on sealed offline trajectories | Any supported by the candidate generator |
+| **Offline-warm PPO** | Learned | Centralized factorized neural policy | Offline initialization, then 512 joint on-policy days | Any (retrain per scenario) |
 | Table ADP | Fixed | Current profit plus a learned value table | One backward pass over a battery grid | Exactly 2 |
 | Joint PPO | Learned | Learned neural network | 500 updates of policy-gradient training | Any (retrain per scenario) |
 | Earlier PPO | Learned | Learned shared vehicle network | Same as Joint PPO | 2 in the saved models |
@@ -24,6 +26,16 @@ The two decisions happen at different points in the hour, so they see different 
 Hiding current requests from pricing is a deliberate modeling choice. The operator knows that a zone usually gets four requests at noon, not that seven arrived today. The simulator draws the requests before pricing, so the code projects the raw observation down to the permitted fields (`paper_pricing_observation()` in Joint PPO, `pricing_observation()` in learned pricing).
 
 No controller sees future arrivals or future price shocks.
+
+## Current six-method benchmark
+
+The `model_1112` scorecard compares three rules (service-first, constant-inventory, and time-varying-inventory), Rollout ADP, NN ADP, and Offline-warm PPO. The first five provide the matched baselines for the PPO experiment.
+
+**NN ADP.** A neural network is fitted to continuation returns from a sealed 768-day mixed offline trajectory bank. At dispatch time it scores the same kind of feasible complete fleet plans used by the rollout family, but replaces repeated future simulation with a learned continuation value.
+
+**Offline-warm PPO.** The same sealed bank initializes all four PPO networks: pricing actor and critic, and dispatch actor and critic. Behavior cloning supplies the actor targets; complete discounted final-profit returns supply both critic targets. After this offline phase, PPO collects 512 new on-policy days. The realized profit signal jointly updates pricing and dispatch through interleaved GAE. The dispatch policy remains centralized and factorized across MCVs, and PPO clipping is applied to the joint fleet-action probability ratio.
+
+This is not the earlier inventory-imitation warm start. It uses the matched offline trajectory dataset shared with NN ADP, then performs joint pricing–dispatch learning. See [Study 13](studies/13_offline_warm_ppo.md) for the exact comparison.
 
 **Where do the forecasts come from?** The earlier studies give controllers the simulator's demand and customer-choice parameters. The [historical-model study](studies/12_historical_model.md) instead estimates them from past quote records. All three controllers then receive forecasts from that fitted model, even when the private test environment changes. Current requests and choices still become visible at dispatch. This separates a forecast from knowledge of the actual future.
 

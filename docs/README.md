@@ -13,9 +13,9 @@ Start with the four main guides, in order. Everything else is for when you need 
 
 | Folder | Contents |
 |---|---|
-| [methods/](methods/) | One deep dive per controller: [ROLLOUT_ADP](methods/ROLLOUT_ADP.md) (with learned pricing), [TABLE_ADP](methods/TABLE_ADP.md), [JOINT_PPO](methods/JOINT_PPO.md), [EARLIER_PPO](methods/EARLIER_PPO.md) |
+| [methods/](methods/) | Controller deep dives, including [ROLLOUT_ADP](methods/ROLLOUT_ADP.md), [CANDIDATE_VALUE_ADP](methods/CANDIDATE_VALUE_ADP.md), [JOINT_PPO](methods/JOINT_PPO.md), and the historical methods |
 | [reference/](reference/) | Lookups: [ENVIRONMENT](reference/ENVIRONMENT.md) (simulator API), [NOTATION](reference/NOTATION.md) (symbols ↔ Python names), [CODE_MAP](reference/CODE_MAP.md) (which file does what), [VALIDATION](reference/VALIDATION.md) (what the tests and audits check), [OUTSIDE_OPTION](reference/OUTSIDE_OPTION.md) (why customers leave) |
-| [studies/](studies/README.md) | One report per experiment, numbered 01–11 in date order |
+| [studies/](studies/README.md) | One report per experiment; [Study 13](studies/13_offline_warm_ppo.md) is the current six-method benchmark |
 
 ## Source documents
 
