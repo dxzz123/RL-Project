@@ -50,7 +50,7 @@ This definition supersedes the older inventory-imitation PPO warm start for the 
 
 The table reports mean discounted profit per test day. The line chart intentionally compares the five non-PPO methods, while this complete table retains Offline-warm PPO.
 
-| Method | 0% | +20% | +40% | +60% | +80% |
+| Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
 | Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
 | Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
