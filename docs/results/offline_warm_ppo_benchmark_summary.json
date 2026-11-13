@@ -1,0 +1,873 @@
+{
+  "schema": "charging_env.six_method_offline_warm_ppo_benchmark.v1",
+  "model_1112_commit": "574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452",
+  "protocol": {
+    "test_days_per_regime": {
+      "baseline": 128,
+      "volume_up": 128,
+      "spatiotemporal": 128
+    },
+    "action_seed": 917991,
+    "learned_policy_seeds": [
+      7,
+      19,
+      37
+    ],
+    "nn_adp_training_days": 768,
+    "warm_started_ppo_budget_per_seed": {
+      "offline_trajectory_days": 768,
+      "offline_validation_days": 96,
+      "on_policy_days": 512
+    },
+    "pricing": "Each controller retains its trained or prescribed pricing policy.",
+    "uncertainty": "Paired day bootstrap conditional on the three fixed learned-policy seeds."
+  },
+  "regimes": {
+    "baseline": {
+      "statistics": {
+        "service_first": {
+          "mean_discounted_profit": 474.20545851133966,
+          "bootstrap_ci_95": [
+            467.4506429787548,
+            480.79016509241757
+          ]
+        },
+        "constant_inventory": {
+          "mean_discounted_profit": 458.882427845762,
+          "bootstrap_ci_95": [
+            451.85859889712106,
+            465.82735324651514
+          ]
+        },
+        "time_inventory": {
+          "mean_discounted_profit": 503.47599761680755,
+          "bootstrap_ci_95": [
+            496.5162008669548,
+            510.33629969105493
+          ]
+        },
+        "rollout_adp": {
+          "mean_discounted_profit": 494.3499990688804,
+          "bootstrap_ci_95": [
+            488.0894204945624,
+            500.7356390006631
+          ]
+        },
+        "nn_adp_offline": {
+          "mean_discounted_profit": 500.4408259954119,
+          "bootstrap_ci_95": [
+            493.60852358979395,
+            507.2132192387997
+          ]
+        },
+        "warm_started_ppo": {
+          "mean_discounted_profit": 342.19481476107603,
+          "bootstrap_ci_95": [
+            335.3614163550093,
+            349.02853858116106
+          ]
+        }
+      },
+      "ranking": [
+        "time_inventory",
+        "nn_adp_offline",
+        "rollout_adp",
+        "service_first",
+        "constant_inventory",
+        "warm_started_ppo"
+      ],
+      "winner": "time_inventory",
+      "comparisons": {
+        "constant_inventory_vs_service_first": {
+          "candidate": "constant_inventory",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": -15.323030665577665,
+          "paired_bootstrap_confidence_interval_95": [
+            -19.36422721608233,
+            -11.229149831726762
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.2421875,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "time_inventory_vs_service_first": {
+          "candidate": "time_inventory",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 29.270539105467854,
+          "paired_bootstrap_confidence_interval_95": [
+            24.16521738717881,
+            34.33601319141934
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.84375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "time_inventory_vs_constant_inventory": {
+          "candidate": "time_inventory",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 44.593569771045516,
+          "paired_bootstrap_confidence_interval_95": [
+            39.95098969766824,
+            49.15879737521613
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.953125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_service_first": {
+          "candidate": "rollout_adp",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 20.14454055754069,
+          "paired_bootstrap_confidence_interval_95": [
+            16.39791239840119,
+            23.871649292816272
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.8359375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_constant_inventory": {
+          "candidate": "rollout_adp",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 35.467571223118355,
+          "paired_bootstrap_confidence_interval_95": [
+            31.181319630548327,
+            39.58907552770252
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.9375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_time_inventory": {
+          "candidate": "rollout_adp",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -9.12599854792716,
+          "paired_bootstrap_confidence_interval_95": [
+            -13.63694734442284,
+            -4.6235864827902455
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.3671875,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_service_first": {
+          "candidate": "nn_adp_offline",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 26.23536748407229,
+          "paired_bootstrap_confidence_interval_95": [
+            21.084537190798997,
+            31.339028433797633
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.8203125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_constant_inventory": {
+          "candidate": "nn_adp_offline",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 41.55839814964996,
+          "paired_bootstrap_confidence_interval_95": [
+            36.3968361675144,
+            46.69976431392089
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.90625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_time_inventory": {
+          "candidate": "nn_adp_offline",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -3.035171621395558,
+          "paired_bootstrap_confidence_interval_95": [
+            -6.509201557205745,
+            0.3865939742754609
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.40625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_rollout_adp": {
+          "candidate": "nn_adp_offline",
+          "baseline": "rollout_adp",
+          "n_episodes": 128,
+          "mean_difference": 6.090826926531603,
+          "paired_bootstrap_confidence_interval_95": [
+            1.8702525124051654,
+            10.167800261221027
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.609375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_service_first": {
+          "candidate": "warm_started_ppo",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": -132.0106437502636,
+          "paired_bootstrap_confidence_interval_95": [
+            -137.95516175718976,
+            -125.85441924516431
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_constant_inventory": {
+          "candidate": "warm_started_ppo",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": -116.68761308468592,
+          "paired_bootstrap_confidence_interval_95": [
+            -122.88871403064367,
+            -110.34430095157303
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_time_inventory": {
+          "candidate": "warm_started_ppo",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -161.28118285573146,
+          "paired_bootstrap_confidence_interval_95": [
+            -167.0041608146097,
+            -155.2342848206466
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_rollout_adp": {
+          "candidate": "warm_started_ppo",
+          "baseline": "rollout_adp",
+          "n_episodes": 128,
+          "mean_difference": -152.1551843078043,
+          "paired_bootstrap_confidence_interval_95": [
+            -157.51140961262837,
+            -146.71105232034765
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_nn_adp_offline": {
+          "candidate": "warm_started_ppo",
+          "baseline": "nn_adp_offline",
+          "n_episodes": 128,
+          "mean_difference": -158.2460112343359,
+          "paired_bootstrap_confidence_interval_95": [
+            -163.54189028111048,
+            -152.7440329256502
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        }
+      }
+    },
+    "volume_up": {
+      "statistics": {
+        "service_first": {
+          "mean_discounted_profit": 302.5483803514454,
+          "bootstrap_ci_95": [
+            292.703447238667,
+            312.4881433841168
+          ]
+        },
+        "constant_inventory": {
+          "mean_discounted_profit": 316.28944664441605,
+          "bootstrap_ci_95": [
+            306.6977402783096,
+            325.82851572282624
+          ]
+        },
+        "time_inventory": {
+          "mean_discounted_profit": 355.2867320848271,
+          "bootstrap_ci_95": [
+            345.85711380220766,
+            364.6370383658445
+          ]
+        },
+        "rollout_adp": {
+          "mean_discounted_profit": 352.6160153295041,
+          "bootstrap_ci_95": [
+            343.52107059701694,
+            361.7529493178445
+          ]
+        },
+        "nn_adp_offline": {
+          "mean_discounted_profit": 361.29569488920885,
+          "bootstrap_ci_95": [
+            351.57202171547067,
+            370.72484385854057
+          ]
+        },
+        "warm_started_ppo": {
+          "mean_discounted_profit": 180.28395361958104,
+          "bootstrap_ci_95": [
+            170.67223560096946,
+            190.19943477144824
+          ]
+        }
+      },
+      "ranking": [
+        "nn_adp_offline",
+        "time_inventory",
+        "rollout_adp",
+        "constant_inventory",
+        "service_first",
+        "warm_started_ppo"
+      ],
+      "winner": "nn_adp_offline",
+      "comparisons": {
+        "constant_inventory_vs_service_first": {
+          "candidate": "constant_inventory",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 13.741066292970611,
+          "paired_bootstrap_confidence_interval_95": [
+            7.260359148601387,
+            20.466777367128657
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.6484375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "time_inventory_vs_service_first": {
+          "candidate": "time_inventory",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 52.73835173338168,
+          "paired_bootstrap_confidence_interval_95": [
+            45.77097837883546,
+            59.67535883330158
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.8828125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "time_inventory_vs_constant_inventory": {
+          "candidate": "time_inventory",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 38.997285440411076,
+          "paired_bootstrap_confidence_interval_95": [
+            35.26555410144329,
+            42.87208988260049
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.9453125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_service_first": {
+          "candidate": "rollout_adp",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 50.067634978058614,
+          "paired_bootstrap_confidence_interval_95": [
+            44.872390545990356,
+            55.32085477526988
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.9765625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_constant_inventory": {
+          "candidate": "rollout_adp",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 36.326568685088006,
+          "paired_bootstrap_confidence_interval_95": [
+            31.466655607327034,
+            41.08483742559625
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.921875,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_time_inventory": {
+          "candidate": "rollout_adp",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -2.670716755323064,
+          "paired_bootstrap_confidence_interval_95": [
+            -7.300728822011421,
+            1.938081963878799
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.40625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_service_first": {
+          "candidate": "nn_adp_offline",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 58.747314537763366,
+          "paired_bootstrap_confidence_interval_95": [
+            52.87917488114443,
+            64.59012628735982
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.953125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_constant_inventory": {
+          "candidate": "nn_adp_offline",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 45.00624824479276,
+          "paired_bootstrap_confidence_interval_95": [
+            40.26432553874418,
+            49.72950348748725
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.953125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_time_inventory": {
+          "candidate": "nn_adp_offline",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": 6.008962804381685,
+          "paired_bootstrap_confidence_interval_95": [
+            2.108044676981314,
+            9.965950431183897
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.609375,
+          "tie_fraction": 0.0078125,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_rollout_adp": {
+          "candidate": "nn_adp_offline",
+          "baseline": "rollout_adp",
+          "n_episodes": 128,
+          "mean_difference": 8.67967955970475,
+          "paired_bootstrap_confidence_interval_95": [
+            4.4946297331851595,
+            13.008306992797536
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_service_first": {
+          "candidate": "warm_started_ppo",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": -122.2644267318644,
+          "paired_bootstrap_confidence_interval_95": [
+            -129.43564713291426,
+            -115.77089102916668
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_constant_inventory": {
+          "candidate": "warm_started_ppo",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": -136.005493024835,
+          "paired_bootstrap_confidence_interval_95": [
+            -142.75658611788995,
+            -129.39324317862722
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_time_inventory": {
+          "candidate": "warm_started_ppo",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -175.00277846524608,
+          "paired_bootstrap_confidence_interval_95": [
+            -181.61816355371604,
+            -168.72033262999207
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_rollout_adp": {
+          "candidate": "warm_started_ppo",
+          "baseline": "rollout_adp",
+          "n_episodes": 128,
+          "mean_difference": -172.332061709923,
+          "paired_bootstrap_confidence_interval_95": [
+            -177.76379303156426,
+            -166.7541386438641
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_nn_adp_offline": {
+          "candidate": "warm_started_ppo",
+          "baseline": "nn_adp_offline",
+          "n_episodes": 128,
+          "mean_difference": -181.01174126962775,
+          "paired_bootstrap_confidence_interval_95": [
+            -187.3267625236987,
+            -174.9191950593476
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        }
+      }
+    },
+    "spatiotemporal": {
+      "statistics": {
+        "service_first": {
+          "mean_discounted_profit": 435.6217105017473,
+          "bootstrap_ci_95": [
+            428.60572320127807,
+            442.7249603263657
+          ]
+        },
+        "constant_inventory": {
+          "mean_discounted_profit": 420.3644623202779,
+          "bootstrap_ci_95": [
+            413.426729978251,
+            427.43556100987746
+          ]
+        },
+        "time_inventory": {
+          "mean_discounted_profit": 461.71550902101353,
+          "bootstrap_ci_95": [
+            455.0210096698542,
+            468.3556488418789
+          ]
+        },
+        "rollout_adp": {
+          "mean_discounted_profit": 451.5378299612247,
+          "bootstrap_ci_95": [
+            444.76579765935924,
+            458.1585062484213
+          ]
+        },
+        "nn_adp_offline": {
+          "mean_discounted_profit": 459.0964535045733,
+          "bootstrap_ci_95": [
+            452.0283488965674,
+            465.89495547704684
+          ]
+        },
+        "warm_started_ppo": {
+          "mean_discounted_profit": 296.0719858812689,
+          "bootstrap_ci_95": [
+            288.5526274300263,
+            303.5465784328244
+          ]
+        }
+      },
+      "ranking": [
+        "time_inventory",
+        "nn_adp_offline",
+        "rollout_adp",
+        "service_first",
+        "constant_inventory",
+        "warm_started_ppo"
+      ],
+      "winner": "time_inventory",
+      "comparisons": {
+        "constant_inventory_vs_service_first": {
+          "candidate": "constant_inventory",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": -15.257248181469478,
+          "paired_bootstrap_confidence_interval_95": [
+            -20.034258760203674,
+            -10.535644086048496
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.296875,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "time_inventory_vs_service_first": {
+          "candidate": "time_inventory",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 26.09379851926629,
+          "paired_bootstrap_confidence_interval_95": [
+            20.709068426730028,
+            31.24625206804619
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.8125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "time_inventory_vs_constant_inventory": {
+          "candidate": "time_inventory",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 41.351046700735765,
+          "paired_bootstrap_confidence_interval_95": [
+            37.427071604439455,
+            45.05776781690216
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.953125,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_service_first": {
+          "candidate": "rollout_adp",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 15.916119459477411,
+          "paired_bootstrap_confidence_interval_95": [
+            13.014096131311643,
+            18.69894244391398
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.796875,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_constant_inventory": {
+          "candidate": "rollout_adp",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 31.17336764094689,
+          "paired_bootstrap_confidence_interval_95": [
+            26.909720666699158,
+            35.4571461449027
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.8984375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "rollout_adp_vs_time_inventory": {
+          "candidate": "rollout_adp",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -10.177679059788879,
+          "paired_bootstrap_confidence_interval_95": [
+            -14.652091146463768,
+            -5.62167797769564
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.359375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_service_first": {
+          "candidate": "nn_adp_offline",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": 23.47474300282596,
+          "paired_bootstrap_confidence_interval_95": [
+            18.254178059652528,
+            28.52656810635163
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.8046875,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_constant_inventory": {
+          "candidate": "nn_adp_offline",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": 38.73199118429544,
+          "paired_bootstrap_confidence_interval_95": [
+            34.055134592147816,
+            43.31420108483672
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.9140625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_time_inventory": {
+          "candidate": "nn_adp_offline",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -2.6190555164403277,
+          "paired_bootstrap_confidence_interval_95": [
+            -5.817812318291655,
+            0.4630556892525339
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.4375,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "nn_adp_offline_vs_rollout_adp": {
+          "candidate": "nn_adp_offline",
+          "baseline": "rollout_adp",
+          "n_episodes": 128,
+          "mean_difference": 7.558623543348552,
+          "paired_bootstrap_confidence_interval_95": [
+            3.2138020522550845,
+            11.82339137195921
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.625,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_service_first": {
+          "candidate": "warm_started_ppo",
+          "baseline": "service_first",
+          "n_episodes": 128,
+          "mean_difference": -139.54972462047837,
+          "paired_bootstrap_confidence_interval_95": [
+            -145.64332115462105,
+            -133.69608099154297
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_constant_inventory": {
+          "candidate": "warm_started_ppo",
+          "baseline": "constant_inventory",
+          "n_episodes": 128,
+          "mean_difference": -124.2924764390089,
+          "paired_bootstrap_confidence_interval_95": [
+            -130.78524081470457,
+            -118.13086529908716
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_time_inventory": {
+          "candidate": "warm_started_ppo",
+          "baseline": "time_inventory",
+          "n_episodes": 128,
+          "mean_difference": -165.64352313974467,
+          "paired_bootstrap_confidence_interval_95": [
+            -171.5331731287219,
+            -159.75848718185048
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_rollout_adp": {
+          "candidate": "warm_started_ppo",
+          "baseline": "rollout_adp",
+          "n_episodes": 128,
+          "mean_difference": -155.4658440799558,
+          "paired_bootstrap_confidence_interval_95": [
+            -161.01897633015784,
+            -149.95244344018613
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        },
+        "warm_started_ppo_vs_nn_adp_offline": {
+          "candidate": "warm_started_ppo",
+          "baseline": "nn_adp_offline",
+          "n_episodes": 128,
+          "mean_difference": -163.02446762330433,
+          "paired_bootstrap_confidence_interval_95": [
+            -168.8215120487289,
+            -157.4205659507196
+          ],
+          "bootstrap_samples": 5000,
+          "bootstrap_seed": 271828,
+          "candidate_win_fraction": 0.0,
+          "tie_fraction": 0.0,
+          "uncertainty_scope": "Environment/action sampling, conditional on the fixed evaluated policies; excludes training seed uncertainty."
+        }
+      }
+    }
+  }
+}
