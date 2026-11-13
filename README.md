@@ -6,7 +6,7 @@ This branch studies how a mobile-charging operator should set prices and dispatc
 
 ## Current demand benchmark
 
-The benchmark is anchored to commit `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`. Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37.
+Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37.
 
 | Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
