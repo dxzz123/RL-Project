@@ -38,46 +38,45 @@ This definition supersedes the older inventory-imitation PPO warm start for the 
 
 - Scenario: 25 zones and 10 MCVs under the fitted historical market model.
 - Learned-policy seeds: 7, 19, and 37.
-- Test regimes: baseline, 40% higher demand, and a spatiotemporal demand shift.
-- Test days: 128 per regime, shared across all methods.
+- Test regimes: demand increases of 0%, 20%, 40%, 60%, and 80%.
+- Test days: the same 128 frozen days at every demand level, shared across all methods.
 - NN ADP offline training: 768 trajectory days.
 - PPO warm start: the same 768 training days plus 96 offline validation days.
 - PPO on-policy phase: 512 days per seed.
 - Test execution: frozen policies; no refitting or test-time tuning.
-- Uncertainty: paired-day bootstrap conditional on the fixed trained policies.
 - Guardrails: no invalid actions and no private future-demand queries.
 
 ## Results
 
-The table reports mean discounted profit per test day. Pairwise bootstrap intervals are reported below.
+The table reports mean discounted profit per test day. The line chart intentionally compares the five non-PPO methods, while this complete table retains Offline-warm PPO.
 
-| Method | Baseline | 40% higher demand | Spatiotemporal shift |
-|---|---:|---:|---:|
-| Service-first heuristic | 474.21 | 302.55 | 435.62 |
-| Constant-inventory heuristic | 458.88 | 316.29 | 420.36 |
-| **Time-varying-inventory heuristic** | **503.48** | 355.29 | **461.72** |
-| Rollout ADP | 494.35 | 352.62 | 451.54 |
-| **NN ADP (offline trajectories)** | 500.44 | **361.30** | 459.10 |
-| Offline-warm PPO | 342.19 | 180.28 | 296.07 |
+| Method | 0% | +20% | +40% | +60% | +80% |
+|---|---:|---:|---:|---:|---:|
+| Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
+| Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
+| **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
+| Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
+| **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
+| Offline-warm PPO | 345.64 | 282.99 | 180.28 | 80.42 | -38.82 |
 
-### Paired findings
+### Demand-sweep findings
 
-- NN ADP exceeds Rollout ADP by 6.09 [1.87, 10.17] in the baseline, 8.68 [4.49, 13.01] under higher demand, and 7.56 [3.21, 11.82] after the spatiotemporal shift.
-- NN ADP and time-varying inventory are not clearly separated in the baseline or spatiotemporal regime. Under higher demand, NN ADP leads by 6.01 [2.11, 9.97].
-- Offline-warm PPO trails the regime winner by 161.28 [155.23, 167.00] in the baseline, 181.01 [174.92, 187.33] under higher demand, and 165.64 [159.76, 171.53] after the shift.
+- NN ADP has the highest mean profit at 0%, +40%, +60%, and +80% demand.
+- Time-varying inventory is highest at +20% demand and remains close to NN ADP throughout the sweep.
+- Offline-warm PPO remains below all five alternatives and falls below zero at +80% demand.
 
 The matched warm start therefore does not eliminate PPO's performance gap in this experiment. This is a result about the implemented architecture, training budget, and scenario—not a general claim that PPO cannot work for joint pricing and dispatch.
 
 ## Artifacts
 
-- [Benchmark figure](../assets/offline_warm_ppo_benchmark.png)
-- [Machine-readable scorecard](../results/offline_warm_ppo_benchmark_summary.json)
+- [Five-method demand-sweep figure](../assets/demand_sweep_0_80_five_methods.png)
+- [Complete six-method result table](../results/demand_sweep_0_80_six_methods.csv)
 
-The JSON contains the full precision means, bootstrap intervals, rankings, pairwise comparisons, seeds, and training budgets.
+The CSV contains full-precision means for all six methods and five demand levels.
 
 ## Limitations
 
-- The bootstrap conditions on three fixed learned-policy seeds and does not capture retraining uncertainty.
+- Learned-method means average three fixed policy seeds and do not capture retraining uncertainty.
 - The offline trajectories and all test days are synthetic.
 - The comparison is not equal-compute: Rollout ADP simulates futures online, while NN ADP and PPO use network inference.
-- Only two specified demand shifts are tested; the results do not establish robustness to arbitrary model error or real-world transfer.
+- Five specified demand levels are tested; the results do not establish robustness to arbitrary model error or real-world transfer.
