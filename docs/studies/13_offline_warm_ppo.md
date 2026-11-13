@@ -49,14 +49,16 @@ This definition supersedes the older inventory-imitation PPO warm start for the 
 
 ## Results
 
+The table reports mean discounted profit per test day. Pairwise bootstrap intervals are reported below.
+
 | Method | Baseline | 40% higher demand | Spatiotemporal shift |
 |---|---:|---:|---:|
-| Service-first heuristic | 474.21 [467.45, 480.79] | 302.55 [292.70, 312.49] | 435.62 [428.61, 442.72] |
-| Constant-inventory heuristic | 458.88 [451.86, 465.83] | 316.29 [306.70, 325.83] | 420.36 [413.43, 427.44] |
-| **Time-varying-inventory heuristic** | **503.48 [496.52, 510.34]** | 355.29 [345.86, 364.64] | **461.72 [455.02, 468.36]** |
-| Rollout ADP | 494.35 [488.09, 500.74] | 352.62 [343.52, 361.75] | 451.54 [444.77, 458.16] |
-| **NN ADP (offline trajectories)** | 500.44 [493.61, 507.21] | **361.30 [351.57, 370.72]** | 459.10 [452.03, 465.89] |
-| Offline-warm PPO | 342.19 [335.36, 349.03] | 180.28 [170.67, 190.20] | 296.07 [288.55, 303.55] |
+| Service-first heuristic | 474.21 | 302.55 | 435.62 |
+| Constant-inventory heuristic | 458.88 | 316.29 | 420.36 |
+| **Time-varying-inventory heuristic** | **503.48** | 355.29 | **461.72** |
+| Rollout ADP | 494.35 | 352.62 | 451.54 |
+| **NN ADP (offline trajectories)** | 500.44 | **361.30** | 459.10 |
+| Offline-warm PPO | 342.19 | 180.28 | 296.07 |
 
 ### Paired findings
 
