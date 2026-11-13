@@ -1,91 +1,82 @@
 # Mobile charging: pricing and fleet dispatch
 
-An operator runs fixed charging stations and a fleet of mobile charging vehicles. Each hour it decides **what price to charge for mobile service** and **where to send each vehicle**. This project simulates that business and compares ways to make those two decisions: simple rules, approximate dynamic programming (ADP), and reinforcement learning (PPO).
+This branch studies how a mobile-charging operator should set prices and dispatch a fleet of mobile charging vehicles (MCVs). Each simulated hour follows the same sequence: post a price, observe customer choices, dispatch every MCV, and record operating profit. One episode is a 12-hour day; the reported score is total discounted daily profit in dollars.
 
-Every simulated hour has the same four steps:
+`model_1112` now uses one six-method benchmark as its current scorecard. Older README tables described earlier scenarios and PPO variants and are not carried forward here.
 
-1. **Price.** Post a mobile charging price at each zone.
-2. **Customers choose.** Each arriving electric-vehicle driver picks mobile charging, a nearby station, or leaves.
-3. **Dispatch.** Each mobile vehicle serves customers, recharges or sells energy at a station, moves, or waits.
-4. **Profit.** Count revenue minus electricity, travel, operating and unmet-demand costs, then start the next hour.
+## Current six-method benchmark
 
-One episode is a 12-hour day. The score is total discounted profit for the day, in dollars.
+The benchmark is anchored to commit `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`. Every method is evaluated on the same 128 test days in each demand regime. Learned methods average policy seeds 7, 19, and 37 before the paired-day bootstrap.
 
-Mobile prices are quoted as a premium over the price at each zone's nearest station, and station prices are drawn each period from LADWP-anchored off-peak/normal/peak bands, so both move with time of day.
-
-## What we have found so far
-
-The latest comparison estimates demand and customer choice from past quote records instead of giving controllers the true simulator parameters. It uses the 25-zone, ten-vehicle city, policy seeds 7, 19 and 37, and 128 new test days per condition. PPO is retrained for 500 updates per seed in the same estimated model.
-
-| Mean daily discounted profit | Original pattern | 40% more arrivals | Shifted places and times |
+| Method | Baseline | 40% higher demand | Spatiotemporal shift |
 |---|---:|---:|---:|
-| **Rollout ADP with learned prices** | **940.46** | **1,081.91** | **932.46** |
-| PPO | 718.00 | 771.83 | 717.58 |
-| Inventory with learned prices | 925.53 | 1,038.58 | 917.91 |
-| Fixed-price inventory | 915.67 | 1,060.72 | 908.82 |
+| Service-first heuristic | 474.21 [467.45, 480.79] | 302.55 [292.70, 312.49] | 435.62 [428.61, 442.72] |
+| Constant-inventory heuristic | 458.88 [451.86, 465.83] | 316.29 [306.70, 325.83] | 420.36 [413.43, 427.44] |
+| **Time-varying-inventory heuristic** | **503.48 [496.52, 510.34]** | 355.29 [345.86, 364.64] | **461.72 [455.02, 468.36]** |
+| Rollout ADP | 494.35 [488.09, 500.74] | 352.62 [343.52, 361.75] | 451.54 [444.77, 458.16] |
+| **NN ADP (offline trajectories)** | 500.44 [493.61, 507.21] | **361.30 [351.57, 370.72]** | 459.10 [452.03, 465.89] |
+| Offline-warm PPO | 342.19 [335.36, 349.03] | 180.28 [170.67, 190.20] | 296.07 [288.55, 303.55] |
 
-ADP beats both inventory variants and PPO for every policy seed in all three conditions, with positive paired 95% intervals. It is also slower: about 453 ms per dispatch on the original-pattern tests, versus 9 ms for PPO and 29 ms for learned-price inventory. Learned pricing is not always better: fixed-price inventory wins over learned-price inventory when arrivals rise by 40%.
+Values are mean discounted profit per test day with a 95% bootstrap interval. The interval measures variation across the fixed test-day bank; it does not include uncertainty from retraining on different random seeds.
 
-The quote histories and test days are synthetic, and the assumed distribution families remain known. The model stays frozen during testing, so these results cover two specified demand shifts, not arbitrary real-world changes. [Study 12](docs/studies/12_historical_model.md) explains the data, information limits and uncertainty.
+![Six-method benchmark](docs/assets/offline_warm_ppo_benchmark.png)
 
-Earlier studies include the four-zone case, where Table ADP and exhaustive inventory search are especially strong, and known-model experiments with learned prices. [RESULTS.md](docs/RESULTS.md) separates that historical evidence from the current comparison.
+### The six methods
+
+1. **Service-first heuristic** greedily assigns vehicles to currently profitable requests and recharges only when energy is low.
+2. **Constant-inventory heuristic** maximizes current profit plus one constant shadow value for stored battery energy.
+3. **Time-varying-inventory heuristic** uses a larger battery shadow value early in the day and a smaller value later.
+4. **Rollout ADP** scores feasible fleet plans by exact current profit plus Monte Carlo continuation value under the fitted historical market model.
+5. **NN ADP** trains a neural continuation-value estimator on a sealed mixed bank of 768 offline trajectory days, then uses it to rank feasible fleet plans.
+6. **Offline-warm PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 512 fresh on-policy PPO training days. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
+
+### Main findings
+
+- Time-varying inventory has the highest mean profit in the baseline and spatiotemporal-shift regimes.
+- NN ADP is highest under 40% higher demand and exceeds Rollout ADP in all three regimes on the paired test days.
+- Offline-warm PPO remains below all five alternatives after the matched offline warm start and 512 joint on-policy days. The experiment therefore does not support claiming that warm-started PPO outperforms the ADP or heuristic baselines.
+
+The full protocol, pairwise intervals, limitations, and artifact links are in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable scorecard is [offline_warm_ppo_benchmark_summary.json](docs/results/offline_warm_ppo_benchmark_summary.json).
 
 ## Quick start
 
-You need Python 3.10 or later. From this folder:
+Python 3.10 or later is required.
 
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate
-python -m pip install -e '.[train]'        # use -e . if you don't need PPO
+python -m pip install -e '.[train]'
 
-python examples/manual_walkthrough.py      # one scripted day, printed step by step
+python examples/manual_walkthrough.py
 ```
 
-Try fixed-price rollout ADP for a few simulated days using a known simulator configuration (no training needed):
+Run the tracked NN ADP studies with:
 
 ```bash
-python -m charging_env.rl.rollout_adp --scenario configs/utility_b3.json \
-  --seed 7 --price-index 4 --episodes 4 --output-dir outputs/rollout_adp
+python experiments/run_logged_nn_adp_study.py --help
+python experiments/run_candidate_adp_study.py --help
 ```
 
-For the current comparison, use the [historical-model workflow](docs/RUNNING.md#historical-model-comparison): it estimates demand and choice from quote records before training and private testing. [RUNNING.md](docs/RUNNING.md) also has commands for every controller and for viewing saved results.
+## Documentation
 
-## Read in this order
-
-| Step | Guide | You will learn |
-|---|---|---|
-| 1 | [MODEL.md](docs/MODEL.md) | How customers, vehicles, batteries and profit work |
-| 2 | [METHODS.md](docs/METHODS.md) | How each controller decides, side by side |
-| 3 | [RESULTS.md](docs/RESULTS.md) | What the experiments show, and what they don't |
-| 4 | [RUNNING.md](docs/RUNNING.md) | How to run, train, evaluate and reproduce |
-
-Everything else is optional depth: method deep dives in [docs/methods/](docs/methods/), lookups in [docs/reference/](docs/reference/), and one report per experiment in [docs/studies/](docs/studies/README.md).
-
-## Method names and where they live in code
-
-The code kept its original file names, so a few names differ from the docs:
-
-| Name in the docs | What it is | Code |
-|---|---|---|
-| Rollout ADP | Simulates a few futures for each candidate fleet plan at decision time; any fleet size | `rl/rollout_adp.py` |
-| Learned pricing | A 12-coefficient price rule fitted by direct search, usable with rollout ADP or the inventory rule | `rl/adaptive_pricing.py`, `rl/priced_rollout.py` |
-| Historical market model | Estimates arrivals, request sizes and customer choice from quote records; supplies forecasts and simulated futures | `rl/history_model.py`, `rl/history_control.py` |
-| Table ADP | Learns a value table offline; exactly two vehicles | `rl/fitted_value.py`, `rl/fitted_train.py` |
-| Joint PPO | Learns pricing and dispatch networks; optional inventory-rule warm start | `rl/paper_ppo.py`, `rl/paper_train.py`, `rl/paper_warmstart.py` |
-| Earlier PPO | The first SA-PPO–MAPPO implementation, kept as a control | `rl/trainer.py`, `rl/networks.py`, `rl/returns.py`, `rl/train.py` |
-| Service-first, inventory rule | Benchmark rules | `benchmarks/policies.py`, `benchmarks/scalable.py`, `benchmarks/compact.py` |
-
-All paths are under `src/charging_env/`.
-
-## Folder layout
-
-| Folder | Contents |
+| Guide | Contents |
 |---|---|
-| `src/charging_env/` | Simulator (`simulator.py`, `config.py`, `choice.py`), controllers (`rl/`), rules and evaluation (`benchmarks/`) |
-| `configs/` | Scenario files; see [configs/README.md](configs/README.md) |
-| `examples/` | Three small scripts that walk through the simulator |
-| `experiments/` | Scripts that run the full studies; older ones are in `experiments/archive/` |
-| `tests/` | Automated correctness checks (`python -m unittest discover -s tests`) |
-| `docs/` | The guides above |
-| `outputs/` | Results written by runs. Not in Git, so a fresh clone won't have the saved studies |
+| [MODEL.md](docs/MODEL.md) | Customer choice, pricing, fleet state, batteries, and profit |
+| [METHODS.md](docs/METHODS.md) | How the controllers decide and what information they use |
+| [Study 13](docs/studies/13_offline_warm_ppo.md) | Current six-method protocol and results |
+| [RESULTS.md](docs/RESULTS.md) | Current scorecard followed by clearly labeled historical studies |
+| [RUNNING.md](docs/RUNNING.md) | Commands for the maintained experiment workflows |
+
+## Code map
+
+| Component | Main files |
+|---|---|
+| Heuristic policies | `src/charging_env/benchmarks/policies.py`, `src/charging_env/benchmarks/scalable.py` |
+| Rollout ADP | `src/charging_env/rl/rollout_adp.py` |
+| NN ADP | `src/charging_env/rl/candidate_value.py`, `src/charging_env/rl/candidate_training.py` |
+| PPO actors, critics, and trainer | `src/charging_env/rl/paper_ppo.py`, `src/charging_env/rl/paper_train.py` |
+| NN ADP experiment runners | `experiments/run_logged_nn_adp_study.py`, `experiments/run_candidate_adp_study.py` |
+
+## Evidence boundaries
+
+The histories and test days are synthetic. Controllers are frozen during testing, invalid actions are rejected, and learned controllers cannot query future private demand. Results compare the implemented controllers under this protocol; they are not evidence that one algorithm family dominates in every environment or at equal compute.
