@@ -6,6 +6,7 @@ Numbers in different reports come from different test days, and sometimes from d
 
 | # | Date | Report | Question | Customer model |
 |---:|---|---|---|---|
+| 14 | Nov 12 | [Fleet-size sensitivity](14_fleet_size_sensitivity.md) | How do the five non-PPO methods perform with 5, 10, and 15 vehicles under baseline demand? | Historical model fitted before control; NN ADP retrained when its fleet-size-dependent input changes |
 | 13 | Nov 12 | [Offline-warm PPO](13_offline_warm_ppo.md) | How do three heuristics, Rollout ADP, NN ADP, and offline-warm PPO compare on matched test days? **Current scorecard.** | Historical model fitted before control; sealed offline trajectories for NN ADP and PPO warm start |
 | 12 | Oct 27 | [Historical model](12_historical_model.md) | How do ADP, PPO and inventory perform with estimated demand and choice, including private demand shifts? Historical scorecard. | Parameters estimated from historical quotes; private generating model has `b = 3` |
 | 11 | Oct 25 | [Learned pricing](11_learned_pricing.md) | How much do learned prices add to rollout ADP and the inventory rule with a known simulator? | `b = 3` |
