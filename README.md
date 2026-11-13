@@ -4,22 +4,22 @@ This branch studies how a mobile-charging operator should set prices and dispatc
 
 `model_1112` now uses one six-method benchmark as its current scorecard. Older README tables described earlier scenarios and PPO variants and are not carried forward here.
 
-## Current six-method benchmark
+## Current 0%–80% demand benchmark
 
-The benchmark is anchored to commit `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`. Every method is evaluated on the same 128 test days in each demand regime. Learned methods average policy seeds 7, 19, and 37 before the paired-day bootstrap.
+The benchmark is anchored to commit `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`. Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37.
 
-| Method | Baseline | 40% higher demand | Spatiotemporal shift |
-|---|---:|---:|---:|
-| Service-first heuristic | 474.21 | 302.55 | 435.62 |
-| Constant-inventory heuristic | 458.88 | 316.29 | 420.36 |
-| **Time-varying-inventory heuristic** | **503.48** | 355.29 | **461.72** |
-| Rollout ADP | 494.35 | 352.62 | 451.54 |
-| **NN ADP (offline trajectories)** | 500.44 | **361.30** | 459.10 |
-| Offline-warm PPO | 342.19 | 180.28 | 296.07 |
+| Method | 0% | +20% | +40% | +60% | +80% |
+|---|---:|---:|---:|---:|---:|
+| Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
+| Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
+| **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
+| Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
+| **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
+| Offline-warm PPO | 345.64 | 282.99 | 180.28 | 80.42 | -38.82 |
 
-Values are mean discounted profit per test day. Pairwise bootstrap intervals and their scope are reported in Study 13.
+Values are mean discounted profit per test day. The line chart compares the five non-PPO methods; Offline-warm PPO remains in the complete result table.
 
-![Six-method benchmark](docs/assets/offline_warm_ppo_benchmark.png)
+![Five-method demand sweep](docs/assets/demand_sweep_0_80_five_methods.png)
 
 ### The six methods
 
@@ -32,11 +32,11 @@ Values are mean discounted profit per test day. Pairwise bootstrap intervals and
 
 ### Main findings
 
-- Time-varying inventory has the highest mean profit in the baseline and spatiotemporal-shift regimes.
-- NN ADP is highest under 40% higher demand and exceeds Rollout ADP in all three regimes on the paired test days.
-- Offline-warm PPO remains below all five alternatives after the matched offline warm start and 512 joint on-policy days. The experiment therefore does not support claiming that warm-started PPO outperforms the ADP or heuristic baselines.
+- NN ADP has the highest mean profit at 0%, +40%, +60%, and +80% demand.
+- Time-varying inventory is highest at +20% demand and stays close to NN ADP across the sweep.
+- Offline-warm PPO remains below all five alternatives and falls below zero at +80% demand.
 
-The full protocol, pairwise intervals, limitations, and artifact links are in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable scorecard is [offline_warm_ppo_benchmark_summary.json](docs/results/offline_warm_ppo_benchmark_summary.json).
+The full protocol, limitations, and artifact links are in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable table is [demand_sweep_0_80_six_methods.csv](docs/results/demand_sweep_0_80_six_methods.csv).
 
 ## Quick start
 
