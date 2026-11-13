@@ -1,4 +1,4 @@
-method,demand_plus_0_percent,demand_plus_20_percent,demand_plus_40_percent,demand_plus_60_percent,demand_plus_80_percent
+method,Baseline,20% higher demand,40% higher demand,60% higher demand,80% higher demand
 Service-first heuristic,470.019516,404.899687,302.548380,175.422916,43.098744
 Constant-inventory heuristic,457.039190,400.829705,316.289447,216.692303,100.816840
 Time-varying-inventory heuristic,502.337449,445.160124,355.286732,265.912870,163.809440
