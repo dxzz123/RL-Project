@@ -32,7 +32,7 @@ Values are mean discounted profit per test day. The line chart compares the five
 
 ### Main findings
 
-- NN ADP has the highest mean profit at 0%, +40%, +60%, and +80% demand.
+- NN ADP has the highest mean profit at baseline, and +40%, +60%, and +80% demand.
 - Time-varying inventory is highest at +20% demand and stays close to NN ADP across the sweep.
 - Offline-warm PPO remains below all five alternatives and falls below zero at +80% demand.
 
