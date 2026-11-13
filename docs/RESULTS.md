@@ -15,6 +15,20 @@ The current comparison is Study 13. It evaluates the same six methods at five de
 
 The accompanying line chart compares the five non-PPO methods: [five-method demand sweep](assets/demand_sweep_0_80_five_methods.png). The complete machine-readable table is [demand_sweep_0_80_six_methods.csv](results/demand_sweep_0_80_six_methods.csv). Full protocol: [Study 13](studies/13_offline_warm_ppo.md).
 
+## Fleet-size sensitivity of the five non-PPO methods
+
+Study 14 evaluates baseline demand on one shared 128-day test bank. Values are mean discounted profit per day. NN ADP is retrained for fleet sizes 5 and 15 because its state representation depends on the vehicle count.
+
+| Method | Fleet size = 5 | Fleet size = 10 | Fleet size = 15 |
+|---|---:|---:|---:|
+| Service-first heuristic | 347.28 | 470.02 | 562.37 |
+| Constant-inventory heuristic | 386.90 | 457.04 | 540.32 |
+| Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
+| Rollout ADP | 423.20 | 491.88 | **573.41** |
+| NN ADP | **436.09** | **502.62** | 555.62 |
+
+Full protocol, fleet layouts, and machine-readable evidence: [Study 14](studies/14_fleet_size_sensitivity.md).
+
 > [!CAUTION]
 > The remaining sections preserve earlier experiment history. They use older scenarios, controller definitions, or test-day banks and are not the current `model_1112` scorecard. Do not compare their absolute values with Study 13.
 
