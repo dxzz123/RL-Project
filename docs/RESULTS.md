@@ -4,7 +4,7 @@
 
 The current comparison is Study 13. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37.
 
-| Method | 0% | +20% | +40% | +60% | +80% |
+| Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
 | Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
 | Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
