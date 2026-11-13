@@ -8,7 +8,7 @@ This branch studies how a mobile-charging operator should set prices and dispatc
 
 The benchmark is anchored to commit `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`. Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37.
 
-| Method | 0% | +20% | +40% | +60% | +80% |
+| Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
 | Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
 | Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
