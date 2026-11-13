@@ -2,18 +2,18 @@
 
 ## Current `model_1112` scorecard
 
-The current comparison is Study 13. It evaluates the same six methods on 128 shared test days in each regime. Values in the table are mean discounted daily profit; Study 13 reports the paired bootstrap intervals.
+The current comparison is Study 13. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37.
 
-| Method | Baseline | 40% higher demand | Spatiotemporal shift |
-|---|---:|---:|---:|
-| Service-first heuristic | 474.21 | 302.55 | 435.62 |
-| Constant-inventory heuristic | 458.88 | 316.29 | 420.36 |
-| **Time-varying-inventory heuristic** | **503.48** | 355.29 | **461.72** |
-| Rollout ADP | 494.35 | 352.62 | 451.54 |
-| **NN ADP (offline trajectories)** | 500.44 | **361.30** | 459.10 |
-| Offline-warm PPO | 342.19 | 180.28 | 296.07 |
+| Method | 0% | +20% | +40% | +60% | +80% |
+|---|---:|---:|---:|---:|---:|
+| Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
+| Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
+| **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
+| Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
+| **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
+| Offline-warm PPO | 345.64 | 282.99 | 180.28 | 80.42 | -38.82 |
 
-Full protocol and pairwise intervals: [Study 13](studies/13_offline_warm_ppo.md).
+The accompanying line chart compares the five non-PPO methods: [five-method demand sweep](assets/demand_sweep_0_80_five_methods.png). The complete machine-readable table is [demand_sweep_0_80_six_methods.csv](results/demand_sweep_0_80_six_methods.csv). Full protocol: [Study 13](studies/13_offline_warm_ppo.md).
 
 > [!CAUTION]
 > The remaining sections preserve earlier experiment history. They use older scenarios, controller definitions, or test-day banks and are not the current `model_1112` scorecard. Do not compare their absolute values with Study 13.
