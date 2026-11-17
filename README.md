@@ -53,6 +53,16 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 
 The exact fleet layouts, training protocol, validation counts, and limitations are in [Study 14](docs/studies/14_fleet_size_sensitivity.md).
 
+### Offline-warm PPO ablation at fleet size 10
+
+| Ablation | Offline days | On-policy PPO days | Mean discounted profit/day |
+|---|---:|---:|---:|
+| Warm-start only | 768 | 0 | 274.11 |
+| PPO only | 0 | 512 | -201.42 |
+| Offline-warm PPO | 768 | 512 | **345.64** |
+
+The matched ablation shows that the offline stage supplies a viable initial pricing and dispatch policy, while 512 on-policy PPO days add another 71.53 profit per day after warm initialization. PPO from random initialization remains negative at the same 512-day budget. Full protocol and limitations: [Study 15](docs/studies/15_offline_warm_ppo_ablation.md).
+
 ## Quick start
 
 Python 3.10 or later is required.
