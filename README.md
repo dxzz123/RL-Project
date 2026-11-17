@@ -48,7 +48,8 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 | Constant-inventory heuristic | 386.90 | 457.04 | 540.32 |
 | Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
 | Rollout ADP | 423.20 | 491.88 | **573.41** |
-| NN ADP | **436.09** | **502.62** | 555.62 |\n| Offline-warm PPO | 341.91 | 345.64 | 369.42 |
+| NN ADP | **436.09** | **502.62** | 555.62 |
+| Offline-warm PPO | 341.91 | 345.64 | 369.42 |
 
 The exact fleet layouts, training protocol, validation counts, and limitations are in [Study 14](docs/studies/14_fleet_size_sensitivity.md).
 
