@@ -30,6 +30,18 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 
 Full protocol, fleet layouts, and machine-readable evidence: [Study 14](studies/14_fleet_size_sensitivity.md).
 
+## Fleet-10 Offline-warm PPO ablation
+
+Study 15 separates the offline initialization and on-policy stages while holding the PPO architecture, hyperparameters, three policy seeds, and 128 baseline test days fixed.
+
+| Ablation | Offline days | On-policy PPO days | Mean discounted profit/day |
+|---|---:|---:|---:|
+| Warm-start only | 768 | 0 | 274.11 |
+| PPO only | 0 | 512 | -201.42 |
+| Offline-warm PPO | 768 | 512 | **345.64** |
+
+The full method improves on Warm-start only by 71.53 per day and on PPO only by 547.06 per day. Full protocol and machine-readable evidence: [Study 15](studies/15_offline_warm_ppo_ablation.md).
+
 > [!CAUTION]
 > The remaining sections preserve earlier experiment history. They use older scenarios, controller definitions, or test-day banks and are not the current `model_1112` scorecard. Do not compare their absolute values with Study 13.
 
