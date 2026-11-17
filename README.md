@@ -38,9 +38,9 @@ Values are mean discounted profit per test day. The line chart compares the five
 
 The full protocol, limitations, and artifact links are in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable table is [demand_sweep_0_80_six_methods.csv](docs/results/demand_sweep_0_80_six_methods.csv).
 
-### Fleet-size sensitivity without PPO
+### Fleet-size sensitivity
 
-Study 14 evaluates the five non-PPO methods under baseline demand on one shared 128-day test bank. NN ADP is retrained for fleet sizes 5 and 15 because its feature width depends on the number of vehicles.
+Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. NN ADP and Offline-warm PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the number of vehicles. Every PPO seed receives the matched offline warm start followed by 512 on-policy training days.
 
 | Method | Fleet size = 5 | Fleet size = 10 | Fleet size = 15 |
 |---|---:|---:|---:|
@@ -48,7 +48,7 @@ Study 14 evaluates the five non-PPO methods under baseline demand on one shared 
 | Constant-inventory heuristic | 386.90 | 457.04 | 540.32 |
 | Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
 | Rollout ADP | 423.20 | 491.88 | **573.41** |
-| NN ADP | **436.09** | **502.62** | 555.62 |
+| NN ADP | **436.09** | **502.62** | 555.62 |\n| Offline-warm PPO | 341.91 | 345.64 | 369.42 |
 
 The exact fleet layouts, training protocol, validation counts, and limitations are in [Study 14](docs/studies/14_fleet_size_sensitivity.md).
 
