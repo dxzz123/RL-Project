@@ -1,7 +1,9 @@
 # Study 13: Offline-warm PPO against five matched baselines
 
+> **Update (17 November 2026):** This report preserves the original 32-update/512-day PPO experiment. The current README scorecard uses the same offline warm start followed by 2,048 pure-PPO updates (32,768 on-policy days per seed); see [Study 16](16_long_horizon_offline_warm_ppo.md).
+
 - **Date:** 12 November 2026
-- **Status:** current `model_1112` scorecard
+- **Status:** original 512-day benchmark; superseded as the current scorecard by [Study 16](16_long_horizon_offline_warm_ppo.md)
 - **Source commit:** `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`
 
 ## Question
