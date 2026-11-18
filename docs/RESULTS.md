@@ -2,7 +2,7 @@
 
 ## Current `model_1112` scorecard
 
-The current comparison is Study 13. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37.
+The current comparison extends Study 13 with the long-horizon PPO training in Study 16. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37. The current Offline-warm PPO row uses 2,048 PPO updates (32,768 fresh on-policy days per seed) after the sealed 768-day offline warm start, with no behavior-cloning constraint during the online phase.
 
 | Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
@@ -11,9 +11,9 @@ The current comparison is Study 13. It evaluates the same six methods at five de
 | **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
 | Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
 | **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Offline-warm PPO | 345.64 | 282.99 | 180.28 | 80.42 | -38.82 |
+| Offline-warm PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
 
-The accompanying line chart compares the five non-PPO methods: [five-method demand sweep](assets/demand_sweep_0_80_five_methods.png). The complete machine-readable table is [demand_sweep_0_80_six_methods.csv](results/demand_sweep_0_80_six_methods.csv). Full protocol: [Study 13](studies/13_offline_warm_ppo.md).
+The accompanying line chart compares the five non-PPO methods: [five-method demand sweep](assets/demand_sweep_0_80_five_methods.png). The complete machine-readable table is [demand_sweep_0_80_six_methods.csv](results/demand_sweep_0_80_six_methods.csv). Updated PPO protocol and training-length results: [Study 16](studies/16_long_horizon_offline_warm_ppo.md). Original 512-day protocol: [Study 13](studies/13_offline_warm_ppo.md).
 
 ## Fleet-size sensitivity of six methods
 
