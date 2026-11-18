@@ -53,7 +53,7 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 
 The exact fleet layouts, training protocol, validation counts, and limitations are in [Study 14](docs/studies/14_fleet_size_sensitivity.md).
 
-### Offline-warm PPO ablation at fleet size 10
+### Warm-started PPO ablation at fleet size 10
 
 | Ablation | Offline days | On-policy PPO days | Mean discounted profit/day |
 |---|---:|---:|---:|
