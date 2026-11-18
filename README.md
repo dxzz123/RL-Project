@@ -34,7 +34,7 @@ Values are mean discounted profit per test day. The line chart compares the six 
 
 - NN ADP has the highest mean profit at baseline, +40%, +60%, and +80% demand.
 - Time-varying inventory is highest at +20% demand and stays close to NN ADP across the sweep.
-- Extending Offline-warm PPO from 32 to 2,048 updates raises baseline profit from 345.64 to 465.86 and keeps profit positive through +80% demand. It remains below NN ADP and the strongest inventory/rollout baselines at every level.
+- Extending Warm-started PPO from 32 to 2,048 updates raises baseline profit from 345.64 to 465.86 and keeps profit positive through +80% demand. It remains below NN ADP and the strongest inventory/rollout baselines at every level.
 
 The updated long-training protocol, learning-curve comparison, limitations, and artifact links are in [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md). The original 512-day benchmark remains documented in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable table is [demand_sweep_0_80_six_methods.csv](docs/results/demand_sweep_0_80_six_methods.csv).
 
