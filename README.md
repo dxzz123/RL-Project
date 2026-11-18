@@ -19,7 +19,7 @@ Every demand level uses the same 128 frozen test days. Learned methods average p
 
 Values are mean discounted profit per test day. The line chart compares the five non-PPO methods; Offline-warm PPO remains in the complete result table.
 
-![Five-method demand sweep](docs/assets/demand_sweep_0_80_five_methods.png)
+![Six-method demand sweep](docs/assets/Six-Method_Performance_across_Demand_Levels.png)
 
 ### The six methods
 
