@@ -17,7 +17,7 @@ Every demand level uses the same 128 frozen test days. Learned methods average p
 | **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
 | Offline-warm PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
 
-Values are mean discounted profit per test day. The line chart compares the five non-PPO methods; Offline-warm PPO remains in the complete result table.
+Values are mean discounted profit per test day. The line chart compares the six methods.
 
 ![Six-method demand sweep](docs/assets/Six-Method_Performance_across_Demand_Levels.png)
 
