@@ -15,7 +15,7 @@ Every demand level uses the same 128 frozen test days. Learned methods average p
 | **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
 | Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
 | **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Offline-warm PPO | 345.64 | 282.99 | 180.28 | 80.42 | -38.82 |
+| Offline-warm PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
 
 Values are mean discounted profit per test day. The line chart compares the five non-PPO methods; Offline-warm PPO remains in the complete result table.
 
@@ -28,15 +28,15 @@ Values are mean discounted profit per test day. The line chart compares the five
 3. **Time-varying-inventory heuristic** uses a larger battery shadow value early in the day and a smaller value later.
 4. **Rollout ADP** scores feasible fleet plans by exact current profit plus Monte Carlo continuation value under the fitted historical market model.
 5. **NN ADP** trains a neural continuation-value estimator on a sealed mixed bank of 768 offline trajectory days, then uses it to rank feasible fleet plans.
-6. **Offline-warm PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 512 fresh on-policy PPO training days. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
+6. **Offline-warm PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 2,048 PPO updates with 16 fresh on-policy days per update (32,768 days per seed). The online phase uses pure PPO with no pricing- or dispatch-behavior-cloning constraint. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
 
 ### Main findings
 
-- NN ADP has the highest mean profit at baseline, and +40%, +60%, and +80% demand.
-- Time-varying inventory is highest at +20% demand and stays close to NN ADP across the sweep.
-- Offline-warm PPO remains below all five alternatives and falls below zero at +80% demand.
+- NN ADP remains highest at baseline and all four higher-demand levels.
+- Time-varying inventory stays close to NN ADP across the sweep.
+- Extending Offline-warm PPO from 32 to 2,048 updates raises baseline profit from 345.64 to 465.86 and keeps profit positive through +80% demand. It remains below NN ADP and the strongest inventory/rollout baselines at every level.
 
-The full protocol, limitations, and artifact links are in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable table is [demand_sweep_0_80_six_methods.csv](docs/results/demand_sweep_0_80_six_methods.csv).
+The updated long-training protocol, learning-curve comparison, limitations, and artifact links are in [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md). The original 512-day benchmark remains documented in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable table is [demand_sweep_0_80_six_methods.csv](docs/results/demand_sweep_0_80_six_methods.csv).
 
 ### Fleet-size sensitivity
 
@@ -88,7 +88,8 @@ python experiments/run_candidate_adp_study.py --help
 |---|---|
 | [MODEL.md](docs/MODEL.md) | Customer choice, pricing, fleet state, batteries, and profit |
 | [METHODS.md](docs/METHODS.md) | How the controllers decide and what information they use |
-| [Study 13](docs/studies/13_offline_warm_ppo.md) | Current six-method protocol and results |
+| [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md) | Current six-method scorecard with 2,048-update Offline-warm PPO |
+| [Study 13](docs/studies/13_offline_warm_ppo.md) | Original 512-day Offline-warm PPO benchmark |
 | [RESULTS.md](docs/RESULTS.md) | Current scorecard followed by clearly labeled historical studies |
 | [RUNNING.md](docs/RUNNING.md) | Commands for the maintained experiment workflows |
 
