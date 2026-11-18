@@ -59,7 +59,7 @@ Every demand level uses the same 128 frozen test days. The PPO row averages poli
 | **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
 | Offline-warm PPO, 2,048 updates | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
 
-The longer PPO phase raises the five demand-level values by 120.22, 115.64, 121.34, 123.09, and 126.52 relative to Study 13's 32-update PPO. Profit remains positive at +80% demand. NN ADP remains the strongest method at every demand level; the long-horizon PPO remains below the strongest non-PPO method at each level.
+The longer PPO phase raises the five demand-level values by 120.22, 115.64, 121.34, 123.09, and 126.52 relative to Study 13's 32-update PPO. Profit remains positive at +80% demand. NN ADP leads at baseline, +40%, +60%, and +80% demand, while time-varying inventory leads at +20%. The long-horizon PPO remains below the strongest non-PPO method at each level.
 
 ## Evaluation checks
 
