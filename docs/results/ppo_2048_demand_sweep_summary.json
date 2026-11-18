@@ -1,0 +1,68 @@
+{
+  "schema": "charging_env.ppo_2048_demand_sweep_summary.v1",
+  "training_source_commit": "574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452",
+  "fleet_size": 10,
+  "policy_seeds": [
+    7,
+    19,
+    37
+  ],
+  "test_days_per_level": 128,
+  "demand_levels_percent": [
+    0,
+    20,
+    40,
+    60,
+    80
+  ],
+  "offline_training_days_per_seed": 768,
+  "offline_validation_days": 96,
+  "ppo_updates": 2048,
+  "episodes_per_update": 16,
+  "on_policy_training_days_per_seed": 32768,
+  "auxiliary_actor_constraints": "none",
+  "aggregation": "Average three policy seeds within each test day, then average 128 days.",
+  "results": {
+    "0": {
+      "mean_discounted_profit_per_day": 465.856125297507,
+      "policy_seed_means": [
+        464.926321124695,
+        467.271392848716,
+        465.37066191911
+      ]
+    },
+    "20": {
+      "mean_discounted_profit_per_day": 398.630107624258,
+      "policy_seed_means": [
+        395.70816887754,
+        401.375320186667,
+        398.806833808567
+      ]
+    },
+    "40": {
+      "mean_discounted_profit_per_day": 301.620924132496,
+      "policy_seed_means": [
+        299.005211820655,
+        303.0749504704,
+        302.782610106435
+      ]
+    },
+    "60": {
+      "mean_discounted_profit_per_day": 203.505373626712,
+      "policy_seed_means": [
+        198.423451852983,
+        207.285374535324,
+        204.807294491828
+      ]
+    },
+    "80": {
+      "mean_discounted_profit_per_day": 87.7008806630971,
+      "policy_seed_means": [
+        85.0871693606269,
+        90.8960512132054,
+        87.119421415459
+      ]
+    }
+  },
+  "local_full_summary_sha256": "c19a57c0e7f29d3797529cecb37c741f904a8033fb8b188aadb01ced9ac4cce7"
+}
