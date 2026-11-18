@@ -2,7 +2,7 @@
 
 ## Question
 
-How do the three heuristics, Rollout ADP, NN ADP, and Offline-warm PPO perform under baseline demand when the MCV fleet contains 5, 10, or 15 vehicles?
+How do the three heuristics, Rollout ADP, NN ADP, and Warm-started PPO perform under baseline demand when the MCV fleet contains 5, 10, or 15 vehicles?
 
 ## Matched protocol
 
@@ -15,12 +15,13 @@ How do the three heuristics, Rollout ADP, NN ADP, and Offline-warm PPO perform u
 - The three heuristics, Rollout ADP, and NN ADP use the same frozen learned-pricing coefficient vector and fitted historical market model. Heuristic and Rollout ADP parameters are unchanged from the matched benchmark.
 - Rollout ADP uses planning seeds 7, 19, and 37.
 - Because the NN ADP feature width includes the number of vehicles, the fleet-5 and fleet-15 networks are trained from scratch. Each uses 768 offline training days, 96 separate validation days, the mixed logging policy, 80 maximum epochs, and policy seeds 7, 19, and 37. Fleet 10 reuses the sealed matched NN ADP checkpoint.
-- Offline-warm PPO uses the same fleet-specific mixed offline trajectories as NN ADP. Its pricing actor/critic and dispatch actor/critic are warm-started for 80 epochs, selecting by the separate 96-day validation set. Each seed then receives 512 fresh on-policy PPO training days. Realized final profit jointly updates pricing and dispatch through interleaved GAE.
-- Fleet sizes 5 and 15 use newly trained PPO networks because the observation and centralized multi-head dispatch dimensions depend on the vehicle count. Fleet 10 reuses its existing sealed Offline-warm PPO checkpoints.
-- Rollout ADP, NN ADP, and Offline-warm PPO use seeds 7, 19, and 37. Their three policy seeds are averaged within each test day before the 128 daily values are averaged.
+- Warm-started PPO uses the same fleet-specific mixed offline trajectories as NN ADP. Its pricing actor/critic and dispatch actor/critic are warm-started for 80 epochs, selecting by the separate 96-day validation set.
+- Each PPO seed then receives 2,048 updates of 16 fresh on-policy days each, or 32,768 on-policy training days. There is no decaying pricing or dispatch behavior-cloning constraint during the online phase. Realized final profit jointly updates pricing and dispatch through interleaved GAE.
+- Fleet sizes 5 and 15 resume their validated update-32 checkpoints and continue to a total of 2,048 updates. Fleet size 10 reuses the sealed 2,048-update checkpoint from Study 16.
+- Rollout ADP, NN ADP, and Warm-started PPO use seeds 7, 19, and 37. Their three policy seeds are averaged within each test day before the 128 daily values are averaged.
 - PPO evaluation is stochastic with the same frozen action-seed convention used by the demand benchmark.
 
-This design changes the number and initial deployment of vehicles together. It does not estimate a causal fleet-size effect independent of deployment geometry. The five non-PPO methods share frozen pricing, while PPO updates its pricing actor during on-policy training, so the PPO comparison reflects joint pricing and dispatch learning.
+This design changes the number and initial deployment of vehicles together. It does not estimate a causal fleet-size effect independent of deployment geometry. The five non-PPO methods share frozen pricing, while PPO updates its pricing actor during on-policy training, so the PPO comparison reflects joint pricing and dispatch learning. The comparison also does not equalize simulator or optimization compute across methods.
 
 ## Results
 
@@ -33,18 +34,19 @@ Values are mean discounted profit per 12-hour test day.
 | Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
 | Rollout ADP | 423.20 | 491.88 | **573.41** |
 | NN ADP | **436.09** | **502.62** | 555.62 |
-| Offline-warm PPO | 341.91 | 345.64 | 369.42 |
+| Warm-started PPO (2,048 updates) | 399.98 | 465.86 | 516.54 |
+
+For Warm-started PPO, the mean discounted profit per vehicle is 80.00, 46.59, and 34.44 at fleet sizes 5, 10, and 15, respectively.
 
 ## Findings
 
-- NN ADP has the highest mean at fleet sizes 5 and 10.
-- Rollout ADP has the highest mean at fleet size 15.
-- Time-varying inventory is close to the best method at every tested fleet size.
-- Offline-warm PPO is below all five alternatives at every fleet size after the matched offline warm start and 512 on-policy training days per seed.
-- More vehicles raise the mean profit for every method, but the gain is not uniform across controllers. PPO rises only modestly from fleet 5 to fleet 15 compared with the non-PPO methods.
+- NN ADP has the highest mean at fleet sizes 5 and 10, while Rollout ADP has the highest mean at fleet size 15.
+- The 2,048-update Warm-started PPO result improves on the earlier 512-day result by 58.07, 120.22, and 147.12 per day at fleet sizes 5, 10, and 15, respectively.
+- Warm-started PPO total profit increases from 399.98 at fleet size 5 to 465.86 at fleet size 10 and 516.54 at fleet size 15. Its incremental gain is smaller from 10 to 15 vehicles than from 5 to 10, and its profit per vehicle declines as the fleet grows.
+- Warm-started PPO remains below the strongest non-PPO method at every tested fleet size. This is a result for the fixed architecture, hyperparameters, deployment layouts, and training budget used here, not a general ordering of the methods.
 
 ## Validation and artifacts
 
-The PPO addition evaluates 9 policy checkpoints over 128 shared test days, for 1,152 PPO policy-seed test episodes. All completed with zero invalid actions. Every PPO checkpoint records 512 on-policy training days. Fleet sizes 5 and 15 use newly generated checkpoints; fleet 10 uses the previously sealed checkpoints at source commit `574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452`.
+The PPO addition evaluates 9 policy checkpoints over 128 shared test days, for 1,152 PPO policy-seed test episodes. All completed with zero invalid actions and zero future-information queries. Every PPO checkpoint records 2,048 updates and 32,768 on-policy training days.
 
-The earlier five-method fleet-size evidence remains unchanged. The machine-readable summary contains all six methods, daily values, per-policy-seed means, and PPO training-day counts: [fleet_size_sensitivity_summary.json](../results/fleet_size_sensitivity_summary.json).
+The earlier five-method fleet-size evidence remains unchanged. The new machine-readable summary records the three PPO fleet sizes, daily values, per-policy-seed means, training budgets, validation counts, and comparisons with the earlier 512-day PPO results: [fleet_size_warm_ppo_2048_summary.json](../results/fleet_size_warm_ppo_2048_summary.json). The earlier six-method, 512-day PPO summary remains available as historical evidence in [fleet_size_sensitivity_summary.json](../results/fleet_size_sensitivity_summary.json).

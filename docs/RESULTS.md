@@ -2,7 +2,7 @@
 
 ## Current `model_1112` scorecard
 
-The current comparison extends Study 13 with the long-horizon PPO training in Study 16. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37. The current Offline-warm PPO row uses 2,048 PPO updates (32,768 fresh on-policy days per seed) after the sealed 768-day offline warm start, with no behavior-cloning constraint during the online phase.
+The current comparison extends Study 13 with the long-horizon PPO training in Study 16. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37. The current Warm-started PPO row uses 2,048 PPO updates (32,768 fresh on-policy days per seed) after the sealed 768-day offline warm start, with no behavior-cloning constraint during the online phase.
 
 | Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
@@ -11,13 +11,13 @@ The current comparison extends Study 13 with the long-horizon PPO training in St
 | **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
 | Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
 | **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Offline-warm PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
+| Warm-started PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
 
 The accompanying line chart compares the five non-PPO methods: [five-method demand sweep](assets/demand_sweep_0_80_five_methods.png). The complete machine-readable table is [demand_sweep_0_80_six_methods.csv](results/demand_sweep_0_80_six_methods.csv). Updated PPO protocol and training-length results: [Study 16](studies/16_long_horizon_offline_warm_ppo.md). Original 512-day protocol: [Study 13](studies/13_offline_warm_ppo.md).
 
 ## Fleet-size sensitivity of six methods
 
-Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. Values are mean discounted profit per day. NN ADP and Offline-warm PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the vehicle count; every PPO seed receives 512 on-policy training days after the matched offline warm start.
+Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. Values are mean discounted profit per day. NN ADP and Warm-started PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the vehicle count. Every PPO seed uses 768 offline days followed by 2,048 updates of 16 fresh on-policy days each, or 32,768 on-policy days per seed.
 
 | Method | Fleet size = 5 | Fleet size = 10 | Fleet size = 15 |
 |---|---:|---:|---:|
@@ -26,21 +26,21 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 | Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
 | Rollout ADP | 423.20 | 491.88 | **573.41** |
 | NN ADP | **436.09** | **502.62** | 555.62 |
-| Offline-warm PPO | 341.91 | 345.64 | 369.42 |
+| Warm-started PPO (2,048 updates) | 399.98 | 465.86 | 516.54 |
 
 Full protocol, fleet layouts, and machine-readable evidence: [Study 14](studies/14_fleet_size_sensitivity.md).
 
-## Fleet-10 Offline-warm PPO ablation
+## Fleet-10 Warm-started PPO ablation
 
-Study 15 separates the offline initialization and on-policy stages while holding the PPO architecture, hyperparameters, three policy seeds, and 128 baseline test days fixed.
+Study 15 separates the offline initialization and on-policy stages while holding the PPO architecture, hyperparameters, three policy seeds, 2,048-update online budget, and 128 baseline test days fixed.
 
-| Ablation | Offline days | On-policy PPO days | Mean discounted profit/day |
-|---|---:|---:|---:|
-| Warm-start only | 768 | 0 | 274.11 |
-| PPO only | 0 | 512 | -201.42 |
-| Offline-warm PPO | 768 | 512 | **345.64** |
+| Ablation | Offline days | PPO updates | On-policy PPO days | Mean discounted profit/day |
+|---|---:|---:|---:|---:|
+| Warm-start only | 768 | 0 | 0 | 274.11 |
+| PPO only | 0 | 2,048 | 32,768 | 439.03 |
+| Warm-started PPO | 768 | 2,048 | 32,768 | **465.86** |
 
-The full method improves on Warm-start only by 71.53 per day and on PPO only by 547.06 per day. Full protocol and machine-readable evidence: [Study 15](studies/15_offline_warm_ppo_ablation.md).
+Warm-started PPO improves on Warm-start only by 191.75 per day and on PPO only by 26.83 per day. Full protocol and machine-readable evidence: [Study 15](studies/15_offline_warm_ppo_ablation.md).
 
 > [!CAUTION]
 > The remaining sections preserve earlier experiment history. They use older scenarios, controller definitions, or test-day banks and are not the current `model_1112` scorecard. Do not compare their absolute values with Study 13.

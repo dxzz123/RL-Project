@@ -7,8 +7,8 @@ Numbers in different reports come from different test days, and sometimes from d
 | # | Date | Report | Question | Customer model |
 |---:|---|---|---|---|
 | 16 | Nov 17 | [Long-horizon Offline-warm PPO](16_long_horizon_offline_warm_ppo.md) | Does pure PPO continue improving through 2,048 updates, and how does the final policy perform from baseline through +80% demand? **Current scorecard.** | Historical model fitted before control; sealed offline warm start followed by 32,768 on-policy days per seed |
-| 15 | Nov 17 | [Offline-warm PPO ablation](15_offline_warm_ppo_ablation.md) | At fleet size 10, what do the offline warm start and 512 on-policy PPO days each contribute? | Historical model fitted before control; matched baseline test days |
-| 14 | Nov 17 | [Fleet-size sensitivity](14_fleet_size_sensitivity.md) | How do all six methods perform with 5, 10, and 15 vehicles under baseline demand? | Historical model fitted before control; NN ADP and Offline-warm PPO retrained when fleet-dependent network dimensions change |
+| 15 | Nov 17 | [Warm-started PPO ablation](15_offline_warm_ppo_ablation.md) | At fleet size 10 and 2,048 PPO updates, what do the offline warm start and on-policy training each contribute? | Historical model fitted before control; matched baseline test days and online budgets |
+| 14 | Nov 17 | [Fleet-size sensitivity](14_fleet_size_sensitivity.md) | How do all six methods perform with 5, 10, and 15 vehicles under baseline demand, including 2,048-update Warm-started PPO? | Historical model fitted before control; NN ADP and Warm-started PPO retrained when fleet-dependent network dimensions change |
 | 13 | Nov 12 | [Offline-warm PPO](13_offline_warm_ppo.md) | How do three heuristics, Rollout ADP, NN ADP, and offline-warm PPO compare on matched test days? Original 512-day scorecard, superseded by Study 16's longer PPO phase. | Historical model fitted before control; sealed offline trajectories for NN ADP and PPO warm start |
 | 12 | Oct 27 | [Historical model](12_historical_model.md) | How do ADP, PPO and inventory perform with estimated demand and choice, including private demand shifts? Historical scorecard. | Parameters estimated from historical quotes; private generating model has `b = 3` |
 | 11 | Oct 25 | [Learned pricing](11_learned_pricing.md) | How much do learned prices add to rollout ADP and the inventory rule with a known simulator? | `b = 3` |
@@ -54,6 +54,10 @@ Later studies reuse earlier trained models as fixed controls instead of retraini
         ▼
 16 Long-horizon PPO ──► resumes from the same offline warm-start checkpoints,
                          then runs 2,048 pure-PPO updates (32,768 online days per seed)
+        │
+        ├──► 15 compares Warm-start only, PPO only, and Warm-started PPO at 2,048 updates
+        │
+        └──► 14 applies the same 2,048-update Warm-started PPO protocol at fleet sizes 5, 10, and 15
 ```
 
 ## Scripts and saved results

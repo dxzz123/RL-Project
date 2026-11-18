@@ -40,7 +40,7 @@ The updated long-training protocol, learning-curve comparison, limitations, and 
 
 ### Fleet-size sensitivity
 
-Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. NN ADP and Offline-warm PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the number of vehicles. Every PPO seed receives the matched offline warm start followed by 512 on-policy training days.
+Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. NN ADP and Warm-started PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the number of vehicles. Every PPO seed uses the matched 768-day offline warm start followed by 2,048 PPO updates of 16 fresh on-policy days each (32,768 days per seed).
 
 | Method | Fleet size = 5 | Fleet size = 10 | Fleet size = 15 |
 |---|---:|---:|---:|
@@ -49,19 +49,19 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 | Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
 | Rollout ADP | 423.20 | 491.88 | **573.41** |
 | NN ADP | **436.09** | **502.62** | 555.62 |
-| Warm-started PPO | 341.91 | 465.86 | 369.42 |
+| Warm-started PPO (2,048 updates) | 399.98 | 465.86 | 516.54 |
 
 The exact fleet layouts, training protocol, validation counts, and limitations are in [Study 14](docs/studies/14_fleet_size_sensitivity.md).
 
 ### Warm-started PPO ablation at fleet size 10
 
-| Ablation | Offline days | On-policy PPO days | Mean discounted profit/day |
-|---|---:|---:|---:|
-| Warm-start only | 768 | 0 | 274.11 |
-| PPO only | 0 | 512 | -201.42 |
-| Warm-started PPO | 768 | 512 | **345.64** |
+| Ablation | Offline days | PPO updates | On-policy PPO days | Mean discounted profit/day |
+|---|---:|---:|---:|---:|
+| Warm-start only | 768 | 0 | 0 | 274.11 |
+| PPO only | 0 | 2,048 | 32,768 | 439.03 |
+| Warm-started PPO | 768 | 2,048 | 32,768 | **465.86** |
 
-The matched ablation shows that the offline stage supplies a viable initial pricing and dispatch policy, while 512 on-policy PPO days add another 71.53 profit per day after warm initialization. PPO from random initialization remains negative at the same 512-day budget. Full protocol and limitations: [Study 15](docs/studies/15_offline_warm_ppo_ablation.md).
+At the matched 2,048-update budget, Warm-started PPO improves on Warm-start only by 191.75 per day and on PPO only by 26.83 per day. PPO from random initialization becomes profitable with this much simulator experience, but the warm start retains a measurable advantage. Full protocol and limitations: [Study 15](docs/studies/15_offline_warm_ppo_ablation.md).
 
 ## Quick start
 
@@ -88,7 +88,9 @@ python experiments/run_candidate_adp_study.py --help
 |---|---|
 | [MODEL.md](docs/MODEL.md) | Customer choice, pricing, fleet state, batteries, and profit |
 | [METHODS.md](docs/METHODS.md) | How the controllers decide and what information they use |
-| [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md) | Current six-method scorecard with 2,048-update Offline-warm PPO |
+| [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md) | Current six-method scorecard with 2,048-update Warm-started PPO |
+| [Study 15](docs/studies/15_offline_warm_ppo_ablation.md) | Warm-start-only, PPO-only, and Warm-started PPO at 2,048 updates |
+| [Study 14](docs/studies/14_fleet_size_sensitivity.md) | Fleet-size sensitivity with 2,048-update Warm-started PPO |
 | [Study 13](docs/studies/13_offline_warm_ppo.md) | Original 512-day Offline-warm PPO benchmark |
 | [RESULTS.md](docs/RESULTS.md) | Current scorecard followed by clearly labeled historical studies |
 | [RUNNING.md](docs/RUNNING.md) | Commands for the maintained experiment workflows |
