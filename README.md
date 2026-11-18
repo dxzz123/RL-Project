@@ -14,8 +14,8 @@ Every demand level uses the same 128 frozen test days. Learned methods average p
 | Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
 | **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
 | Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
-| **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Offline-warm PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
+| **NN ADP** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
+| Warm-started PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
 
 Values are mean discounted profit per test day. The line chart compares the six methods.
 
@@ -28,7 +28,7 @@ Values are mean discounted profit per test day. The line chart compares the six 
 3. **Time-varying-inventory heuristic** uses a larger battery shadow value early in the day and a smaller value later.
 4. **Rollout ADP** scores feasible fleet plans by exact current profit plus Monte Carlo continuation value under the fitted historical market model.
 5. **NN ADP** trains a neural continuation-value estimator on a sealed mixed bank of 768 offline trajectory days, then uses it to rank feasible fleet plans.
-6. **Offline-warm PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 2,048 PPO updates with 16 fresh on-policy days per update (32,768 days per seed). The online phase uses pure PPO with no pricing- or dispatch-behavior-cloning constraint. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
+6. **Warm-started PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 2,048 PPO updates with 16 fresh on-policy days per update (32,768 days per seed). The online phase uses pure PPO with no pricing- or dispatch-behavior-cloning constraint. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
 
 ### Main findings
 
@@ -49,7 +49,7 @@ Study 14 evaluates all six methods under baseline demand on one shared 128-day t
 | Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
 | Rollout ADP | 423.20 | 491.88 | **573.41** |
 | NN ADP | **436.09** | **502.62** | 555.62 |
-| Offline-warm PPO | 341.91 | 345.64 | 369.42 |
+| Warm-started PPO | 341.91 | 465.86 | 369.42 |
 
 The exact fleet layouts, training protocol, validation counts, and limitations are in [Study 14](docs/studies/14_fleet_size_sensitivity.md).
 
@@ -59,7 +59,7 @@ The exact fleet layouts, training protocol, validation counts, and limitations a
 |---|---:|---:|---:|
 | Warm-start only | 768 | 0 | 274.11 |
 | PPO only | 0 | 512 | -201.42 |
-| Offline-warm PPO | 768 | 512 | **345.64** |
+| Warm-started PPO | 768 | 512 | **345.64** |
 
 The matched ablation shows that the offline stage supplies a viable initial pricing and dispatch policy, while 512 on-policy PPO days add another 71.53 profit per day after warm initialization. PPO from random initialization remains negative at the same 512-day budget. Full protocol and limitations: [Study 15](docs/studies/15_offline_warm_ppo_ablation.md).
 
