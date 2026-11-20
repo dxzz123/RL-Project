@@ -44,7 +44,7 @@ Because all methods use the same test days, the leading methods are compared wit
 
 ### Main conclusions
 
-- NN ADP and time-varying inventory form the leading group across the demand sweep. Their difference is distinguishable from zero only at +40% demand, where NN ADP leads.
+- NN ADP and time-varying inventory form the leading group across the demand sweep, with NN ADP showing a statistically distinguishable advantage only at the \(+40\%\) demand level.
 - NN ADP remains above Rollout ADP at every demand level, with paired intervals excluding zero throughout the sweep.
 - Warm-started PPO remains profitable through +80% demand after 2,048 updates, but its gap from the leading group widens as demand increases.
 - Inventory-aware dispatch is substantially more robust to demand growth than service-first dispatch, which deteriorates most sharply under high demand.
