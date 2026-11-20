@@ -30,7 +30,6 @@ The confidence intervals quantify variation across the frozen test days conditio
 
 ![Six-method demand sweep](docs/assets/Six-Method_Performance_across_Demand_Levels.png)
 
-
 ### Paired ranking summary
 
 Because all methods use the same test days, the leading methods are compared with paired bootstrap intervals. A paired interval containing zero does not establish a difference between the two methods.
