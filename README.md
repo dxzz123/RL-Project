@@ -5,6 +5,15 @@ This branch studies how a mobile-charging operator should set prices and dispatc
 `model_1112` now uses one six-method benchmark as its current scorecard. Older README tables described earlier scenarios and PPO variants and are not carried forward here.
 
 ## Current demand benchmark
+### The six methods
+
+1. **Service-first heuristic** greedily assigns vehicles to currently profitable requests and recharges only when energy is low.
+2. **Constant-inventory heuristic** maximizes current profit plus one constant shadow value for stored battery energy.
+3. **Time-varying-inventory heuristic** uses a larger battery shadow value early in the day and a smaller value later.
+4. **Rollout ADP** scores feasible fleet plans by exact current profit plus Monte Carlo continuation value under the fitted historical market model.
+5. **NN ADP** trains a neural continuation-value estimator on a sealed mixed bank of 768 offline trajectory days, then uses it to rank feasible fleet plans.
+6. **Warm-started PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 2,048 PPO updates with 16 fresh on-policy days per update (32,768 days per seed). The online phase uses pure PPO with no pricing- or dispatch-behavior-cloning constraint. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
+
 
 Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37 within each test day. Cells report mean discounted profit per day with a 95% percentile-bootstrap confidence interval in brackets. Each interval uses 100,000 resamples of the 128 day-level values.
 
@@ -21,14 +30,6 @@ The confidence intervals quantify variation across the frozen test days conditio
 
 ![Six-method demand sweep](docs/assets/Six-Method_Performance_across_Demand_Levels.png)
 
-### The six methods
-
-1. **Service-first heuristic** greedily assigns vehicles to currently profitable requests and recharges only when energy is low.
-2. **Constant-inventory heuristic** maximizes current profit plus one constant shadow value for stored battery energy.
-3. **Time-varying-inventory heuristic** uses a larger battery shadow value early in the day and a smaller value later.
-4. **Rollout ADP** scores feasible fleet plans by exact current profit plus Monte Carlo continuation value under the fitted historical market model.
-5. **NN ADP** trains a neural continuation-value estimator on a sealed mixed bank of 768 offline trajectory days, then uses it to rank feasible fleet plans.
-6. **Warm-started PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 2,048 PPO updates with 16 fresh on-policy days per update (32,768 days per seed). The online phase uses pure PPO with no pricing- or dispatch-behavior-cloning constraint. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
 
 ### Paired ranking summary
 
