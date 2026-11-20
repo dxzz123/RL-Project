@@ -2,5 +2,12 @@
 __pycache__/
 *.py[cod]
 *.egg-info/
-outputs/
+outputs/*
+!outputs/README.md
+!outputs/fleet_size_ppo_2048/
+!outputs/fleet_size_ppo_2048/**
+!outputs/ppo_ablation_2048/
+!outputs/ppo_ablation_2048/**
+!outputs/warm_started_ppo_2048/
+!outputs/warm_started_ppo_2048/**
 .DS_Store

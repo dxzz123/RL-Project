@@ -1,0 +1,913 @@
+{
+  "schema": "charging_env.fleet_size_warm_ppo_2048_evaluation.v1",
+  "model_1112_commit": "574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452",
+  "fleet_size": 5,
+  "policy_seed": 19,
+  "days": [
+    3501000001,
+    3501000003,
+    3501000005,
+    3501000007,
+    3501000009,
+    3501000011,
+    3501000013,
+    3501000015,
+    3501000017,
+    3501000019,
+    3501000021,
+    3501000023,
+    3501000025,
+    3501000027,
+    3501000029,
+    3501000031,
+    3501000033,
+    3501000035,
+    3501000037,
+    3501000039,
+    3501000041,
+    3501000043,
+    3501000045,
+    3501000047,
+    3501000049,
+    3501000051,
+    3501000053,
+    3501000055,
+    3501000057,
+    3501000059,
+    3501000061,
+    3501000063,
+    3501000065,
+    3501000067,
+    3501000069,
+    3501000071,
+    3501000073,
+    3501000075,
+    3501000077,
+    3501000079,
+    3501000081,
+    3501000083,
+    3501000085,
+    3501000087,
+    3501000089,
+    3501000091,
+    3501000093,
+    3501000095,
+    3501000097,
+    3501000099,
+    3501000101,
+    3501000103,
+    3501000105,
+    3501000107,
+    3501000109,
+    3501000111,
+    3501000113,
+    3501000115,
+    3501000117,
+    3501000119,
+    3501000121,
+    3501000123,
+    3501000125,
+    3501000127,
+    3501000129,
+    3501000131,
+    3501000133,
+    3501000135,
+    3501000137,
+    3501000139,
+    3501000141,
+    3501000143,
+    3501000145,
+    3501000147,
+    3501000149,
+    3501000151,
+    3501000153,
+    3501000155,
+    3501000157,
+    3501000159,
+    3501000161,
+    3501000163,
+    3501000165,
+    3501000167,
+    3501000169,
+    3501000171,
+    3501000173,
+    3501000175,
+    3501000177,
+    3501000179,
+    3501000181,
+    3501000183,
+    3501000185,
+    3501000187,
+    3501000189,
+    3501000191,
+    3501000193,
+    3501000195,
+    3501000197,
+    3501000199,
+    3501000201,
+    3501000203,
+    3501000205,
+    3501000207,
+    3501000209,
+    3501000211,
+    3501000213,
+    3501000215,
+    3501000217,
+    3501000219,
+    3501000221,
+    3501000223,
+    3501000225,
+    3501000227,
+    3501000229,
+    3501000231,
+    3501000233,
+    3501000235,
+    3501000237,
+    3501000239,
+    3501000241,
+    3501000243,
+    3501000245,
+    3501000247,
+    3501000249,
+    3501000251,
+    3501000253,
+    3501000255
+  ],
+  "episodes": [
+    {
+      "seed": 3501000001,
+      "discounted_profit": 437.56145561944186,
+      "served_requests": 527,
+      "total_requests": 1068
+    },
+    {
+      "seed": 3501000003,
+      "discounted_profit": 441.37162665887047,
+      "served_requests": 509,
+      "total_requests": 978
+    },
+    {
+      "seed": 3501000005,
+      "discounted_profit": 366.4313872490001,
+      "served_requests": 508,
+      "total_requests": 1025
+    },
+    {
+      "seed": 3501000007,
+      "discounted_profit": 447.906412500983,
+      "served_requests": 537,
+      "total_requests": 1039
+    },
+    {
+      "seed": 3501000009,
+      "discounted_profit": 399.600667434147,
+      "served_requests": 526,
+      "total_requests": 1069
+    },
+    {
+      "seed": 3501000011,
+      "discounted_profit": 406.35191161088295,
+      "served_requests": 533,
+      "total_requests": 1065
+    },
+    {
+      "seed": 3501000013,
+      "discounted_profit": 387.7803501908384,
+      "served_requests": 512,
+      "total_requests": 1055
+    },
+    {
+      "seed": 3501000015,
+      "discounted_profit": 324.4188245286189,
+      "served_requests": 530,
+      "total_requests": 1071
+    },
+    {
+      "seed": 3501000017,
+      "discounted_profit": 406.2749794619457,
+      "served_requests": 472,
+      "total_requests": 947
+    },
+    {
+      "seed": 3501000019,
+      "discounted_profit": 377.5153389119631,
+      "served_requests": 513,
+      "total_requests": 1020
+    },
+    {
+      "seed": 3501000021,
+      "discounted_profit": 413.5353815075453,
+      "served_requests": 527,
+      "total_requests": 1023
+    },
+    {
+      "seed": 3501000023,
+      "discounted_profit": 427.43100624191635,
+      "served_requests": 538,
+      "total_requests": 1036
+    },
+    {
+      "seed": 3501000025,
+      "discounted_profit": 362.5116720652935,
+      "served_requests": 509,
+      "total_requests": 1059
+    },
+    {
+      "seed": 3501000027,
+      "discounted_profit": 402.0122058768353,
+      "served_requests": 524,
+      "total_requests": 1019
+    },
+    {
+      "seed": 3501000029,
+      "discounted_profit": 349.9630648567895,
+      "served_requests": 487,
+      "total_requests": 1032
+    },
+    {
+      "seed": 3501000031,
+      "discounted_profit": 372.16855010241443,
+      "served_requests": 506,
+      "total_requests": 1035
+    },
+    {
+      "seed": 3501000033,
+      "discounted_profit": 432.99956479440044,
+      "served_requests": 529,
+      "total_requests": 1016
+    },
+    {
+      "seed": 3501000035,
+      "discounted_profit": 460.84097039783376,
+      "served_requests": 537,
+      "total_requests": 1052
+    },
+    {
+      "seed": 3501000037,
+      "discounted_profit": 441.2448872436458,
+      "served_requests": 522,
+      "total_requests": 985
+    },
+    {
+      "seed": 3501000039,
+      "discounted_profit": 367.8650659799614,
+      "served_requests": 534,
+      "total_requests": 1119
+    },
+    {
+      "seed": 3501000041,
+      "discounted_profit": 361.0884801432701,
+      "served_requests": 514,
+      "total_requests": 1033
+    },
+    {
+      "seed": 3501000043,
+      "discounted_profit": 428.9721350630193,
+      "served_requests": 517,
+      "total_requests": 1032
+    },
+    {
+      "seed": 3501000045,
+      "discounted_profit": 349.0065235833591,
+      "served_requests": 517,
+      "total_requests": 1066
+    },
+    {
+      "seed": 3501000047,
+      "discounted_profit": 487.66515778412656,
+      "served_requests": 535,
+      "total_requests": 988
+    },
+    {
+      "seed": 3501000049,
+      "discounted_profit": 440.0420884390689,
+      "served_requests": 522,
+      "total_requests": 1053
+    },
+    {
+      "seed": 3501000051,
+      "discounted_profit": 400.8634114748608,
+      "served_requests": 519,
+      "total_requests": 1035
+    },
+    {
+      "seed": 3501000053,
+      "discounted_profit": 409.158721191627,
+      "served_requests": 524,
+      "total_requests": 1020
+    },
+    {
+      "seed": 3501000055,
+      "discounted_profit": 380.4632953855284,
+      "served_requests": 547,
+      "total_requests": 1070
+    },
+    {
+      "seed": 3501000057,
+      "discounted_profit": 428.64701195678884,
+      "served_requests": 512,
+      "total_requests": 989
+    },
+    {
+      "seed": 3501000059,
+      "discounted_profit": 473.7829614226931,
+      "served_requests": 533,
+      "total_requests": 1035
+    },
+    {
+      "seed": 3501000061,
+      "discounted_profit": 378.19609186241803,
+      "served_requests": 518,
+      "total_requests": 1055
+    },
+    {
+      "seed": 3501000063,
+      "discounted_profit": 356.11909542526877,
+      "served_requests": 517,
+      "total_requests": 1037
+    },
+    {
+      "seed": 3501000065,
+      "discounted_profit": 252.73118598117438,
+      "served_requests": 507,
+      "total_requests": 1098
+    },
+    {
+      "seed": 3501000067,
+      "discounted_profit": 410.9815356100083,
+      "served_requests": 507,
+      "total_requests": 994
+    },
+    {
+      "seed": 3501000069,
+      "discounted_profit": 392.8341724095837,
+      "served_requests": 517,
+      "total_requests": 1026
+    },
+    {
+      "seed": 3501000071,
+      "discounted_profit": 423.2825157208932,
+      "served_requests": 494,
+      "total_requests": 1004
+    },
+    {
+      "seed": 3501000073,
+      "discounted_profit": 436.60626332439404,
+      "served_requests": 542,
+      "total_requests": 1086
+    },
+    {
+      "seed": 3501000075,
+      "discounted_profit": 403.57120131873637,
+      "served_requests": 539,
+      "total_requests": 1083
+    },
+    {
+      "seed": 3501000077,
+      "discounted_profit": 420.74623844320047,
+      "served_requests": 532,
+      "total_requests": 1021
+    },
+    {
+      "seed": 3501000079,
+      "discounted_profit": 383.43897544927086,
+      "served_requests": 490,
+      "total_requests": 1043
+    },
+    {
+      "seed": 3501000081,
+      "discounted_profit": 428.82909177810984,
+      "served_requests": 507,
+      "total_requests": 1007
+    },
+    {
+      "seed": 3501000083,
+      "discounted_profit": 422.0791231326522,
+      "served_requests": 512,
+      "total_requests": 1036
+    },
+    {
+      "seed": 3501000085,
+      "discounted_profit": 349.24409890776053,
+      "served_requests": 518,
+      "total_requests": 1102
+    },
+    {
+      "seed": 3501000087,
+      "discounted_profit": 411.074584265398,
+      "served_requests": 529,
+      "total_requests": 1075
+    },
+    {
+      "seed": 3501000089,
+      "discounted_profit": 438.1701789789651,
+      "served_requests": 546,
+      "total_requests": 1039
+    },
+    {
+      "seed": 3501000091,
+      "discounted_profit": 365.654675875217,
+      "served_requests": 533,
+      "total_requests": 1084
+    },
+    {
+      "seed": 3501000093,
+      "discounted_profit": 384.63221202309103,
+      "served_requests": 534,
+      "total_requests": 1091
+    },
+    {
+      "seed": 3501000095,
+      "discounted_profit": 415.9550379817541,
+      "served_requests": 525,
+      "total_requests": 983
+    },
+    {
+      "seed": 3501000097,
+      "discounted_profit": 339.1781976579453,
+      "served_requests": 504,
+      "total_requests": 1051
+    },
+    {
+      "seed": 3501000099,
+      "discounted_profit": 373.88813999646896,
+      "served_requests": 518,
+      "total_requests": 1075
+    },
+    {
+      "seed": 3501000101,
+      "discounted_profit": 415.92646782110467,
+      "served_requests": 517,
+      "total_requests": 1007
+    },
+    {
+      "seed": 3501000103,
+      "discounted_profit": 405.25769092512917,
+      "served_requests": 504,
+      "total_requests": 1001
+    },
+    {
+      "seed": 3501000105,
+      "discounted_profit": 394.02973769828594,
+      "served_requests": 534,
+      "total_requests": 1041
+    },
+    {
+      "seed": 3501000107,
+      "discounted_profit": 394.49803910497974,
+      "served_requests": 509,
+      "total_requests": 1010
+    },
+    {
+      "seed": 3501000109,
+      "discounted_profit": 442.6128406575656,
+      "served_requests": 515,
+      "total_requests": 998
+    },
+    {
+      "seed": 3501000111,
+      "discounted_profit": 398.2953770373957,
+      "served_requests": 516,
+      "total_requests": 966
+    },
+    {
+      "seed": 3501000113,
+      "discounted_profit": 363.0666675361582,
+      "served_requests": 519,
+      "total_requests": 1048
+    },
+    {
+      "seed": 3501000115,
+      "discounted_profit": 380.48498904658226,
+      "served_requests": 524,
+      "total_requests": 1055
+    },
+    {
+      "seed": 3501000117,
+      "discounted_profit": 431.39079403626226,
+      "served_requests": 509,
+      "total_requests": 950
+    },
+    {
+      "seed": 3501000119,
+      "discounted_profit": 447.4519595980427,
+      "served_requests": 512,
+      "total_requests": 975
+    },
+    {
+      "seed": 3501000121,
+      "discounted_profit": 402.1075546256207,
+      "served_requests": 545,
+      "total_requests": 1046
+    },
+    {
+      "seed": 3501000123,
+      "discounted_profit": 448.53439994197834,
+      "served_requests": 538,
+      "total_requests": 992
+    },
+    {
+      "seed": 3501000125,
+      "discounted_profit": 431.1541624991377,
+      "served_requests": 528,
+      "total_requests": 1036
+    },
+    {
+      "seed": 3501000127,
+      "discounted_profit": 439.1176873882816,
+      "served_requests": 528,
+      "total_requests": 1021
+    },
+    {
+      "seed": 3501000129,
+      "discounted_profit": 450.01295894423953,
+      "served_requests": 517,
+      "total_requests": 1051
+    },
+    {
+      "seed": 3501000131,
+      "discounted_profit": 454.3174515270382,
+      "served_requests": 510,
+      "total_requests": 1008
+    },
+    {
+      "seed": 3501000133,
+      "discounted_profit": 404.3285555871195,
+      "served_requests": 497,
+      "total_requests": 1042
+    },
+    {
+      "seed": 3501000135,
+      "discounted_profit": 383.9969982313737,
+      "served_requests": 511,
+      "total_requests": 1025
+    },
+    {
+      "seed": 3501000137,
+      "discounted_profit": 360.0988501723429,
+      "served_requests": 528,
+      "total_requests": 1055
+    },
+    {
+      "seed": 3501000139,
+      "discounted_profit": 460.0763875232541,
+      "served_requests": 531,
+      "total_requests": 1012
+    },
+    {
+      "seed": 3501000141,
+      "discounted_profit": 418.91067055410986,
+      "served_requests": 535,
+      "total_requests": 1028
+    },
+    {
+      "seed": 3501000143,
+      "discounted_profit": 385.6683613056474,
+      "served_requests": 537,
+      "total_requests": 1071
+    },
+    {
+      "seed": 3501000145,
+      "discounted_profit": 360.3153567909982,
+      "served_requests": 527,
+      "total_requests": 1104
+    },
+    {
+      "seed": 3501000147,
+      "discounted_profit": 361.74423872898245,
+      "served_requests": 501,
+      "total_requests": 1035
+    },
+    {
+      "seed": 3501000149,
+      "discounted_profit": 409.4594478025114,
+      "served_requests": 506,
+      "total_requests": 981
+    },
+    {
+      "seed": 3501000151,
+      "discounted_profit": 438.98292449687716,
+      "served_requests": 509,
+      "total_requests": 1008
+    },
+    {
+      "seed": 3501000153,
+      "discounted_profit": 420.4990340610351,
+      "served_requests": 506,
+      "total_requests": 1007
+    },
+    {
+      "seed": 3501000155,
+      "discounted_profit": 386.1622969704102,
+      "served_requests": 539,
+      "total_requests": 1090
+    },
+    {
+      "seed": 3501000157,
+      "discounted_profit": 433.36776045985283,
+      "served_requests": 510,
+      "total_requests": 1000
+    },
+    {
+      "seed": 3501000159,
+      "discounted_profit": 390.248602688497,
+      "served_requests": 510,
+      "total_requests": 998
+    },
+    {
+      "seed": 3501000161,
+      "discounted_profit": 411.7427474523751,
+      "served_requests": 515,
+      "total_requests": 1024
+    },
+    {
+      "seed": 3501000163,
+      "discounted_profit": 412.1216426696257,
+      "served_requests": 526,
+      "total_requests": 988
+    },
+    {
+      "seed": 3501000165,
+      "discounted_profit": 433.23570872265554,
+      "served_requests": 544,
+      "total_requests": 1038
+    },
+    {
+      "seed": 3501000167,
+      "discounted_profit": 341.2709022604059,
+      "served_requests": 517,
+      "total_requests": 1052
+    },
+    {
+      "seed": 3501000169,
+      "discounted_profit": 408.951931983537,
+      "served_requests": 526,
+      "total_requests": 983
+    },
+    {
+      "seed": 3501000171,
+      "discounted_profit": 428.52584515853005,
+      "served_requests": 527,
+      "total_requests": 1040
+    },
+    {
+      "seed": 3501000173,
+      "discounted_profit": 488.32767695135306,
+      "served_requests": 531,
+      "total_requests": 984
+    },
+    {
+      "seed": 3501000175,
+      "discounted_profit": 457.22173789074395,
+      "served_requests": 519,
+      "total_requests": 1018
+    },
+    {
+      "seed": 3501000177,
+      "discounted_profit": 343.368978190632,
+      "served_requests": 530,
+      "total_requests": 1069
+    },
+    {
+      "seed": 3501000179,
+      "discounted_profit": 405.68817681033926,
+      "served_requests": 541,
+      "total_requests": 1040
+    },
+    {
+      "seed": 3501000181,
+      "discounted_profit": 445.08174989785385,
+      "served_requests": 490,
+      "total_requests": 941
+    },
+    {
+      "seed": 3501000183,
+      "discounted_profit": 376.80985752733966,
+      "served_requests": 507,
+      "total_requests": 1021
+    },
+    {
+      "seed": 3501000185,
+      "discounted_profit": 330.7733782432665,
+      "served_requests": 509,
+      "total_requests": 1082
+    },
+    {
+      "seed": 3501000187,
+      "discounted_profit": 384.1868851442392,
+      "served_requests": 524,
+      "total_requests": 1072
+    },
+    {
+      "seed": 3501000189,
+      "discounted_profit": 376.207255150066,
+      "served_requests": 516,
+      "total_requests": 1056
+    },
+    {
+      "seed": 3501000191,
+      "discounted_profit": 416.90330696538444,
+      "served_requests": 516,
+      "total_requests": 1027
+    },
+    {
+      "seed": 3501000193,
+      "discounted_profit": 394.50894900666765,
+      "served_requests": 519,
+      "total_requests": 1065
+    },
+    {
+      "seed": 3501000195,
+      "discounted_profit": 474.5275543516136,
+      "served_requests": 537,
+      "total_requests": 1009
+    },
+    {
+      "seed": 3501000197,
+      "discounted_profit": 396.3227080429626,
+      "served_requests": 508,
+      "total_requests": 1048
+    },
+    {
+      "seed": 3501000199,
+      "discounted_profit": 467.10721008837277,
+      "served_requests": 551,
+      "total_requests": 1070
+    },
+    {
+      "seed": 3501000201,
+      "discounted_profit": 445.80560949687833,
+      "served_requests": 518,
+      "total_requests": 1057
+    },
+    {
+      "seed": 3501000203,
+      "discounted_profit": 384.9791624039426,
+      "served_requests": 501,
+      "total_requests": 1020
+    },
+    {
+      "seed": 3501000205,
+      "discounted_profit": 375.05378829628796,
+      "served_requests": 502,
+      "total_requests": 991
+    },
+    {
+      "seed": 3501000207,
+      "discounted_profit": 403.9631063535433,
+      "served_requests": 538,
+      "total_requests": 1069
+    },
+    {
+      "seed": 3501000209,
+      "discounted_profit": 421.9771106251693,
+      "served_requests": 516,
+      "total_requests": 1020
+    },
+    {
+      "seed": 3501000211,
+      "discounted_profit": 337.2016029127664,
+      "served_requests": 505,
+      "total_requests": 999
+    },
+    {
+      "seed": 3501000213,
+      "discounted_profit": 412.2889031606112,
+      "served_requests": 534,
+      "total_requests": 1063
+    },
+    {
+      "seed": 3501000215,
+      "discounted_profit": 338.5605637086847,
+      "served_requests": 513,
+      "total_requests": 1022
+    },
+    {
+      "seed": 3501000217,
+      "discounted_profit": 419.26803009743685,
+      "served_requests": 506,
+      "total_requests": 1019
+    },
+    {
+      "seed": 3501000219,
+      "discounted_profit": 399.29636062174853,
+      "served_requests": 510,
+      "total_requests": 1002
+    },
+    {
+      "seed": 3501000221,
+      "discounted_profit": 355.7580589735765,
+      "served_requests": 510,
+      "total_requests": 1042
+    },
+    {
+      "seed": 3501000223,
+      "discounted_profit": 358.0843712283724,
+      "served_requests": 528,
+      "total_requests": 1023
+    },
+    {
+      "seed": 3501000225,
+      "discounted_profit": 382.7098668661068,
+      "served_requests": 527,
+      "total_requests": 1047
+    },
+    {
+      "seed": 3501000227,
+      "discounted_profit": 293.3745836603525,
+      "served_requests": 534,
+      "total_requests": 1084
+    },
+    {
+      "seed": 3501000229,
+      "discounted_profit": 377.4432045679819,
+      "served_requests": 529,
+      "total_requests": 1039
+    },
+    {
+      "seed": 3501000231,
+      "discounted_profit": 461.12028043284516,
+      "served_requests": 519,
+      "total_requests": 1051
+    },
+    {
+      "seed": 3501000233,
+      "discounted_profit": 321.25311915291445,
+      "served_requests": 494,
+      "total_requests": 995
+    },
+    {
+      "seed": 3501000235,
+      "discounted_profit": 392.7721507745359,
+      "served_requests": 516,
+      "total_requests": 1010
+    },
+    {
+      "seed": 3501000237,
+      "discounted_profit": 408.1014432861622,
+      "served_requests": 511,
+      "total_requests": 1007
+    },
+    {
+      "seed": 3501000239,
+      "discounted_profit": 270.31339639441063,
+      "served_requests": 492,
+      "total_requests": 1010
+    },
+    {
+      "seed": 3501000241,
+      "discounted_profit": 331.65793741108826,
+      "served_requests": 529,
+      "total_requests": 1048
+    },
+    {
+      "seed": 3501000243,
+      "discounted_profit": 419.82665435391283,
+      "served_requests": 502,
+      "total_requests": 1009
+    },
+    {
+      "seed": 3501000245,
+      "discounted_profit": 386.82703685093554,
+      "served_requests": 507,
+      "total_requests": 1052
+    },
+    {
+      "seed": 3501000247,
+      "discounted_profit": 385.7208411443065,
+      "served_requests": 507,
+      "total_requests": 1051
+    },
+    {
+      "seed": 3501000249,
+      "discounted_profit": 445.1412157401267,
+      "served_requests": 513,
+      "total_requests": 1005
+    },
+    {
+      "seed": 3501000251,
+      "discounted_profit": 321.6521458153858,
+      "served_requests": 515,
+      "total_requests": 1056
+    },
+    {
+      "seed": 3501000253,
+      "discounted_profit": 338.33753416071795,
+      "served_requests": 518,
+      "total_requests": 1024
+    },
+    {
+      "seed": 3501000255,
+      "discounted_profit": 377.6795480313296,
+      "served_requests": 523,
+      "total_requests": 1018
+    }
+  ],
+  "mean_discounted_profit": 398.78013920789755,
+  "invalid_actions": 0,
+  "future_model_queries": 0,
+  "checkpoint_sha256": "d1805b70be3295583bce4d7e34761f23f63671941d1bffed2fe1a3d84a302526",
+  "offline_training_days": 768,
+  "ppo_updates": 2048,
+  "on_policy_training_days": 32768
+}

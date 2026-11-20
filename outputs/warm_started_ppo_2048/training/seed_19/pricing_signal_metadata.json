@@ -1,0 +1,18 @@
+{
+  "schema": "charging_env.pricing_signal_experiment.v1",
+  "model_1112_commit": "574ef42b1c3d5a4ce1dc9998a5670e89eb5fc452",
+  "fleet_size": 10,
+  "variant": "ppo_2048_updates",
+  "seed": 19,
+  "offline_training_days": 768,
+  "on_policy_training_days": 32768,
+  "variant_parameters": {
+    "ppo_updates": 2048,
+    "episodes_per_update": 16,
+    "auxiliary_actor_constraints": "none"
+  },
+  "source_warmstart_checkpoint_sha256": "4a36405e88551ce285108b757516ade699ef3aebcd8c1b08837d40e945b98f2d",
+  "checkpoint_sha256": "50b3c6127e727c854cfc3eff90f321b17c0a502dde5a6a7be4f6ebd01b1ba116",
+  "protocol_sha256": "e51470c84dfe35c3bd4d66832f48f0c1c7761fa7f7923218ac56e70f1f5905f0",
+  "final_mean_discounted_profit": 453.6809271155383
+}
