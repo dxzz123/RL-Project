@@ -30,11 +30,24 @@ The confidence intervals quantify variation across the frozen test days conditio
 5. **NN ADP** trains a neural continuation-value estimator on a sealed mixed bank of 768 offline trajectory days, then uses it to rank feasible fleet plans.
 6. **Warm-started PPO** uses the same sealed 768-day offline bank to initialize the pricing actor/critic and dispatch actor/critic. It then runs 2,048 PPO updates with 16 fresh on-policy days per update (32,768 days per seed). The online phase uses pure PPO with no pricing- or dispatch-behavior-cloning constraint. Realized final profit jointly updates pricing and dispatch through interleaved GAE with separate pre-choice and post-choice critics.
 
-### Main findings
+### Paired ranking summary
 
-- NN ADP has the highest mean profit at baseline, +40%, +60%, and +80% demand.
-- Time-varying inventory is highest at +20% demand and stays close to NN ADP across the sweep.
-- Extending Warm-started PPO from 32 to 2,048 updates raises baseline profit from 345.64 to 465.86 and keeps profit positive through +80% demand. It remains below NN ADP and the strongest inventory/rollout baselines at every level.
+Because all methods use the same test days, the leading methods are compared with paired bootstrap intervals. A paired interval containing zero does not establish a difference between the two methods.
+
+| Demand increase | Highest sample mean | Difference from runner-up [95% paired CI] | Interpretation |
+|---:|---|---:|---|
+| 0% | NN ADP | +0.28 [-3.09, 3.70] vs. time-varying inventory | No clear difference |
+| 20% | Time-varying inventory | +0.72 [-2.52, 3.89] vs. NN ADP | No clear difference |
+| 40% | NN ADP | +6.01 [2.12, 9.94] vs. time-varying inventory | NN ADP has a clear advantage |
+| 60% | NN ADP | +1.82 [-2.52, 6.19] vs. time-varying inventory | No clear difference |
+| 80% | NN ADP | +1.18 [-3.88, 6.05] vs. time-varying inventory | No clear difference |
+
+### Main conclusions
+
+- NN ADP and time-varying inventory form the leading group across the demand sweep. Their difference is distinguishable from zero only at +40% demand, where NN ADP leads.
+- NN ADP remains above Rollout ADP at every demand level, with paired intervals excluding zero throughout the sweep.
+- Warm-started PPO remains profitable through +80% demand after 2,048 updates, but its gap from the leading group widens as demand increases.
+- Inventory-aware dispatch is substantially more robust to demand growth than service-first dispatch, which deteriorates most sharply under high demand.
 
 The updated long-training protocol, learning-curve comparison, limitations, and artifact links are in [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md). The original 512-day benchmark remains documented in [Study 13](docs/studies/13_offline_warm_ppo.md). Machine-readable artifacts: [mean table](docs/results/demand_sweep_0_80_six_methods.csv) and [confidence intervals](docs/results/demand_sweep_0_80_six_methods_ci.csv).
 

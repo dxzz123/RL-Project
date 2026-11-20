@@ -59,7 +59,24 @@ Every demand level uses the same 128 frozen test days. Cells report mean discoun
 | **NN ADP (offline trajectories)** | **502.62 [495.64, 509.51]** | 444.44 [438.08, 450.82] | **361.30 [351.95, 370.68]** | **267.74 [257.00, 278.39]** | **164.99 [155.09, 174.97]** |
 | Warm-started PPO, 2,048 updates | 465.86 [459.25, 472.39] | 398.63 [391.84, 405.42] | 301.62 [292.51, 310.73] | 203.51 [192.12, 214.84] | 87.70 [77.41, 97.97] |
 
-The longer PPO phase raises the five demand-level values by 120.22, 115.64, 121.34, 123.09, and 126.52 relative to Study 13's 32-update PPO. Profit remains positive at +80% demand. NN ADP has the largest sample mean at baseline, +40%, +60%, and +80% demand, while time-varying inventory has the largest sample mean at +20%. Bold cells identify these sample means; statistical claims between methods require paired difference intervals rather than visual comparison of the marginal intervals. The long-horizon PPO remains below the strongest non-PPO method at each level.
+### Paired ranking summary
+
+Because all methods use the same test days, the leading methods are compared with paired bootstrap intervals. A paired interval containing zero does not establish a difference between the two methods.
+
+| Demand increase | Highest sample mean | Difference from runner-up [95% paired CI] | Interpretation |
+|---:|---|---:|---|
+| 0% | NN ADP | +0.28 [-3.09, 3.70] vs. time-varying inventory | No clear difference |
+| 20% | Time-varying inventory | +0.72 [-2.52, 3.89] vs. NN ADP | No clear difference |
+| 40% | NN ADP | +6.01 [2.12, 9.94] vs. time-varying inventory | NN ADP has a clear advantage |
+| 60% | NN ADP | +1.82 [-2.52, 6.19] vs. time-varying inventory | No clear difference |
+| 80% | NN ADP | +1.18 [-3.88, 6.05] vs. time-varying inventory | No clear difference |
+
+### Main conclusions
+
+- NN ADP and time-varying inventory form the leading group across the demand sweep. Their difference is distinguishable from zero only at +40% demand, where NN ADP leads.
+- NN ADP remains above Rollout ADP at every demand level, with paired intervals excluding zero throughout the sweep.
+- Extending Warm-started PPO from 32 to 2,048 updates raises the five demand-level means by 120.22, 115.64, 121.34, 123.09, and 126.52. Profit remains positive through +80% demand, but the gap from the leading group widens as demand increases.
+- Inventory-aware dispatch is substantially more robust to demand growth than service-first dispatch, which deteriorates most sharply under high demand.
 
 ## Evaluation checks
 
