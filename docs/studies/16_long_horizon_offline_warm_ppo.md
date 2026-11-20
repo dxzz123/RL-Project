@@ -48,18 +48,18 @@ The validation curves continue rising well beyond 512 updates. Their highest mon
 
 ## Updated demand benchmark
 
-Every demand level uses the same 128 frozen test days. The PPO row averages policy seeds 7, 19, and 37. The other five rows reuse their previously frozen Study 13 results.
+Every demand level uses the same 128 frozen test days. Cells report mean discounted profit per day with 95% percentile-bootstrap confidence intervals in brackets. Each interval uses 100,000 resamples of the 128 day-level values. The PPO, Rollout ADP, and NN ADP rows first average policy seeds 7, 19, and 37 within each test day. The other five rows reuse their previously frozen Study 13 policies.
 
 | Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
-| Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
-| Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
-| **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
-| Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
-| **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Offline-warm PPO, 2,048 updates | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
+| Service-first heuristic | 470.02 [463.34, 476.59] | 404.90 [397.72, 412.10] | 302.55 [292.44, 312.64] | 175.42 [163.46, 187.41] | 43.10 [32.84, 53.35] |
+| Constant-inventory heuristic | 457.04 [450.00, 463.99] | 400.83 [393.79, 408.00] | 316.29 [306.59, 325.86] | 216.69 [204.85, 228.43] | 100.82 [90.76, 110.91] |
+| **Time-varying-inventory heuristic** | 502.34 [495.27, 509.32] | **445.16 [438.49, 451.89]** | 355.29 [346.06, 364.46] | 265.91 [254.75, 277.04] | 163.81 [154.33, 173.34] |
+| Rollout ADP | 491.88 [485.54, 498.06] | 438.43 [432.23, 444.69] | 352.62 [343.65, 361.64] | 255.71 [244.52, 266.78] | 147.44 [138.06, 156.86] |
+| **NN ADP (offline trajectories)** | **502.62 [495.64, 509.51]** | 444.44 [438.08, 450.82] | **361.30 [351.95, 370.68]** | **267.74 [257.00, 278.39]** | **164.99 [155.09, 174.97]** |
+| Warm-started PPO, 2,048 updates | 465.86 [459.25, 472.39] | 398.63 [391.84, 405.42] | 301.62 [292.51, 310.73] | 203.51 [192.12, 214.84] | 87.70 [77.41, 97.97] |
 
-The longer PPO phase raises the five demand-level values by 120.22, 115.64, 121.34, 123.09, and 126.52 relative to Study 13's 32-update PPO. Profit remains positive at +80% demand. NN ADP leads at baseline, +40%, +60%, and +80% demand, while time-varying inventory leads at +20%. The long-horizon PPO remains below the strongest non-PPO method at each level.
+The longer PPO phase raises the five demand-level values by 120.22, 115.64, 121.34, 123.09, and 126.52 relative to Study 13's 32-update PPO. Profit remains positive at +80% demand. NN ADP has the largest sample mean at baseline, +40%, +60%, and +80% demand, while time-varying inventory has the largest sample mean at +20%. Bold cells identify these sample means; statistical claims between methods require paired difference intervals rather than visual comparison of the marginal intervals. The long-horizon PPO remains below the strongest non-PPO method at each level.
 
 ## Evaluation checks
 
@@ -73,6 +73,7 @@ The longer PPO phase raises the five demand-level values by 120.22, 115.64, 121.
 ## Artifacts
 
 - [Complete six-method result table](../results/demand_sweep_0_80_six_methods.csv)
+- [Six-method confidence intervals](../results/demand_sweep_0_80_six_methods_ci.csv)
 - [Compact PPO demand-sweep summary](../results/ppo_2048_demand_sweep_summary.json)
 - [Five non-PPO method chart](../assets/demand_sweep_0_80_five_methods.png)
 

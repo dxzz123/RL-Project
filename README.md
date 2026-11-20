@@ -6,18 +6,18 @@ This branch studies how a mobile-charging operator should set prices and dispatc
 
 ## Current demand benchmark
 
-Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37.
+Every demand level uses the same 128 frozen test days. Learned methods average policy seeds 7, 19, and 37 within each test day. Cells report mean discounted profit per day with a 95% percentile-bootstrap confidence interval in brackets. Each interval uses 100,000 resamples of the 128 day-level values.
 
 | Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
-| Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
-| Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
-| **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
-| Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
-| **NN ADP** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Warm-started PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
+| Service-first heuristic | 470.02 [463.34, 476.59] | 404.90 [397.72, 412.10] | 302.55 [292.44, 312.64] | 175.42 [163.46, 187.41] | 43.10 [32.84, 53.35] |
+| Constant-inventory heuristic | 457.04 [450.00, 463.99] | 400.83 [393.79, 408.00] | 316.29 [306.59, 325.86] | 216.69 [204.85, 228.43] | 100.82 [90.76, 110.91] |
+| **Time-varying-inventory heuristic** | 502.34 [495.27, 509.32] | **445.16 [438.49, 451.89]** | 355.29 [346.06, 364.46] | 265.91 [254.75, 277.04] | 163.81 [154.33, 173.34] |
+| Rollout ADP | 491.88 [485.54, 498.06] | 438.43 [432.23, 444.69] | 352.62 [343.65, 361.64] | 255.71 [244.52, 266.78] | 147.44 [138.06, 156.86] |
+| **NN ADP** | **502.62 [495.64, 509.51]** | 444.44 [438.08, 450.82] | **361.30 [351.95, 370.68]** | **267.74 [257.00, 278.39]** | **164.99 [155.09, 174.97]** |
+| Warm-started PPO | 465.86 [459.25, 472.39] | 398.63 [391.84, 405.42] | 301.62 [292.51, 310.73] | 203.51 [192.12, 214.84] | 87.70 [77.41, 97.97] |
 
-Values are mean discounted profit per test day. The line chart compares the six methods.
+The confidence intervals quantify variation across the frozen test days conditional on the fitted model, offline data, and trained policies. They do not include uncertainty from collecting another offline dataset or retraining the methods. Bold cells identify the largest sample mean, not necessarily a statistically significant advantage. The line chart compares the six methods.
 
 ![Six-method demand sweep](docs/assets/Six-Method_Performance_across_Demand_Levels.png)
 
@@ -36,7 +36,7 @@ Values are mean discounted profit per test day. The line chart compares the six 
 - Time-varying inventory is highest at +20% demand and stays close to NN ADP across the sweep.
 - Extending Warm-started PPO from 32 to 2,048 updates raises baseline profit from 345.64 to 465.86 and keeps profit positive through +80% demand. It remains below NN ADP and the strongest inventory/rollout baselines at every level.
 
-The updated long-training protocol, learning-curve comparison, limitations, and artifact links are in [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md). The original 512-day benchmark remains documented in [Study 13](docs/studies/13_offline_warm_ppo.md). The machine-readable table is [demand_sweep_0_80_six_methods.csv](docs/results/demand_sweep_0_80_six_methods.csv).
+The updated long-training protocol, learning-curve comparison, limitations, and artifact links are in [Study 16](docs/studies/16_long_horizon_offline_warm_ppo.md). The original 512-day benchmark remains documented in [Study 13](docs/studies/13_offline_warm_ppo.md). Machine-readable artifacts: [mean table](docs/results/demand_sweep_0_80_six_methods.csv) and [confidence intervals](docs/results/demand_sweep_0_80_six_methods_ci.csv).
 
 ### Fleet-size sensitivity
 

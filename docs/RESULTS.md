@@ -2,18 +2,18 @@
 
 ## Current `model_1112` scorecard
 
-The current comparison extends Study 13 with the long-horizon PPO training in Study 16. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Values are mean discounted daily profit; learned methods average policy seeds 7, 19, and 37. The current Warm-started PPO row uses 2,048 PPO updates (32,768 fresh on-policy days per seed) after the sealed 768-day offline warm start, with no behavior-cloning constraint during the online phase.
+The current comparison extends Study 13 with the long-horizon PPO training in Study 16. It evaluates the same six methods at five demand levels using the same 128 frozen test days. Cells report mean discounted daily profit with 95% percentile-bootstrap confidence intervals in brackets. Each interval uses 100,000 resamples of the 128 day-level values; learned methods first average policy seeds 7, 19, and 37 within each test day. The current Warm-started PPO row uses 2,048 PPO updates (32,768 fresh on-policy days per seed) after the sealed 768-day offline warm start, with no behavior-cloning constraint during the online phase.
 
 | Method | Baseline | 20% higher demand | 40% higher demand | 60% higher demand | 80% higher demand |
 |---|---:|---:|---:|---:|---:|
-| Service-first heuristic | 470.02 | 404.90 | 302.55 | 175.42 | 43.10 |
-| Constant-inventory heuristic | 457.04 | 400.83 | 316.29 | 216.69 | 100.82 |
-| **Time-varying-inventory heuristic** | 502.34 | **445.16** | 355.29 | 265.91 | 163.81 |
-| Rollout ADP | 491.88 | 438.43 | 352.62 | 255.71 | 147.44 |
-| **NN ADP (offline trajectories)** | **502.62** | 444.44 | **361.30** | **267.74** | **164.99** |
-| Warm-started PPO | 465.86 | 398.63 | 301.62 | 203.51 | 87.70 |
+| Service-first heuristic | 470.02 [463.34, 476.59] | 404.90 [397.72, 412.10] | 302.55 [292.44, 312.64] | 175.42 [163.46, 187.41] | 43.10 [32.84, 53.35] |
+| Constant-inventory heuristic | 457.04 [450.00, 463.99] | 400.83 [393.79, 408.00] | 316.29 [306.59, 325.86] | 216.69 [204.85, 228.43] | 100.82 [90.76, 110.91] |
+| **Time-varying-inventory heuristic** | 502.34 [495.27, 509.32] | **445.16 [438.49, 451.89]** | 355.29 [346.06, 364.46] | 265.91 [254.75, 277.04] | 163.81 [154.33, 173.34] |
+| Rollout ADP | 491.88 [485.54, 498.06] | 438.43 [432.23, 444.69] | 352.62 [343.65, 361.64] | 255.71 [244.52, 266.78] | 147.44 [138.06, 156.86] |
+| **NN ADP (offline trajectories)** | **502.62 [495.64, 509.51]** | 444.44 [438.08, 450.82] | **361.30 [351.95, 370.68]** | **267.74 [257.00, 278.39]** | **164.99 [155.09, 174.97]** |
+| Warm-started PPO | 465.86 [459.25, 472.39] | 398.63 [391.84, 405.42] | 301.62 [292.51, 310.73] | 203.51 [192.12, 214.84] | 87.70 [77.41, 97.97] |
 
-The accompanying line chart compares the five non-PPO methods: [five-method demand sweep](assets/demand_sweep_0_80_five_methods.png). The complete machine-readable table is [demand_sweep_0_80_six_methods.csv](results/demand_sweep_0_80_six_methods.csv). Updated PPO protocol and training-length results: [Study 16](studies/16_long_horizon_offline_warm_ppo.md). Original 512-day protocol: [Study 13](studies/13_offline_warm_ppo.md).
+The intervals describe test-day variation conditional on the fitted model, offline data, and trained policies; they do not include retraining or offline-dataset uncertainty. Bold cells mark the largest sample mean and do not by themselves establish a significant pairwise difference. Machine-readable artifacts: [mean table](results/demand_sweep_0_80_six_methods.csv) and [confidence intervals](results/demand_sweep_0_80_six_methods_ci.csv). Updated PPO protocol and training-length results: [Study 16](studies/16_long_horizon_offline_warm_ppo.md). Original 512-day protocol: [Study 13](studies/13_offline_warm_ppo.md).
 
 ## Fleet-size sensitivity of six methods
 
