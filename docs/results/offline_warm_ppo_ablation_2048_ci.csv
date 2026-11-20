@@ -1,0 +1,7 @@
+estimate,contrast,offline_days,ppo_updates,on_policy_ppo_days,mean_discounted_profit_per_day,ci_95_lower,ci_95_upper,test_days,bootstrap_resamples,aggregation
+marginal,Warm-start only,768,0,0,274.11,266.56,281.67,128,100000,policy seeds averaged within day
+marginal,PPO only,0,2048,32768,439.03,432.33,445.70,128,100000,policy seeds averaged within day
+marginal,Warm-started PPO,768,2048,32768,465.86,459.25,472.39,128,100000,policy seeds averaged within day
+paired difference,Warm-started PPO - Warm-start only,,,,191.75,185.04,198.34,128,100000,paired by test day
+paired difference,Warm-started PPO - PPO only,,,,26.83,23.68,30.02,128,100000,paired by test day
+paired difference,PPO only - Warm-start only,,,,164.91,158.31,171.39,128,100000,paired by test day

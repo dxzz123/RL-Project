@@ -1,0 +1,19 @@
+method,fleet_size,mean_discounted_profit_per_day,ci_95_lower,ci_95_upper,test_days,bootstrap_resamples,aggregation
+Service-first heuristic,5,347.28,339.92,354.58,128,100000,single policy
+Service-first heuristic,10,470.02,463.34,476.59,128,100000,single policy
+Service-first heuristic,15,562.37,556.38,568.34,128,100000,single policy
+Constant-inventory heuristic,5,386.90,379.30,394.36,128,100000,single policy
+Constant-inventory heuristic,10,457.04,450.00,463.99,128,100000,single policy
+Constant-inventory heuristic,15,540.32,533.58,546.96,128,100000,single policy
+Time-varying-inventory heuristic,5,431.97,425.13,438.71,128,100000,single policy
+Time-varying-inventory heuristic,10,502.34,495.27,509.32,128,100000,single policy
+Time-varying-inventory heuristic,15,567.24,560.34,574.12,128,100000,single policy
+Rollout ADP,5,423.20,416.79,429.56,128,100000,policy seeds averaged within day
+Rollout ADP,10,491.88,485.54,498.06,128,100000,policy seeds averaged within day
+Rollout ADP,15,573.41,567.13,579.55,128,100000,policy seeds averaged within day
+NN ADP,5,436.09,429.72,442.33,128,100000,policy seeds averaged within day
+NN ADP,10,502.62,495.64,509.51,128,100000,policy seeds averaged within day
+NN ADP,15,555.62,548.96,562.27,128,100000,policy seeds averaged within day
+Warm-started PPO,5,399.98,393.22,406.60,128,100000,policy seeds averaged within day
+Warm-started PPO,10,465.86,459.25,472.39,128,100000,policy seeds averaged within day
+Warm-started PPO,15,516.54,509.81,523.27,128,100000,policy seeds averaged within day

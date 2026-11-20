@@ -17,30 +17,30 @@ The intervals describe test-day variation conditional on the fitted model, offli
 
 ## Fleet-size sensitivity of six methods
 
-Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. Values are mean discounted profit per day. NN ADP and Warm-started PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the vehicle count. Every PPO seed uses 768 offline days followed by 2,048 updates of 16 fresh on-policy days each, or 32,768 on-policy days per seed.
+Study 14 evaluates all six methods under baseline demand on one shared 128-day test bank. Values are mean discounted profit per day with a day-level 95% bootstrap CI. NN ADP and Warm-started PPO are retrained for fleet sizes 5 and 15 because their network dimensions depend on the vehicle count. Every PPO seed uses 768 offline days followed by 2,048 updates of 16 fresh on-policy days each, or 32,768 on-policy days per seed.
 
 | Method | Fleet size = 5 | Fleet size = 10 | Fleet size = 15 |
 |---|---:|---:|---:|
-| Service-first heuristic | 347.28 | 470.02 | 562.37 |
-| Constant-inventory heuristic | 386.90 | 457.04 | 540.32 |
-| Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
-| Rollout ADP | 423.20 | 491.88 | **573.41** |
-| NN ADP | **436.09** | **502.62** | 555.62 |
-| Warm-started PPO (2,048 updates) | 399.98 | 465.86 | 516.54 |
+| Service-first heuristic | 347.28 [339.92, 354.58] | 470.02 [463.34, 476.59] | 562.37 [556.38, 568.34] |
+| Constant-inventory heuristic | 386.90 [379.30, 394.36] | 457.04 [450.00, 463.99] | 540.32 [533.58, 546.96] |
+| Time-varying-inventory heuristic | 431.97 [425.13, 438.71] | 502.34 [495.27, 509.32] | 567.24 [560.34, 574.12] |
+| Rollout ADP | 423.20 [416.79, 429.56] | 491.88 [485.54, 498.06] | **573.41 [567.13, 579.55]** |
+| NN ADP | **436.09 [429.72, 442.33]** | **502.62 [495.64, 509.51]** | 555.62 [548.96, 562.27] |
+| Warm-started PPO (2,048 updates) | 399.98 [393.22, 406.60] | 465.86 [459.25, 472.39] | 516.54 [509.81, 523.27] |
 
-Full protocol, fleet layouts, and machine-readable evidence: [Study 14](studies/14_fleet_size_sensitivity.md).
+Intervals use 100,000 percentile-bootstrap resamples of the 128 shared test days; multi-seed methods are first averaged within day. Full protocol, fleet layouts, and machine-readable evidence: [Study 14](studies/14_fleet_size_sensitivity.md).
 
 ## Fleet-10 Warm-started PPO ablation
 
 Study 15 separates the offline initialization and on-policy stages while holding the PPO architecture, hyperparameters, three policy seeds, 2,048-update online budget, and 128 baseline test days fixed.
 
-| Ablation | Offline days | PPO updates | On-policy PPO days | Mean discounted profit/day |
+| Ablation | Offline days | PPO updates | On-policy PPO days | Mean discounted profit/day [95% CI] |
 |---|---:|---:|---:|---:|
-| Warm-start only | 768 | 0 | 0 | 274.11 |
-| PPO only | 0 | 2,048 | 32,768 | 439.03 |
-| Warm-started PPO | 768 | 2,048 | 32,768 | **465.86** |
+| Warm-start only | 768 | 0 | 0 | 274.11 [266.56, 281.67] |
+| PPO only | 0 | 2,048 | 32,768 | 439.03 [432.33, 445.70] |
+| Warm-started PPO | 768 | 2,048 | 32,768 | **465.86 [459.25, 472.39]** |
 
-Warm-started PPO improves on Warm-start only by 191.75 per day and on PPO only by 26.83 per day. Full protocol and machine-readable evidence: [Study 15](studies/15_offline_warm_ppo_ablation.md).
+Warm-started PPO improves on Warm-start only by 191.75 [185.04, 198.34] per day and on PPO only by 26.83 [23.68, 30.02] per day. These are paired 95% bootstrap CIs over the same test days. Full protocol and machine-readable evidence: [Study 15](studies/15_offline_warm_ppo_ablation.md).
 
 > [!CAUTION]
 > The remaining sections preserve earlier experiment history. They use older scenarios, controller definitions, or test-day banks and are not the current `model_1112` scorecard. Do not compare their absolute values with Study 13.

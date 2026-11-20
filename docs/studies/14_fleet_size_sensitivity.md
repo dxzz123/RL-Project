@@ -25,22 +25,22 @@ This design changes the number and initial deployment of vehicles together. It d
 
 ## Results
 
-Values are mean discounted profit per 12-hour test day.
+Values are mean discounted profit per 12-hour test day with 95% confidence intervals in brackets. The intervals use 100,000 percentile-bootstrap resamples of the 128 shared test days. For methods with three policy seeds, the seed results are first averaged within each test day and the resulting 128 values are then resampled.
 
 | Method | Fleet size = 5 | Fleet size = 10 | Fleet size = 15 |
 |---|---:|---:|---:|
-| Service-first heuristic | 347.28 | 470.02 | 562.37 |
-| Constant-inventory heuristic | 386.90 | 457.04 | 540.32 |
-| Time-varying-inventory heuristic | 431.97 | 502.34 | 567.24 |
-| Rollout ADP | 423.20 | 491.88 | **573.41** |
-| NN ADP | **436.09** | **502.62** | 555.62 |
-| Warm-started PPO (2,048 updates) | 399.98 | 465.86 | 516.54 |
+| Service-first heuristic | 347.28 [339.92, 354.58] | 470.02 [463.34, 476.59] | 562.37 [556.38, 568.34] |
+| Constant-inventory heuristic | 386.90 [379.30, 394.36] | 457.04 [450.00, 463.99] | 540.32 [533.58, 546.96] |
+| Time-varying-inventory heuristic | 431.97 [425.13, 438.71] | 502.34 [495.27, 509.32] | 567.24 [560.34, 574.12] |
+| Rollout ADP | 423.20 [416.79, 429.56] | 491.88 [485.54, 498.06] | **573.41 [567.13, 579.55]** |
+| NN ADP | **436.09 [429.72, 442.33]** | **502.62 [495.64, 509.51]** | 555.62 [548.96, 562.27] |
+| Warm-started PPO (2,048 updates) | 399.98 [393.22, 406.60] | 465.86 [459.25, 472.39] | 516.54 [509.81, 523.27] |
 
 For Warm-started PPO, the mean discounted profit per vehicle is 80.00, 46.59, and 34.44 at fleet sizes 5, 10, and 15, respectively.
 
 ## Findings
 
-- NN ADP has the highest mean at fleet sizes 5 and 10, while Rollout ADP has the highest mean at fleet size 15.
+- NN ADP has the highest sample mean at fleet sizes 5 and 10, while Rollout ADP has the highest sample mean at fleet size 15. Marginal interval overlap is not a paired significance test.
 - The 2,048-update Warm-started PPO result improves on the earlier 512-day result by 58.07, 120.22, and 147.12 per day at fleet sizes 5, 10, and 15, respectively.
 - Warm-started PPO total profit increases from 399.98 at fleet size 5 to 465.86 at fleet size 10 and 516.54 at fleet size 15. Its incremental gain is smaller from 10 to 15 vehicles than from 5 to 10, and its profit per vehicle declines as the fleet grows.
 - Warm-started PPO remains below the strongest non-PPO method at every tested fleet size. This is a result for the fixed architecture, hyperparameters, deployment layouts, and training budget used here, not a general ordering of the methods.
@@ -49,4 +49,6 @@ For Warm-started PPO, the mean discounted profit per vehicle is 80.00, 46.59, an
 
 The PPO addition evaluates 9 policy checkpoints over 128 shared test days, for 1,152 PPO policy-seed test episodes. All completed with zero invalid actions and zero future-information queries. Every PPO checkpoint records 2,048 updates and 32,768 on-policy training days.
 
-The earlier five-method fleet-size evidence remains unchanged. The new machine-readable summary records the three PPO fleet sizes, daily values, per-policy-seed means, training budgets, validation counts, and comparisons with the earlier 512-day PPO results: [fleet_size_warm_ppo_2048_summary.json](../results/fleet_size_warm_ppo_2048_summary.json). The earlier six-method, 512-day PPO summary remains available as historical evidence in [fleet_size_sensitivity_summary.json](../results/fleet_size_sensitivity_summary.json).
+The intervals quantify test-day variation conditional on the fixed simulator setup, offline data, and trained policies. They do not include uncertainty from collecting a different offline bank or retraining the policies.
+
+The machine-readable CI table is [fleet_size_six_methods_ci.csv](../results/fleet_size_six_methods_ci.csv). The detailed PPO summary records the three PPO fleet sizes, daily values, per-policy-seed means, training budgets, validation counts, and comparisons with the earlier 512-day PPO results: [fleet_size_warm_ppo_2048_summary.json](../results/fleet_size_warm_ppo_2048_summary.json). The underlying five-method daily values and earlier 512-day PPO evidence remain in [fleet_size_sensitivity_summary.json](../results/fleet_size_sensitivity_summary.json).
